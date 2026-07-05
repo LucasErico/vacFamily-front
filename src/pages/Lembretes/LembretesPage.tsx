@@ -78,15 +78,16 @@ export function LembretesPage() {
           opacity: l.status === 'cancelado' ? 0.45 : 1,
         }}
       >
-        <div style={{ flexShrink: 0, width: 44, textAlign: 'center', paddingTop: 2 }}>
+        {/* Coluna da data — largura fixa suficiente para DD/MM/AAAA */}
+        <div style={{ flexShrink: 0, minWidth: 64, textAlign: 'center', paddingTop: 2 }}>
           <p style={{
-            fontSize: 'var(--text-xs)', fontWeight: 700,
+            fontSize: 'var(--text-xs)', fontWeight: 700, whiteSpace: 'nowrap',
             color: atrasado ? 'var(--color-error)' : l.status === 'enviado' ? 'var(--color-success)' : 'var(--color-primary)',
           }}>
             {formatarData(l.dataLembrete)}
           </p>
           {atrasado && (
-            <p style={{ fontSize: 10, color: 'var(--color-error)', fontWeight: 600 }}>Atrasado</p>
+            <p style={{ fontSize: 10, color: 'var(--color-error)', fontWeight: 600, whiteSpace: 'nowrap' }}>Atrasado</p>
           )}
         </div>
 
