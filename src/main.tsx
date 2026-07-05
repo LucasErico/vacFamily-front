@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { RouterProvider } from 'react-router-dom'
 import { AuthProvider } from '@/contexts/AuthContext'
+import { AccessibilityProvider } from '@/contexts/AccessibilityContext'
 import { MembrosProvider } from '@/contexts/MembrosContext'
 import { VacinasProvider } from '@/contexts/VacinasContext'
 import { LembretesProvider } from '@/contexts/LembretesContext'
@@ -13,14 +14,16 @@ document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'ligh
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <AuthProvider>
-      <MembrosProvider>
-        <VacinasProvider>
-          <LembretesProvider>
-            <RouterProvider router={router} />
-          </LembretesProvider>
-        </VacinasProvider>
-      </MembrosProvider>
-    </AuthProvider>
+    <AccessibilityProvider>
+      <AuthProvider>
+        <MembrosProvider>
+          <VacinasProvider>
+            <LembretesProvider>
+              <RouterProvider router={router} />
+            </LembretesProvider>
+          </VacinasProvider>
+        </MembrosProvider>
+      </AuthProvider>
+    </AccessibilityProvider>
   </StrictMode>
 )
