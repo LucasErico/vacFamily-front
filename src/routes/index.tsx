@@ -4,6 +4,7 @@ import { RequireAuth } from '@/components/auth/RequireAuth'
 import { DashboardPage } from '@/pages/Dashboard/DashboardPage'
 import { MembrosPage } from '@/pages/Membros/MembrosPage'
 import { MembroDetailPage } from '@/pages/Membros/MembroDetailPage'
+import { MembroFormPage } from '@/pages/Membros/MembroFormPage'
 import { VacinasPage } from '@/pages/Vacinas/VacinasPage'
 import { RegistrarVacinaPage } from '@/pages/Vacinas/RegistrarVacinaPage'
 import { LembretesPage } from '@/pages/Lembretes/LembretesPage'
@@ -22,16 +23,18 @@ export const router = createBrowserRouter([
     path: '/',
     element: <RequireAuth><AppShell /></RequireAuth>,
     children: [
-      { index: true,                element: <DashboardPage /> },
-      { path: 'membros',            element: <MembrosPage /> },
-      { path: 'membros/:id',        element: <MembroDetailPage /> },
-      { path: 'vacinas',            element: <VacinasPage /> },
-      { path: 'vacinas/registrar',  element: <RegistrarVacinaPage /> },
-      { path: 'lembretes',          element: <LembretesPage /> },
-      { path: 'conteudo',           element: <ConteudoPage /> },
-      { path: 'conteudo/:id',       element: <ConteudoDetailPage /> },
-      { path: 'assistente',         element: <AssistentePage /> },
-      { path: 'configuracoes',      element: <ConfiguracoesPage /> },
+      { index: true,                    element: <DashboardPage /> },
+      { path: 'membros',                element: <MembrosPage /> },
+      { path: 'membros/novo',           element: <MembroFormPage /> },
+      { path: 'membros/:id',            element: <MembroDetailPage /> },
+      { path: 'membros/:id/editar',     element: <MembroFormPage /> },
+      { path: 'vacinas',                element: <VacinasPage /> },
+      { path: 'vacinas/registrar',      element: <RegistrarVacinaPage /> },
+      { path: 'lembretes',              element: <LembretesPage /> },
+      { path: 'conteudo',               element: <ConteudoPage /> },
+      { path: 'conteudo/:id',           element: <ConteudoDetailPage /> },
+      { path: 'assistente',             element: <AssistentePage /> },
+      { path: 'configuracoes',          element: <ConfiguracoesPage /> },
     ],
   },
 ])

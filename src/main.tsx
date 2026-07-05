@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { RouterProvider } from 'react-router-dom'
 import { AuthProvider } from '@/contexts/AuthContext'
+import { MembrosProvider } from '@/contexts/MembrosContext'
 import { router } from '@/routes'
 import '@/styles/globals.css'
 
@@ -11,7 +12,9 @@ document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'ligh
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <AuthProvider>
-      <RouterProvider router={router} />
+      <MembrosProvider>
+        <RouterProvider router={router} />
+      </MembrosProvider>
     </AuthProvider>
   </StrictMode>
 )
