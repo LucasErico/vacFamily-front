@@ -5,17 +5,15 @@ import { Sidebar } from './Sidebar'
 
 export function AppShell() {
   return (
-    <div className="flex min-h-dvh bg-[var(--color-bg)]">
-      <aside className="hidden md:flex md:flex-col md:w-[var(--sidebar-width)] md:fixed md:inset-y-0 md:border-r md:border-[var(--color-border)] bg-[var(--color-surface)] z-20">
-        <Sidebar />
-      </aside>
-      <div className="flex flex-col flex-1 md:ml-[var(--sidebar-width)]">
+    <div className="app-shell">
+      <Sidebar />
+      <div className="app-main">
         <TopBar />
-        <main id="main-content" className="flex-1 px-4 pt-4 pb-safe overflow-y-auto" role="main">
+        <main id="main-content" className="page-content" role="main">
           <Outlet />
         </main>
       </div>
-      <nav className="md:hidden fixed bottom-0 inset-x-0 h-[var(--nav-bottom-height)] bg-[var(--color-surface)] border-t border-[var(--color-border)] z-20" aria-label="Navegação principal">
+      <nav className="bottom-nav" aria-label="Navegação principal">
         <BottomNav />
       </nav>
     </div>

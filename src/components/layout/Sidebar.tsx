@@ -2,55 +2,51 @@ import { NavLink } from 'react-router-dom'
 import { Home, Users, Syringe, Bell, BookOpen, MessageCircle, Settings } from 'lucide-react'
 
 const navItems = [
-  { to: '/',           icon: Home,           label: 'Início' },
-  { to: '/membros',    icon: Users,           label: 'Membros' },
-  { to: '/vacinas',    icon: Syringe,         label: 'Vacinas' },
-  { to: '/lembretes',  icon: Bell,            label: 'Lembretes' },
-  { to: '/conteudo',   icon: BookOpen,        label: 'Conteúdo' },
-  { to: '/assistente', icon: MessageCircle,   label: 'Assistente' },
+  { to: '/',           icon: Home,          label: 'Início' },
+  { to: '/membros',    icon: Users,          label: 'Membros' },
+  { to: '/vacinas',    icon: Syringe,        label: 'Vacinas' },
+  { to: '/lembretes',  icon: Bell,           label: 'Lembretes' },
+  { to: '/conteudo',   icon: BookOpen,       label: 'Conteúdo' },
+  { to: '/assistente', icon: MessageCircle,  label: 'Assistente' },
 ]
 
 export function Sidebar() {
   return (
-    <div className="flex flex-col h-full py-6 px-3">
-      <div className="px-3 mb-8">
-        <span className="font-display font-bold text-lg text-[var(--color-primary)]">VacFamily</span>
+    <aside className="sidebar" aria-label="Menu lateral">
+      {/* Logo */}
+      <div className="sidebar-logo">
+        <div className="sidebar-logo-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M9 12h6m-3-3v6"/>
+            <circle cx="12" cy="12" r="9"/>
+          </svg>
+        </div>
+        <span className="sidebar-logo-text">VacFamily</span>
       </div>
-      <nav aria-label="Menu principal" className="flex-1">
-        <ul className="space-y-1" role="list">
-          {navItems.map(({ to, icon: Icon, label }) => (
-            <li key={to}>
-              <NavLink
-                to={to}
-                end={to === '/'}
-                className={({ isActive }) =>
-                  `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                    isActive
-                      ? 'bg-[var(--color-primary-highlight)] text-[var(--color-primary)]'
-                      : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-offset)] hover:text-[var(--color-text)]'
-                  }`
-                }
-              >
-                <Icon size={18} aria-hidden="true" />
-                {label}
-              </NavLink>
-            </li>
-          ))}
-        </ul>
+
+      {/* Links */}
+      <nav className="sidebar-nav" aria-label="Menu principal">
+        {navItems.map(({ to, icon: Icon, label }) => (
+          <NavLink
+            key={to}
+            to={to}
+            end={to === '/'}
+            className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}
+          >
+            <Icon size={18} aria-hidden="true" />
+            {label}
+          </NavLink>
+        ))}
       </nav>
+
+      {/* Configurações */}
       <NavLink
         to="/configuracoes"
-        className={({ isActive }) =>
-          `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-            isActive
-              ? 'bg-[var(--color-primary-highlight)] text-[var(--color-primary)]'
-              : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface-offset)] hover:text-[var(--color-text)]'
-          }`
-        }
+        className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}
       >
         <Settings size={18} aria-hidden="true" />
         Configurações
       </NavLink>
-    </div>
+    </aside>
   )
 }
