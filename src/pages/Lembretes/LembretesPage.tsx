@@ -30,18 +30,16 @@ export function LembretesPage() {
   const [filtro, setFiltro] = useState<Filtro>('todos')
   const [modalAberto, setModalAberto] = useState(false)
 
-  // Formulario novo lembrete manual
   const [fMembroId, setFMembroId] = useState('')
   const [fVacinaId, setFVacinaId] = useState('')
   const [fNumeroDose, setFNumeroDose] = useState(1)
   const [fData, setFData] = useState('')
   const [fErro, setFErro] = useState('')
 
-  const filtrados = lembretes.filter(l =>
-    filtro === 'todos' ? true : l.status === filtro
-  ).sort((a, b) => a.dataLembrete.localeCompare(b.dataLembrete))
+  const filtrados = lembretes
+    .filter(l => filtro === 'todos' ? true : l.status === filtro)
+    .sort((a, b) => a.dataLembrete.localeCompare(b.dataLembrete))
 
-  // Agrupar por: reforco automatico / manual
   const automaticos = filtrados.filter(l => l.automatico)
   const manuais     = filtrados.filter(l => !l.automatico)
 
@@ -80,7 +78,6 @@ export function LembretesPage() {
           opacity: l.status === 'cancelado' ? 0.45 : 1,
         }}
       >
-        {/* Indicador de data/status */}
         <div style={{ flexShrink: 0, width: 44, textAlign: 'center', paddingTop: 2 }}>
           <p style={{
             fontSize: 'var(--text-xs)', fontWeight: 700,
@@ -93,20 +90,18 @@ export function LembretesPage() {
           )}
         </div>
 
-        {/* Conteúdo */}
         <div style={{ flex: 1, minWidth: 0 }}>
           <p style={{ fontWeight: 600, fontSize: 'var(--text-sm)', color: 'var(--color-text)' }}>
             {nomeVacina(l.vacinaId)}
           </p>
           <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
-            {nomeMembro(l.membroId)} · {l.doses ? `${l.numeroDose}ª dose` : `Dose ${l.numeroDose}`}
+            {nomeMembro(l.membroId)} · {l.numeroDose}ª dose
             {l.automatico && (
               <span style={{ marginLeft: 'var(--space-2)', color: 'var(--color-primary)', fontWeight: 500 }}>Automático</span>
             )}
           </p>
         </div>
 
-        {/* Ações */}
         {l.status === 'pendente' && (
           <div style={{ display: 'flex', gap: 'var(--space-2)', flexShrink: 0 }}>
             <button
@@ -140,7 +135,6 @@ export function LembretesPage() {
 
   return (
     <div style={{ maxWidth: 640, margin: '0 auto', paddingBottom: 'var(--space-8)' }}>
-      {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-6)' }}>
         <div>
           <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--text-lg)', fontWeight: 700, color: 'var(--color-text)' }}>
@@ -150,17 +144,12 @@ export function LembretesPage() {
             {lembretes.filter(l => l.status === 'pendente').length} pendente{lembretes.filter(l => l.status === 'pendente').length !== 1 ? 's' : ''}
           </p>
         </div>
-        <button
-          onClick={() => setModalAberto(true)}
-          className="btn btn-primary"
-          style={{ gap: 'var(--space-2)' }}
-        >
+        <button onClick={() => setModalAberto(true)} className="btn btn-primary" style={{ gap: 'var(--space-2)' }}>
           <Plus size={18} aria-hidden />
           <span>Novo</span>
         </button>
       </div>
 
-      {/* Filtros */}
       <div
         style={{ display: 'flex', gap: 'var(--space-2)', marginBottom: 'var(--space-5)', overflowX: 'auto', paddingBottom: 2 }}
         role="group"
@@ -179,7 +168,6 @@ export function LembretesPage() {
         ))}
       </div>
 
-      {/* Empty state */}
       {filtrados.length === 0 && (
         <div style={{ textAlign: 'center', padding: 'var(--space-16) var(--space-8)', color: 'var(--color-text-muted)' }}>
           <Bell size={48} style={{ margin: '0 auto var(--space-4)', color: 'var(--color-text-faint)' }} aria-hidden />
@@ -199,7 +187,6 @@ export function LembretesPage() {
         </div>
       )}
 
-      {/* Grupos */}
       {filtrados.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
           {automaticos.length > 0 && (
@@ -240,7 +227,6 @@ export function LembretesPage() {
         </div>
       )}
 
-      {/* Modal — novo lembrete manual */}
       {modalAberto && (
         <div
           style={{
