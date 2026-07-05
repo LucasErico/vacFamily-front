@@ -1,10 +1,13 @@
 import { useState, type FormEvent } from 'react'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
-import { Syringe, Eye, EyeOff } from 'lucide-react'
+import { useA11y } from '@/contexts/AccessibilityContext'
+import { Syringe, Eye, EyeOff, Sun, Moon, Accessibility } from 'lucide-react'
+import { AccessibilityPanel } from '@/components/ui/AccessibilityPanel'
 
 export function LoginPage() {
   const { login } = useAuth()
+  const { theme, toggleTheme } = useA11y()
   const navigate = useNavigate()
   const location = useLocation()
   const from = (location.state as { from?: { pathname: string } })?.from?.pathname ?? '/'
@@ -14,6 +17,7 @@ export function LoginPage() {
   const [mostrarSenha, setMostrarSenha] = useState(false)
   const [erro, setErro] = useState('')
   const [carregando, setCarregando] = useState(false)
+  const [painelAberto, setPainelAberto] = useState(false)
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -40,6 +44,43 @@ export function LoginPage() {
         background: 'var(--color-bg)',
       }}
     >
+      {/* Controles de tema e acessibilidade — canto superior direito */}
+      <div style={{
+        position: 'fixed',
+        top: 'var(--space-3)',
+        right: 'var(--space-3)',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 'var(--space-1)',
+        zIndex: 10,
+      }}>
+        <button
+          className="theme-toggle"
+          onClick={toggleTheme}
+          aria-label={`Alternar para modo ${theme === 'dark' ? 'claro' : 'escuro'}`}
+          title={`Modo ${theme === 'dark' ? 'claro' : 'escuro'}`}
+        >
+          {theme === 'dark'
+            ? <Sun size={20} aria-hidden />
+            : <Moon size={20} aria-hidden />}
+        </button>
+        <button
+          className="theme-toggle"
+          onClick={() => setPainelAberto(v => !v)}
+          aria-label="Opções de acessibilidade"
+          aria-expanded={painelAberto}
+          aria-haspopup="dialog"
+          title="Acessibilidade"
+        >
+          <Accessibility size={20} aria-hidden />
+        </button>
+      </div>
+
+      {/* Painel de acessibilidade */}
+      {painelAberto && (
+        <AccessibilityPanel onClose={() => setPainelAberto(false)} />
+      )}
+
       <div style={{ width: '100%', maxWidth: '420px' }}>
         {/* Logo */}
         <div style={{ textAlign: 'center', marginBottom: 'var(--space-8)' }}>

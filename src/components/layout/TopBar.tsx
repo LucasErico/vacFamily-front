@@ -1,7 +1,8 @@
-import { useLocation } from 'react-router-dom'
-import { Sun, Moon, Accessibility } from 'lucide-react'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { Sun, Moon, Accessibility, LogOut } from 'lucide-react'
 import { useState } from 'react'
 import { useA11y } from '@/contexts/AccessibilityContext'
+import { useAuth } from '@/contexts/AuthContext'
 import { AccessibilityPanel } from '@/components/ui/AccessibilityPanel'
 
 const pageTitles: Record<string, string> = {
@@ -16,11 +17,18 @@ const pageTitles: Record<string, string> = {
 
 export function TopBar() {
   const { pathname } = useLocation()
+  const navigate = useNavigate()
   const baseRoute = '/' + pathname.split('/')[1]
   const title = pageTitles[baseRoute] ?? 'VacFamily'
 
   const { theme, toggleTheme } = useA11y()
+  const { logout } = useAuth()
   const [painelAberto, setPainelAberto] = useState(false)
+
+  function handleLogout() {
+    logout()
+    navigate('/login', { replace: true })
+  }
 
   return (
     <>
@@ -58,6 +66,17 @@ export function TopBar() {
 
         {/* controles */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)' }}>
+
+          {/* logout */}
+          <button
+            className="theme-toggle"
+            onClick={handleLogout}
+            aria-label="Sair da conta"
+            title="Sair"
+          >
+            <LogOut size={18} aria-hidden />
+          </button>
+
           {/* dark mode */}
           <button
             className="theme-toggle"
@@ -84,7 +103,6 @@ export function TopBar() {
         </div>
       </header>
 
-      {/* painel */}
       {painelAberto && (
         <AccessibilityPanel onClose={() => setPainelAberto(false)} />
       )}
