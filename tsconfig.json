@@ -18,6 +18,5 @@
     "baseUrl": ".",
     "paths": { "@/*": ["./src/*"] }
   },
-  "include": ["src"],
-  "exclude": ["src/pages/membros"]
+  "include": ["src"]
 }
