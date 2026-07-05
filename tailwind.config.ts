@@ -1,42 +1,29 @@
 import type { Config } from 'tailwindcss'
 
-const config: Config = {
+export default {
   content: ['./index.html', './src/**/*.{ts,tsx}'],
+  darkMode: 'class',
   theme: {
     extend: {
-      colors: {
-        primary:         'var(--color-primary)',
-        'primary-hover': 'var(--color-primary-hover)',
-        surface:         'var(--color-surface)',
-        'surface-2':     'var(--color-surface-2)',
-        border:          'var(--color-border)',
-        text:            'var(--color-text)',
-        muted:           'var(--color-text-muted)',
-        faint:           'var(--color-text-faint)',
-        error:           'var(--color-error)',
-        success:         'var(--color-success)',
-        warning:         'var(--color-warning)',
-      },
       fontFamily: {
         display: ['Nunito', 'sans-serif'],
         body:    ['Inter', 'sans-serif'],
       },
-      borderRadius: {
-        sm:   'var(--radius-sm)',
-        md:   'var(--radius-md)',
-        lg:   'var(--radius-lg)',
-        xl:   'var(--radius-xl)',
-        full: 'var(--radius-full)',
+      colors: {
+        brand: {
+          50:  '#e8f5ee',
+          100: '#c8e6d8',
+          200: '#92cdaf',
+          300: '#5cb387',
+          400: '#2d9460',
+          500: '#006B3F',
+          600: '#005530',
+          700: '#003d22',
+          800: '#002814',
+          900: '#001509',
+        },
       },
-      boxShadow: {
-        sm: 'var(--shadow-sm)',
-        md: 'var(--shadow-md)',
-        lg: 'var(--shadow-lg)',
-      }
-    }
+    },
   },
   plugins: [],
-  darkMode: ['selector', '[data-theme="dark"]']
-}
-
-export default config
+} satisfies Config
