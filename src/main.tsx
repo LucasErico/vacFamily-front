@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { RouterProvider } from 'react-router-dom'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { MembrosProvider } from '@/contexts/MembrosContext'
+import { VacinasProvider } from '@/contexts/VacinasContext'
 import { router } from '@/routes'
 import '@/styles/globals.css'
 
@@ -13,7 +14,9 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <AuthProvider>
       <MembrosProvider>
-        <RouterProvider router={router} />
+        <VacinasProvider>
+          <RouterProvider router={router} />
+        </VacinasProvider>
       </MembrosProvider>
     </AuthProvider>
   </StrictMode>
