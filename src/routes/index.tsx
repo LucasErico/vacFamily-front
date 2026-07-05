@@ -1,5 +1,6 @@
-import { createBrowserRouter } from 'react-router-dom'
+import { createBrowserRouter, Navigate } from 'react-router-dom'
 import { AppShell } from '@/components/layout/AppShell'
+import { RequireAuth } from '@/components/auth/RequireAuth'
 import { DashboardPage } from '@/pages/Dashboard/DashboardPage'
 import { MembrosPage } from '@/pages/Membros/MembrosPage'
 import { MembroDetailPage } from '@/pages/Membros/MembroDetailPage'
@@ -14,22 +15,23 @@ import { LoginPage } from '@/pages/Auth/LoginPage'
 import { RegisterPage } from '@/pages/Auth/RegisterPage'
 
 export const router = createBrowserRouter([
-  { path: '/login',   element: <LoginPage /> },
+  { path: '/login',    element: <LoginPage /> },
   { path: '/cadastro', element: <RegisterPage /> },
+  { path: '*',         element: <Navigate to="/" replace /> },
   {
     path: '/',
-    element: <AppShell />,
+    element: <RequireAuth><AppShell /></RequireAuth>,
     children: [
-      { index: true,                 element: <DashboardPage /> },
-      { path: 'membros',             element: <MembrosPage /> },
-      { path: 'membros/:id',         element: <MembroDetailPage /> },
-      { path: 'vacinas',             element: <VacinasPage /> },
-      { path: 'vacinas/registrar',   element: <RegistrarVacinaPage /> },
-      { path: 'lembretes',           element: <LembretesPage /> },
-      { path: 'conteudo',            element: <ConteudoPage /> },
-      { path: 'conteudo/:id',        element: <ConteudoDetailPage /> },
-      { path: 'assistente',          element: <AssistentePage /> },
-      { path: 'configuracoes',       element: <ConfiguracoesPage /> },
+      { index: true,                element: <DashboardPage /> },
+      { path: 'membros',            element: <MembrosPage /> },
+      { path: 'membros/:id',        element: <MembroDetailPage /> },
+      { path: 'vacinas',            element: <VacinasPage /> },
+      { path: 'vacinas/registrar',  element: <RegistrarVacinaPage /> },
+      { path: 'lembretes',          element: <LembretesPage /> },
+      { path: 'conteudo',           element: <ConteudoPage /> },
+      { path: 'conteudo/:id',       element: <ConteudoDetailPage /> },
+      { path: 'assistente',         element: <AssistentePage /> },
+      { path: 'configuracoes',      element: <ConfiguracoesPage /> },
     ],
   },
 ])
