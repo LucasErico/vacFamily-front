@@ -4,6 +4,7 @@ import { RouterProvider } from 'react-router-dom'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { MembrosProvider } from '@/contexts/MembrosContext'
 import { VacinasProvider } from '@/contexts/VacinasContext'
+import { LembretesProvider } from '@/contexts/LembretesContext'
 import { router } from '@/routes'
 import '@/styles/globals.css'
 
@@ -15,7 +16,9 @@ createRoot(document.getElementById('root')!).render(
     <AuthProvider>
       <MembrosProvider>
         <VacinasProvider>
-          <RouterProvider router={router} />
+          <LembretesProvider>
+            <RouterProvider router={router} />
+          </LembretesProvider>
         </VacinasProvider>
       </MembrosProvider>
     </AuthProvider>

@@ -1,4 +1,7 @@
-import { createContext, useContext, useState, useCallback, type ReactNode } from 'react'
+import {
+  createContext, useContext, useState, useCallback,
+  type ReactNode,
+} from 'react'
 import type { Vacina, RegistroVacinal, DoseStatus, StatusDose } from '@/types'
 import { VACINAS_SEED } from '@/data/vacinasSeed'
 
@@ -61,10 +64,12 @@ export function calcularDosesStatus(
   return doses
 }
 
+type GerarLembreteReforcoFn = (membroId: string, vacinaId: string, numeroDose: number, dataLembrete: string) => void
+
 interface VacinasContextValue {
   vacinas: Vacina[]
   registros: RegistroVacinal[]
-  registrarDose: (dados: Omit<RegistroVacinal, 'id' | 'criadoEm'>) => RegistroVacinal
+  registrarDose: (dados: Omit<RegistroVacinal, 'id' | 'criadoEm'>, gerarLembrete?: GerarLembreteReforcoFn) => RegistroVacinal
   removerRegistro: (id: string) => void
   buscarRegistrosMembro: (membroId: string) => RegistroVacinal[]
 }
@@ -75,15 +80,30 @@ export function VacinasProvider({ children }: { children: ReactNode }) {
   const [vacinas] = useState<Vacina[]>(VACINAS_SEED)
   const [registros, setRegistros] = useState<RegistroVacinal[]>([])
 
-  const registrarDose = useCallback((dados: Omit<RegistroVacinal, 'id' | 'criadoEm'>) => {
-    const novo: RegistroVacinal = {
-      ...dados,
-      id: gerarId(),
-      criadoEm: new Date().toISOString(),
-    }
-    setRegistros(prev => [...prev, novo])
-    return novo
-  }, [])
+  const registrarDose = useCallback(
+    (dados: Omit<RegistroVacinal, 'id' | 'criadoEm'>, gerarLembrete?: GerarLembreteReforcoFn) => {
+      const novo: RegistroVacinal = {
+        ...dados,
+        id: gerarId(),
+        criadoEm: new Date().toISOString(),
+      }
+      setRegistros(prev => [...prev, novo])
+
+      // Gerar lembrete automático para próxima dose, se houver
+      if (gerarLembrete) {
+        const vacina = vacinas.find(v => v.id === dados.vacinaId)
+        if (vacina && dados.numeroDose < vacina.doses && vacina.intervaloDias) {
+          const proximaData = new Date(
+            new Date(dados.dataAplicacao).getTime() + vacina.intervaloDias * 86400000
+          ).toISOString().slice(0, 10)
+          gerarLembrete(dados.membroId, dados.vacinaId, dados.numeroDose + 1, proximaData)
+        }
+      }
+
+      return novo
+    },
+    [vacinas]
+  )
 
   const removerRegistro = useCallback((id: string) => {
     setRegistros(prev => prev.filter(r => r.id !== id))

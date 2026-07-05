@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { ArrowLeft, CheckCircle2 } from 'lucide-react'
 import { useMembros, PARENTESCO_LABEL } from '@/contexts/MembrosContext'
 import { useVacinas } from '@/contexts/VacinasContext'
+import { useLembretes } from '@/contexts/LembretesContext'
 
 type Step = 'membro' | 'vacina' | 'detalhes' | 'sucesso'
 
@@ -11,6 +12,7 @@ export function RegistrarVacinaPage() {
   const location = useLocation()
   const { membros } = useMembros()
   const { vacinas, registrarDose } = useVacinas()
+  const { adicionarLembrete } = useLembretes()
 
   const membroPreSelecionado = (location.state as { membroId?: string } | null)?.membroId ?? ''
 
@@ -35,7 +37,19 @@ export function RegistrarVacinaPage() {
       setErro('Preencha todos os campos obrigatórios.')
       return
     }
-    registrarDose({ membroId, vacinaId, numeroDose, dataAplicacao, localAplicacao, lote: lote || undefined, observacoes: observacoes || undefined })
+    registrarDose(
+      { membroId, vacinaId, numeroDose, dataAplicacao, localAplicacao, lote: lote || undefined, observacoes: observacoes || undefined },
+      (mId, vId, nDose, dataLembrete) => {
+        adicionarLembrete({
+          membroId: mId,
+          vacinaId: vId,
+          numeroDose: nDose,
+          dataLembrete,
+          status: 'pendente',
+          automatico: true,
+        })
+      }
+    )
     setStep('sucesso')
   }
 
@@ -48,9 +62,19 @@ export function RegistrarVacinaPage() {
         </h2>
         <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)', marginBottom: 'var(--space-8)', maxWidth: 300, margin: '0 auto var(--space-8)' }}>
           A dose {numeroDose} de <strong>{vacina?.nome}</strong> foi registrada para <strong>{membro?.nome}</strong>.
+          {vacina && numeroDose < vacina.doses && (
+            <> Um lembrete para a próxima dose foi criado automaticamente.</>
+          )}
         </p>
         <div style={{ display: 'flex', gap: 'var(--space-3)', justifyContent: 'center' }}>
-          <button onClick={() => { setStep('membro'); setMembroId(''); setVacinaId(''); setNumeroDose(1); setDataAplicacao(new Date().toISOString().slice(0, 10)); setLocalAplicacao(''); setLote(''); setObservacoes(''); setErro('') }} className="btn btn-ghost">
+          <button
+            onClick={() => {
+              setStep('membro'); setMembroId(''); setVacinaId('')
+              setNumeroDose(1); setDataAplicacao(new Date().toISOString().slice(0, 10))
+              setLocalAplicacao(''); setLote(''); setObservacoes(''); setErro('')
+            }}
+            className="btn btn-ghost"
+          >
             Registrar outra
           </button>
           <button onClick={() => navigate('/vacinas')} className="btn btn-primary">
@@ -63,7 +87,6 @@ export function RegistrarVacinaPage() {
 
   return (
     <div style={{ maxWidth: 480, margin: '0 auto', paddingBottom: 'var(--space-8)' }}>
-      {/* Voltar */}
       <button
         onClick={() => (stepIndex > 0 ? setStep(STEPS[stepIndex - 1]) : navigate(-1))}
         style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', color: 'var(--color-text-muted)', fontSize: 'var(--text-sm)', marginBottom: 'var(--space-6)', minHeight: 44 }}
@@ -72,7 +95,6 @@ export function RegistrarVacinaPage() {
         <ArrowLeft size={18} aria-hidden /> Voltar
       </button>
 
-      {/* Título + progresso */}
       <div style={{ marginBottom: 'var(--space-6)' }}>
         <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--text-lg)', fontWeight: 700, color: 'var(--color-text)', marginBottom: 'var(--space-3)' }}>
           Registrar dose
@@ -92,7 +114,6 @@ export function RegistrarVacinaPage() {
         </div>
       </div>
 
-      {/* Step: Membro */}
       {step === 'membro' && (
         <div>
           <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)', marginBottom: 'var(--space-4)' }}>
@@ -103,7 +124,7 @@ export function RegistrarVacinaPage() {
               <li key={m.id}>
                 <button
                   onClick={() => { setMembroId(m.id); setStep('vacina') }}
-                  className={`card card-hover`}
+                  className="card card-hover"
                   style={{
                     width: '100%', display: 'flex', alignItems: 'center',
                     gap: 'var(--space-4)', padding: 'var(--space-4) var(--space-5)',
@@ -122,7 +143,6 @@ export function RegistrarVacinaPage() {
         </div>
       )}
 
-      {/* Step: Vacina */}
       {step === 'vacina' && (
         <div>
           <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)', marginBottom: 'var(--space-4)' }}>
@@ -151,7 +171,6 @@ export function RegistrarVacinaPage() {
         </div>
       )}
 
-      {/* Step: Detalhes */}
       {step === 'detalhes' && vacina && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
           <div className="card" style={{ padding: 'var(--space-4) var(--space-5)' }}>
@@ -184,57 +203,28 @@ export function RegistrarVacinaPage() {
             <label htmlFor="data" style={{ display: 'block', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginBottom: 'var(--space-2)', fontWeight: 500 }}>
               Data de aplicação *
             </label>
-            <input
-              id="data"
-              type="date"
-              value={dataAplicacao}
-              max={new Date().toISOString().slice(0, 10)}
-              onChange={e => setDataAplicacao(e.target.value)}
-              className="input-field"
-            />
+            <input id="data" type="date" value={dataAplicacao} max={new Date().toISOString().slice(0, 10)} onChange={e => setDataAplicacao(e.target.value)} className="input-field" />
           </div>
 
           <div>
             <label htmlFor="local" style={{ display: 'block', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginBottom: 'var(--space-2)', fontWeight: 500 }}>
               Local de aplicação *
             </label>
-            <input
-              id="local"
-              type="text"
-              value={localAplicacao}
-              onChange={e => setLocalAplicacao(e.target.value)}
-              placeholder="Ex: UBS Vila Madalena"
-              className="input-field"
-            />
+            <input id="local" type="text" value={localAplicacao} onChange={e => setLocalAplicacao(e.target.value)} placeholder="Ex: UBS Vila Madalena" className="input-field" />
           </div>
 
           <div>
             <label htmlFor="lote" style={{ display: 'block', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginBottom: 'var(--space-2)', fontWeight: 500 }}>
               Lote (opcional)
             </label>
-            <input
-              id="lote"
-              type="text"
-              value={lote}
-              onChange={e => setLote(e.target.value)}
-              placeholder="Ex: AB1234"
-              className="input-field"
-            />
+            <input id="lote" type="text" value={lote} onChange={e => setLote(e.target.value)} placeholder="Ex: AB1234" className="input-field" />
           </div>
 
           <div>
             <label htmlFor="obs" style={{ display: 'block', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginBottom: 'var(--space-2)', fontWeight: 500 }}>
               Observações (opcional)
             </label>
-            <textarea
-              id="obs"
-              value={observacoes}
-              onChange={e => setObservacoes(e.target.value)}
-              placeholder="Reações, observações do profissional..."
-              rows={3}
-              className="input-field"
-              style={{ resize: 'vertical' }}
-            />
+            <textarea id="obs" value={observacoes} onChange={e => setObservacoes(e.target.value)} placeholder="Reações, observações do profissional..." rows={3} className="input-field" style={{ resize: 'vertical' }} />
           </div>
 
           {erro && (
