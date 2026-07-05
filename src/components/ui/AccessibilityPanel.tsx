@@ -1,7 +1,7 @@
 /**
  * AccessibilityPanel
- * Painel lateral de acessibilidade: contraste, fonte, TTS
- * Abre via botão na TopBar. Fecha ao clicar fora ou pressionar Escape.
+ * Painel lateral: contraste, fonte, TTS.
+ * Cabeçalho fixo + corpo com scroll interno → funciona em qualquer escala de fonte.
  */
 import { useEffect, useRef } from 'react'
 import {
@@ -15,23 +15,23 @@ interface Props {
 }
 
 const FONT_OPTIONS: { value: FontScale; label: string; desc: string }[] = [
-  { value: 'normal',      label: 'Normal',      desc: '100%'  },
-  { value: 'grande',      label: 'Grande',      desc: '120%'  },
+  { value: 'normal',       label: 'Normal',       desc: '100%' },
+  { value: 'grande',       label: 'Grande',       desc: '120%' },
   { value: 'muito_grande', label: 'Muito grande', desc: '145%' },
 ]
 
 export function AccessibilityPanel({ onClose }: Props) {
-  const { theme, altoContraste, fontScale, ttsAtivo,
-    toggleTheme, toggleAltoContraste, setFontScale, toggleTTS } = useA11y()
+  const {
+    theme, altoContraste, fontScale, ttsAtivo,
+    toggleTheme, toggleAltoContraste, setFontScale, toggleTTS,
+  } = useA11y()
 
   const panelRef = useRef<HTMLDivElement>(null)
 
-  /* foco trap + fechar com Escape */
+  /* foco trap + Escape */
   useEffect(() => {
     panelRef.current?.focus()
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
+    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
     document.addEventListener('keydown', handleKey)
     return () => document.removeEventListener('keydown', handleKey)
   }, [onClose])
@@ -39,18 +39,15 @@ export function AccessibilityPanel({ onClose }: Props) {
   /* fechar ao clicar fora */
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
-      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
-        onClose()
-      }
+      if (panelRef.current && !panelRef.current.contains(e.target as Node)) onClose()
     }
-    // delay para não fechar imediatamente ao abrir
     const t = setTimeout(() => document.addEventListener('mousedown', handleClick), 100)
     return () => { clearTimeout(t); document.removeEventListener('mousedown', handleClick) }
   }, [onClose])
 
   return (
     <>
-      {/* backdrop sutil */}
+      {/* backdrop */}
       <div
         aria-hidden
         style={{
@@ -62,7 +59,7 @@ export function AccessibilityPanel({ onClose }: Props) {
         onClick={onClose}
       />
 
-      {/* painel */}
+      {/* painel — flex column: header fixo + body scroll */}
       <div
         ref={panelRef}
         role="dialog"
@@ -74,21 +71,30 @@ export function AccessibilityPanel({ onClose }: Props) {
           top: 'var(--topbar-h)',
           right: 'var(--space-3)',
           width: 'min(320px, calc(100vw - var(--space-6)))',
+          /* altura máxima: da topbar até 16px do fundo, respeita barra inferior mobile */
+          maxHeight: 'calc(100dvh - var(--topbar-h) - var(--space-4))',
+          display: 'flex',
+          flexDirection: 'column',
           background: 'var(--color-surface)',
           border: '1px solid var(--color-border)',
           borderRadius: 'var(--radius-xl)',
           boxShadow: 'var(--shadow-lg)',
           zIndex: 50,
-          padding: 'var(--space-5)',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 'var(--space-5)',
-          animation: 'slideDown 180ms cubic-bezier(0.16,1,0.3,1)',
           outline: 'none',
+          animation: 'slideDown 180ms cubic-bezier(0.16,1,0.3,1)',
+          overflow: 'hidden', /* garante que o border-radius envolve tudo */
         }}
       >
-        {/* cabeçalho */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        {/* ── Cabeçalho fixo ── */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: 'var(--space-4) var(--space-5)',
+          borderBottom: '1px solid var(--color-divider)',
+          flexShrink: 0,
+          background: 'var(--color-surface)',
+        }}>
           <h2 style={{
             fontFamily: 'var(--font-display)',
             fontSize: 'var(--text-base)',
@@ -107,168 +113,129 @@ export function AccessibilityPanel({ onClose }: Props) {
           </button>
         </div>
 
-        {/* Tema claro/escuro */}
-        <PanelSection icon={theme === 'dark' ? Moon : Sun} title="Tema">
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-2)' }}>
-            <ToggleChip
-              active={theme === 'light'}
-              onClick={theme === 'dark' ? toggleTheme : undefined}
-              label="Claro"
-              icon={Sun}
-            />
-            <ToggleChip
-              active={theme === 'dark'}
-              onClick={theme === 'light' ? toggleTheme : undefined}
-              label="Escuro"
-              icon={Moon}
-            />
-          </div>
-        </PanelSection>
+        {/* ── Corpo com scroll interno ── */}
+        <div style={{
+          flex: 1,
+          overflowY: 'auto',
+          padding: 'var(--space-5)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 'var(--space-5)',
+          /* scroll suave + indicador visível */
+          scrollbarWidth: 'thin',
+          scrollbarColor: 'var(--color-border) transparent',
+        }}>
 
-        {/* Alto contraste */}
-        <PanelSection icon={Contrast} title="Alto contraste">
-          <button
-            role="switch"
-            aria-checked={altoContraste}
-            onClick={toggleAltoContraste}
-            className="btn btn-ghost"
-            style={{
-              width: '100%',
-              justifyContent: 'space-between',
-              background: altoContraste ? 'var(--color-primary-subtle)' : undefined,
-              color: altoContraste ? 'var(--color-primary)' : undefined,
-              borderColor: altoContraste ? 'var(--color-primary)' : undefined,
-            }}
-          >
-            <span style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-              <Contrast size={16} aria-hidden />
-              {altoContraste ? 'Ativado' : 'Desativado'}
-            </span>
-            {/* toggle pill */}
-            <span
-              aria-hidden
-              style={{
-                display: 'inline-flex',
-                width: 40, height: 22,
-                borderRadius: 'var(--radius-full)',
-                background: altoContraste ? 'var(--color-primary)' : 'var(--color-surface-offset)',
-                position: 'relative',
-                transition: 'background var(--transition)',
-                flexShrink: 0,
-              }}
-            >
-              <span style={{
-                position: 'absolute',
-                top: 3, left: altoContraste ? 21 : 3,
-                width: 16, height: 16,
-                borderRadius: 'var(--radius-full)',
-                background: '#fff',
-                boxShadow: '0 1px 3px oklch(0 0 0 / 0.2)',
-                transition: 'left var(--transition)',
-              }} />
-            </span>
-          </button>
-        </PanelSection>
+          {/* Tema */}
+          <PanelSection icon={theme === 'dark' ? Moon : Sun} title="Tema">
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-2)' }}>
+              <ToggleChip
+                active={theme === 'light'}
+                onClick={theme === 'dark' ? toggleTheme : undefined}
+                label="Claro"
+                icon={Sun}
+              />
+              <ToggleChip
+                active={theme === 'dark'}
+                onClick={theme === 'light' ? toggleTheme : undefined}
+                label="Escuro"
+                icon={Moon}
+              />
+            </div>
+          </PanelSection>
 
-        {/* Escala de fonte */}
-        <PanelSection icon={Type} title="Tamanho do texto">
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-            {FONT_OPTIONS.map(opt => (
-              <button
-                key={opt.value}
-                onClick={() => setFontScale(opt.value)}
-                role="radio"
-                aria-checked={fontScale === opt.value}
+          {/* Alto contraste */}
+          <PanelSection icon={Contrast} title="Alto contraste">
+            <ToggleSwitch
+              checked={altoContraste}
+              onChange={toggleAltoContraste}
+              labelOn="Ativado"
+              labelOff="Desativado"
+              icon={Contrast}
+            />
+          </PanelSection>
+
+          {/* Escala de fonte */}
+          <PanelSection icon={Type} title="Tamanho do texto">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+              {FONT_OPTIONS.map(opt => (
+                <button
+                  key={opt.value}
+                  onClick={() => setFontScale(opt.value)}
+                  role="radio"
+                  aria-checked={fontScale === opt.value}
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: 'var(--space-3) var(--space-4)',
+                    borderRadius: 'var(--radius-md)',
+                    border: `1.5px solid ${fontScale === opt.value ? 'var(--color-primary)' : 'var(--color-border)'}`,
+                    background: fontScale === opt.value ? 'var(--color-primary-subtle)' : 'var(--color-bg)',
+                    color: fontScale === opt.value ? 'var(--color-primary)' : 'var(--color-text)',
+                    cursor: 'pointer',
+                    fontSize: 'var(--text-sm)',
+                    fontWeight: fontScale === opt.value ? 600 : 400,
+                    transition: 'all var(--transition)',
+                  }}
+                >
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                    <ZoomIn size={15} aria-hidden />
+                    {opt.label}
+                  </span>
+                  <span style={{
+                    fontSize: 'var(--text-xs)',
+                    color: fontScale === opt.value ? 'var(--color-primary)' : 'var(--color-text-muted)',
+                  }}>
+                    {opt.desc}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </PanelSection>
+
+          {/* Leitura em voz alta (TTS) */}
+          <PanelSection icon={ttsAtivo ? Volume2 : VolumeX} title="Leitura em voz alta (TTS)">
+            <ToggleSwitch
+              checked={ttsAtivo}
+              onChange={toggleTTS}
+              labelOn="Leitura ativada"
+              labelOff="Leitura desativada"
+              icon={ttsAtivo ? Volume2 : VolumeX}
+            />
+            {ttsAtivo && (
+              <p
+                role="status"
+                aria-live="polite"
                 style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  padding: 'var(--space-3) var(--space-4)',
-                  borderRadius: 'var(--radius-md)',
-                  border: `1.5px solid ${fontScale === opt.value ? 'var(--color-primary)' : 'var(--color-border)'}`,
-                  background: fontScale === opt.value ? 'var(--color-primary-subtle)' : 'var(--color-bg)',
-                  color: fontScale === opt.value ? 'var(--color-primary)' : 'var(--color-text)',
-                  cursor: 'pointer',
-                  fontSize: 'var(--text-sm)',
-                  fontWeight: fontScale === opt.value ? 600 : 400,
-                  transition: 'all var(--transition)',
+                  fontSize: 'var(--text-xs)',
+                  color: 'var(--color-text-muted)',
+                  marginTop: 'var(--space-2)',
+                  lineHeight: 1.5,
                 }}
               >
-                <span style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-                  <ZoomIn size={15} aria-hidden />
-                  {opt.label}
-                </span>
-                <span style={{ fontSize: 'var(--text-xs)', color: fontScale === opt.value ? 'var(--color-primary)' : 'var(--color-text-muted)' }}>
-                  {opt.desc}
-                </span>
-              </button>
-            ))}
-          </div>
-        </PanelSection>
+                Passe o cursor ou foque em conteúdos para ouvi-los automaticamente.
+              </p>
+            )}
+          </PanelSection>
 
-        {/* TTS */}
-        <PanelSection icon={ttsAtivo ? Volume2 : VolumeX} title="Leitura em voz alta (TTS)">
-          <button
-            role="switch"
-            aria-checked={ttsAtivo}
-            onClick={toggleTTS}
-            className="btn btn-ghost"
-            style={{
-              width: '100%',
-              justifyContent: 'space-between',
-              background: ttsAtivo ? 'var(--color-primary-subtle)' : undefined,
-              color: ttsAtivo ? 'var(--color-primary)' : undefined,
-              borderColor: ttsAtivo ? 'var(--color-primary)' : undefined,
-            }}
-          >
-            <span style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-              {ttsAtivo ? <Volume2 size={16} aria-hidden /> : <VolumeX size={16} aria-hidden />}
-              {ttsAtivo ? 'Leitura ativada' : 'Leitura desativada'}
-            </span>
-            <span
-              aria-hidden
-              style={{
-                display: 'inline-flex',
-                width: 40, height: 22,
-                borderRadius: 'var(--radius-full)',
-                background: ttsAtivo ? 'var(--color-primary)' : 'var(--color-surface-offset)',
-                position: 'relative',
-                transition: 'background var(--transition)',
-                flexShrink: 0,
-              }}
-            >
-              <span style={{
-                position: 'absolute',
-                top: 3, left: ttsAtivo ? 21 : 3,
-                width: 16, height: 16,
-                borderRadius: 'var(--radius-full)',
-                background: '#fff',
-                boxShadow: '0 1px 3px oklch(0 0 0 / 0.2)',
-                transition: 'left var(--transition)',
-              }} />
-            </span>
-          </button>
-          {ttsAtivo && (
-            <p
-              role="status"
-              aria-live="polite"
-              style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginTop: 'var(--space-2)' }}
-            >
-              Passe o cursor ou foque em conteúdos para ouvi-los automaticamente.
-            </p>
-          )}
-        </PanelSection>
+          {/* espaço extra no final para não colar no scroll */}
+          <div style={{ height: 'var(--space-2)', flexShrink: 0 }} aria-hidden />
+        </div>
       </div>
     </>
   )
 }
 
-/* ── sub-components ─────────────────────────────── */
+/* ── PanelSection ─────────────────────────────── */
 
 function PanelSection({ icon: Icon, title, children }: {
   icon: typeof Sun; title: string; children: React.ReactNode
 }) {
   return (
     <section aria-label={title}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginBottom: 'var(--space-3)' }}>
+      <div style={{
+        display: 'flex', alignItems: 'center',
+        gap: 'var(--space-2)', marginBottom: 'var(--space-3)',
+      }}>
         <Icon size={15} style={{ color: 'var(--color-primary)', flexShrink: 0 }} aria-hidden />
         <span style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--color-text)' }}>
           {title}
@@ -278,6 +245,63 @@ function PanelSection({ icon: Icon, title, children }: {
     </section>
   )
 }
+
+/* ── ToggleSwitch reutilizável ─────────────────── */
+
+function ToggleSwitch({ checked, onChange, labelOn, labelOff, icon: Icon }: {
+  checked: boolean
+  onChange: () => void
+  labelOn: string
+  labelOff: string
+  icon: typeof Sun
+}) {
+  return (
+    <button
+      role="switch"
+      aria-checked={checked}
+      onClick={onChange}
+      className="btn btn-ghost"
+      style={{
+        width: '100%',
+        justifyContent: 'space-between',
+        background: checked ? 'var(--color-primary-subtle)' : undefined,
+        color: checked ? 'var(--color-primary)' : undefined,
+        borderColor: checked ? 'var(--color-primary)' : undefined,
+      }}
+    >
+      <span style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+        <Icon size={16} aria-hidden />
+        {checked ? labelOn : labelOff}
+      </span>
+      {/* pill toggle */}
+      <span
+        aria-hidden
+        style={{
+          display: 'inline-flex',
+          width: 40, height: 22,
+          borderRadius: 'var(--radius-full)',
+          background: checked ? 'var(--color-primary)' : 'var(--color-surface-offset)',
+          position: 'relative',
+          transition: 'background var(--transition)',
+          flexShrink: 0,
+        }}
+      >
+        <span style={{
+          position: 'absolute',
+          top: 3,
+          left: checked ? 21 : 3,
+          width: 16, height: 16,
+          borderRadius: 'var(--radius-full)',
+          background: '#fff',
+          boxShadow: '0 1px 3px oklch(0 0 0 / 0.2)',
+          transition: 'left var(--transition)',
+        }} />
+      </span>
+    </button>
+  )
+}
+
+/* ── ToggleChip ───────────────────────────────── */
 
 function ToggleChip({ active, onClick, label, icon: Icon }: {
   active: boolean; onClick?: () => void; label: string; icon: typeof Sun
