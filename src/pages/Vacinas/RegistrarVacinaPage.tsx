@@ -1,29 +1,21 @@
 import { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { ArrowLeft, CheckCircle2 } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, CalendarDays, Clock } from 'lucide-react'
 import { useMembros, PARENTESCO_LABEL } from '@/contexts/MembrosContext'
 import { useVacinas } from '@/contexts/VacinasContext'
 import { useLembretes } from '@/contexts/LembretesContext'
 
 type Step = 'membro' | 'vacina' | 'detalhes' | 'sucesso'
+type ModoSalvar = 'historico' | 'agendado'
 
-// Feedback tátil: vibra 2 vezes rapidamente ao salvar com sucesso
 function vibrarSucesso() {
-  if ('vibrate' in navigator) {
-    navigator.vibrate([80, 60, 80])
-  }
+  if ('vibrate' in navigator) navigator.vibrate([80, 60, 80])
 }
 
-// Mensagens de erro em Linguagem Simples (ABNT NBR 17060 / relatório Design Inclusivo)
 const ERROS_SIMPLES: Record<string, string> = {
-  camposObrigatorios:
-    'Por favor, preencha todos os campos marcados com *. São eles: data da vacina e local onde foi aplicada.',
-  dataObrigatoria:
-    'Por favor, informe a data em que a vacina foi tomada. Exemplo: 15/08/2026.',
-  dataFutura:
-    'A data informada ainda não chegou. Por favor, escolha uma data de hoje ou de dias anteriores.',
-  localObrigatorio:
-    'Por favor, informe onde a vacina foi aplicada. Exemplo: UBS Centro, Clínica São João.',
+  camposObrigatorios: 'Por favor, preencha todos os campos marcados com *.',
+  dataObrigatoria: 'Por favor, informe a data da vacina. Exemplo: 15/08/2026.',
+  localObrigatorio: 'Por favor, informe onde a vacina foi ou será aplicada. Exemplo: UBS Centro.',
 }
 
 export function RegistrarVacinaPage() {
@@ -39,54 +31,62 @@ export function RegistrarVacinaPage() {
   const [membroId, setMembroId] = useState(membroPreSelecionado)
   const [vacinaId, setVacinaId] = useState('')
   const [numeroDose, setNumeroDose] = useState(1)
-  const [dataAplicacao, setDataAplicacao] = useState(new Date().toISOString().slice(0, 10))
+  const [dataAplicacao, setDataAplicacao] = useState('')
   const [localAplicacao, setLocalAplicacao] = useState('')
   const [lote, setLote] = useState('')
   const [observacoes, setObservacoes] = useState('')
   const [erro, setErro] = useState('')
+  const [modoSalvo, setModoSalvo] = useState<ModoSalvar>('historico')
 
+  const hoje = new Date().toISOString().slice(0, 10)
   const membro = membros.find(m => m.id === membroId)
   const vacina = vacinas.find(v => v.id === vacinaId)
+  const dataFutura = dataAplicacao > hoje
 
   const STEPS: Step[] = ['membro', 'vacina', 'detalhes']
   const stepIndex = STEPS.indexOf(step)
 
   function handleSalvar() {
-    // Validações com mensagens em Linguagem Simples
-    if (!dataAplicacao) {
-      setErro(ERROS_SIMPLES.dataObrigatoria)
-      return
-    }
-    if (new Date(dataAplicacao) > new Date()) {
-      setErro(ERROS_SIMPLES.dataFutura)
-      return
-    }
-    if (!localAplicacao.trim()) {
-      setErro(ERROS_SIMPLES.localObrigatorio)
-      return
-    }
-    if (!membroId || !vacinaId) {
-      setErro(ERROS_SIMPLES.camposObrigatorios)
-      return
-    }
+    if (!dataAplicacao) { setErro(ERROS_SIMPLES.dataObrigatoria); return }
+    if (!membroId || !vacinaId) { setErro(ERROS_SIMPLES.camposObrigatorios); return }
 
-    registrarDose(
-      { membroId, vacinaId, numeroDose, dataAplicacao, localAplicacao, lote: lote || undefined, observacoes: observacoes || undefined },
-      (mId, vId, nDose, dataLembrete) => {
+    if (dataFutura) {
+      // Agendar: cria lembretes para TODAS as doses da vacina a partir da data
+      if (!vacina) return
+      const dataBase = new Date(dataAplicacao)
+      for (let d = numeroDose; d <= vacina.doses; d++) {
+        const offset = (d - numeroDose) * (vacina.intervaloDias ?? 0)
+        const dataLembrete = new Date(dataBase.getTime() + offset * 86400000)
+          .toISOString().slice(0, 10)
         adicionarLembrete({
-          membroId: mId,
-          vacinaId: vId,
-          numeroDose: nDose,
+          membroId,
+          vacinaId,
+          numeroDose: d,
           dataLembrete,
           status: 'pendente',
           automatico: true,
         })
       }
-    )
+    } else {
+      // Registrar no histórico
+      if (!localAplicacao.trim()) { setErro(ERROS_SIMPLES.localObrigatorio); return }
+      registrarDose(
+        { membroId, vacinaId, numeroDose, dataAplicacao, localAplicacao, lote: lote || undefined, observacoes: observacoes || undefined },
+        (mId, vId, nDose, dataLembrete) => {
+          adicionarLembrete({ membroId: mId, vacinaId: vId, numeroDose: nDose, dataLembrete, status: 'pendente', automatico: true })
+        }
+      )
+    }
 
-    // Feedback tátil ao registrar com sucesso
+    setModoSalvo(dataFutura ? 'agendado' : 'historico')
     vibrarSucesso()
     setStep('sucesso')
+  }
+
+  function resetar() {
+    setStep('membro'); setMembroId(''); setVacinaId('')
+    setNumeroDose(1); setDataAplicacao(''); setLocalAplicacao('')
+    setLote(''); setObservacoes(''); setErro('')
   }
 
   if (step === 'sucesso') {
@@ -95,37 +95,20 @@ export function RegistrarVacinaPage() {
         style={{ maxWidth: 480, margin: '0 auto', paddingBottom: 'var(--space-8)', textAlign: 'center', paddingTop: 'var(--space-12)' }}
         role="status"
         aria-live="polite"
-        aria-label="Dose registrada com sucesso"
       >
         <CheckCircle2 size={56} style={{ margin: '0 auto var(--space-4)', color: 'var(--color-success)' }} aria-hidden />
         <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--text-lg)', fontWeight: 700, color: 'var(--color-text)', marginBottom: 'var(--space-2)' }}>
-          Dose registrada!
+          {modoSalvo === 'agendado' ? 'Vacina agendada!' : 'Dose registrada!'}
         </h2>
-        <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)', marginBottom: 'var(--space-8)', maxWidth: 300, margin: '0 auto var(--space-8)' }}>
-          A dose {numeroDose} de <strong>{vacina?.nome}</strong> foi registrada para <strong>{membro?.nome}</strong>.
-          {vacina && numeroDose < vacina.doses && (
-            <> Um lembrete para a próxima dose foi criado automaticamente.</>
-          )}
+        <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)', maxWidth: 320, margin: '0 auto var(--space-8)' }}>
+          {modoSalvo === 'agendado'
+            ? `Os lembretes das doses de ${vacina?.nome} para ${membro?.nome} foram criados. Você pode acompanhar na Agenda.`
+            : `A dose ${numeroDose} de ${vacina?.nome} foi registrada para ${membro?.nome}.${vacina && numeroDose < vacina.doses ? ' Um lembrete para a próxima dose foi criado automaticamente.' : ''}`
+          }
         </p>
         <div style={{ display: 'flex', gap: 'var(--space-3)', justifyContent: 'center' }}>
-          <button
-            onClick={() => {
-              setStep('membro'); setMembroId(''); setVacinaId('')
-              setNumeroDose(1); setDataAplicacao(new Date().toISOString().slice(0, 10))
-              setLocalAplicacao(''); setLote(''); setObservacoes(''); setErro('')
-            }}
-            className="btn btn-ghost"
-            style={{ minHeight: 48 }}
-          >
-            Registrar outra
-          </button>
-          <button
-            onClick={() => navigate('/vacinas')}
-            className="btn btn-primary"
-            style={{ minHeight: 48 }}
-          >
-            Ver vacinas
-          </button>
+          <button onClick={resetar} className="btn btn-ghost" style={{ minHeight: 48 }}>Registrar outra</button>
+          <button onClick={() => navigate('/vacinas')} className="btn btn-primary" style={{ minHeight: 48 }}>Ver vacinas</button>
         </div>
       </div>
     )
@@ -135,13 +118,7 @@ export function RegistrarVacinaPage() {
     <div style={{ maxWidth: 480, margin: '0 auto', paddingBottom: 'var(--space-8)' }}>
       <button
         onClick={() => (stepIndex > 0 ? setStep(STEPS[stepIndex - 1]) : navigate(-1))}
-        style={{
-          display: 'flex', alignItems: 'center', gap: 'var(--space-2)',
-          color: 'var(--color-text-muted)', fontSize: 'var(--text-sm)',
-          marginBottom: 'var(--space-6)',
-          minHeight: 48, // alvo de toque mínimo 48px (ABNT NBR 17060)
-          padding: 'var(--space-2) 0',
-        }}
+        style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', color: 'var(--color-text-muted)', fontSize: 'var(--text-sm)', marginBottom: 'var(--space-6)', minHeight: 48, padding: 'var(--space-2) 0' }}
         aria-label="Voltar"
       >
         <ArrowLeft size={18} aria-hidden /> Voltar
@@ -149,27 +126,20 @@ export function RegistrarVacinaPage() {
 
       <div style={{ marginBottom: 'var(--space-6)' }}>
         <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--text-lg)', fontWeight: 700, color: 'var(--color-text)', marginBottom: 'var(--space-3)' }}>
-          Registrar dose
+          Registrar vacina
         </h2>
         <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
           {STEPS.map((s, i) => (
-            <div
-              key={s}
-              style={{
-                flex: 1, height: 4, borderRadius: 'var(--radius-full)',
-                background: i <= stepIndex ? 'var(--color-primary)' : 'var(--color-border)',
-                transition: 'background 0.2s',
-              }}
-              aria-hidden
-            />
+            <div key={s} style={{ flex: 1, height: 4, borderRadius: 'var(--radius-full)', background: i <= stepIndex ? 'var(--color-primary)' : 'var(--color-border)', transition: 'background 0.2s' }} aria-hidden />
           ))}
         </div>
       </div>
 
+      {/* Step 1: Membro */}
       {step === 'membro' && (
         <div>
           <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)', marginBottom: 'var(--space-4)' }}>
-            Para qual membro é esta dose?
+            Para quem da família é esta vacina?
           </p>
           <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }} role="list">
             {membros.map(m => (
@@ -177,13 +147,7 @@ export function RegistrarVacinaPage() {
                 <button
                   onClick={() => { setMembroId(m.id); setStep('vacina') }}
                   className="card card-hover"
-                  style={{
-                    width: '100%', display: 'flex', alignItems: 'center',
-                    gap: 'var(--space-4)', padding: 'var(--space-4) var(--space-5)',
-                    cursor: 'pointer', textAlign: 'left',
-                    minHeight: 48, // alvo de toque mínimo 48px
-                    outline: m.id === membroId ? '2px solid var(--color-primary)' : undefined,
-                  }}
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 'var(--space-4)', padding: 'var(--space-4) var(--space-5)', cursor: 'pointer', textAlign: 'left', minHeight: 48, outline: m.id === membroId ? '2px solid var(--color-primary)' : undefined }}
                 >
                   <div style={{ flex: 1 }}>
                     <p style={{ fontWeight: 600, fontSize: 'var(--text-sm)', color: 'var(--color-text)' }}>{m.nome}</p>
@@ -196,10 +160,11 @@ export function RegistrarVacinaPage() {
         </div>
       )}
 
+      {/* Step 2: Vacina */}
       {step === 'vacina' && (
         <div>
           <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)', marginBottom: 'var(--space-4)' }}>
-            Qual vacina foi aplicada?
+            Qual vacina?
           </p>
           <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }} role="list">
             {vacinas.map(v => (
@@ -207,12 +172,7 @@ export function RegistrarVacinaPage() {
                 <button
                   onClick={() => { setVacinaId(v.id); setNumeroDose(1); setStep('detalhes') }}
                   className="card card-hover"
-                  style={{
-                    width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
-                    padding: 'var(--space-4) var(--space-5)', cursor: 'pointer', textAlign: 'left',
-                    minHeight: 48, // alvo de toque mínimo 48px
-                    outline: v.id === vacinaId ? '2px solid var(--color-primary)' : undefined,
-                  }}
+                  style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', padding: 'var(--space-4) var(--space-5)', cursor: 'pointer', textAlign: 'left', minHeight: 48, outline: v.id === vacinaId ? '2px solid var(--color-primary)' : undefined }}
                 >
                   <p style={{ fontWeight: 600, fontSize: 'var(--text-sm)', color: 'var(--color-text)' }}>{v.nome}</p>
                   <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
@@ -225,6 +185,7 @@ export function RegistrarVacinaPage() {
         </div>
       )}
 
+      {/* Step 3: Detalhes */}
       {step === 'detalhes' && vacina && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
           <div className="card" style={{ padding: 'var(--space-4) var(--space-5)' }}>
@@ -240,14 +201,7 @@ export function RegistrarVacinaPage() {
               </label>
               <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
                 {Array.from({ length: vacina.doses }, (_, i) => i + 1).map(n => (
-                  <button
-                    key={n}
-                    onClick={() => setNumeroDose(n)}
-                    className={numeroDose === n ? 'btn btn-primary' : 'btn btn-ghost'}
-                    style={{ minWidth: 48, minHeight: 48 }} // alvo de toque mínimo 48px
-                  >
-                    {n}ª
-                  </button>
+                  <button key={n} onClick={() => setNumeroDose(n)} className={numeroDose === n ? 'btn btn-primary' : 'btn btn-ghost'} style={{ minWidth: 48, minHeight: 48 }}>{n}ª</button>
                 ))}
               </div>
             </div>
@@ -255,91 +209,83 @@ export function RegistrarVacinaPage() {
 
           <div>
             <label htmlFor="data" style={{ display: 'block', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginBottom: 'var(--space-2)', fontWeight: 500 }}>
-              Data em que a vacina foi tomada *
+              Data da vacina *
             </label>
             <input
               id="data"
               type="date"
               value={dataAplicacao}
-              max={new Date().toISOString().slice(0, 10)}
               onChange={e => { setDataAplicacao(e.target.value); setErro('') }}
               className="input-field"
+              style={{ minHeight: 48 }}
               aria-describedby={erro ? 'erro-form' : undefined}
-              style={{ minHeight: 48 }}
             />
+            <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-faint)', marginTop: 'var(--space-1)' }}>
+              Datas anteriores a hoje serão registradas no histórico. Datas futuras serão agendadas.
+            </p>
           </div>
 
-          <div>
-            <label htmlFor="local" style={{ display: 'block', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginBottom: 'var(--space-2)', fontWeight: 500 }}>
-              Onde a vacina foi aplicada? *
-            </label>
-            <input
-              id="local"
-              type="text"
-              value={localAplicacao}
-              onChange={e => { setLocalAplicacao(e.target.value); setErro('') }}
-              placeholder="Ex: UBS Vila Madalena, Clínica São João"
-              className="input-field"
-              aria-describedby={erro ? 'erro-form' : undefined}
-              style={{ minHeight: 48 }}
-            />
-          </div>
+          {/* Banner contextual conforme a data escolhida */}
+          {dataAplicacao && dataFutura && (
+            <div style={{ display: 'flex', gap: 'var(--space-3)', alignItems: 'flex-start', padding: 'var(--space-3) var(--space-4)', background: 'var(--color-primary-highlight)', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-primary)' }}>
+              <CalendarDays size={16} style={{ color: 'var(--color-primary)', flexShrink: 0, marginTop: 2 }} aria-hidden />
+              <div>
+                <p style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--color-primary)' }}>Vacina será agendada</p>
+                <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginTop: 'var(--space-1)' }}>
+                  Como a data ainda não chegou, {vacina.doses > 1 ? `lembretes para as ${vacina.doses - numeroDose + 1} doses restantes serão criados` : 'um lembrete será criado'} automaticamente na Agenda.
+                </p>
+              </div>
+            </div>
+          )}
 
-          <div>
-            <label htmlFor="lote" style={{ display: 'block', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginBottom: 'var(--space-2)', fontWeight: 500 }}>
-              Número do lote (opcional)
-            </label>
-            <input
-              id="lote"
-              type="text"
-              value={lote}
-              onChange={e => setLote(e.target.value)}
-              placeholder="Ex: AB1234"
-              className="input-field"
-              style={{ minHeight: 48 }}
-            />
-          </div>
+          {dataAplicacao && !dataFutura && (
+            <div style={{ display: 'flex', gap: 'var(--space-3)', alignItems: 'flex-start', padding: 'var(--space-3) var(--space-4)', background: 'var(--color-success-highlight)', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-success)' }}>
+              <Clock size={16} style={{ color: 'var(--color-success)', flexShrink: 0, marginTop: 2 }} aria-hidden />
+              <div>
+                <p style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--color-success)' }}>Dose será registrada no histórico</p>
+                <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginTop: 'var(--space-1)' }}>
+                  A data informada já passou. A dose será salva no histórico vacinal de {membro?.nome?.split(' ')[0]}.
+                </p>
+              </div>
+            </div>
+          )}
 
-          <div>
-            <label htmlFor="obs" style={{ display: 'block', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginBottom: 'var(--space-2)', fontWeight: 500 }}>
-              Observações (opcional)
-            </label>
-            <textarea
-              id="obs"
-              value={observacoes}
-              onChange={e => setObservacoes(e.target.value)}
-              placeholder="Reações, observações do profissional de saúde..."
-              rows={3}
-              className="input-field"
-              style={{ resize: 'vertical' }}
-            />
-          </div>
+          {/* Campo local: só aparece para datas passadas */}
+          {!dataFutura && (
+            <div>
+              <label htmlFor="local" style={{ display: 'block', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginBottom: 'var(--space-2)', fontWeight: 500 }}>
+                Onde foi aplicada? *
+              </label>
+              <input id="local" type="text" value={localAplicacao} onChange={e => { setLocalAplicacao(e.target.value); setErro('') }} placeholder="Ex: UBS Vila Madalena, Clínica São João" className="input-field" style={{ minHeight: 48 }} />
+            </div>
+          )}
 
-          {/* Mensagem de erro em Linguagem Simples com role=alert para leitores de tela */}
+          {!dataFutura && (
+            <div>
+              <label htmlFor="lote" style={{ display: 'block', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginBottom: 'var(--space-2)', fontWeight: 500 }}>
+                Número do lote (opcional)
+              </label>
+              <input id="lote" type="text" value={lote} onChange={e => setLote(e.target.value)} placeholder="Ex: AB1234" className="input-field" style={{ minHeight: 48 }} />
+            </div>
+          )}
+
+          {!dataFutura && (
+            <div>
+              <label htmlFor="obs" style={{ display: 'block', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginBottom: 'var(--space-2)', fontWeight: 500 }}>
+                Observações (opcional)
+              </label>
+              <textarea id="obs" value={observacoes} onChange={e => setObservacoes(e.target.value)} placeholder="Reações, observações do profissional..." rows={3} className="input-field" style={{ resize: 'vertical' }} />
+            </div>
+          )}
+
           {erro && (
-            <p
-              id="erro-form"
-              role="alert"
-              aria-live="assertive"
-              style={{
-                fontSize: 'var(--text-sm)',
-                color: 'var(--color-error)',
-                background: 'var(--color-error-highlight)',
-                borderRadius: 'var(--radius-md)',
-                padding: 'var(--space-3) var(--space-4)',
-                lineHeight: 1.5,
-              }}
-            >
+            <p id="erro-form" role="alert" aria-live="assertive" style={{ fontSize: 'var(--text-sm)', color: 'var(--color-error)', background: 'var(--color-error-highlight)', borderRadius: 'var(--radius-md)', padding: 'var(--space-3) var(--space-4)', lineHeight: 1.5 }}>
               ⚠️ {erro}
             </p>
           )}
 
-          <button
-            onClick={handleSalvar}
-            className="btn btn-primary"
-            style={{ width: '100%', minHeight: 48 }}
-          >
-            Salvar registro
+          <button onClick={handleSalvar} className="btn btn-primary" style={{ width: '100%', minHeight: 48 }}>
+            {dataFutura ? 'Agendar vacina' : 'Salvar no histórico'}
           </button>
         </div>
       )}

@@ -1,10 +1,8 @@
-import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Plus, Syringe, ChevronDown, ChevronUp } from 'lucide-react'
+import { Plus, Syringe } from 'lucide-react'
 import { useMembros, PARENTESCO_LABEL } from '@/contexts/MembrosContext'
 import { useVacinas, calcularDosesStatus } from '@/contexts/VacinasContext'
 import { Avatar } from '@/components/ui/Avatar'
-import { VacinaStatusBadge } from '@/components/ui/VacinaStatusBadge'
 import type { StatusDose } from '@/types'
 
 function resumoStatus(statuses: StatusDose[]): { label: string; cor: string } {
@@ -18,7 +16,6 @@ function resumoStatus(statuses: StatusDose[]): { label: string; cor: string } {
 export function VacinasPage() {
   const { membros } = useMembros()
   const { vacinas, buscarRegistrosMembro } = useVacinas()
-  const [expandido, setExpandido] = useState<string | null>(null)
 
   return (
     <div style={{ maxWidth: 640, margin: '0 auto', paddingBottom: 'var(--space-8)' }}>
@@ -29,7 +26,7 @@ export function VacinasPage() {
             Vacinas
           </h2>
           <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)', marginTop: 'var(--space-1)' }}>
-            Acompanhe o calendário de cada membro
+            Selecione um membro para gerenciar as doses
           </p>
         </div>
         <Link to="/vacinas/registrar" className="btn btn-primary" style={{ gap: 'var(--space-2)' }}>
@@ -38,7 +35,7 @@ export function VacinasPage() {
         </Link>
       </div>
 
-      {/* Lista por membro */}
+      {/* Lista por membro — cada card é um link para /vacinas/membro/:id */}
       {membros.length === 0 ? (
         <div style={{ textAlign: 'center', padding: 'var(--space-16) var(--space-8)', color: 'var(--color-text-muted)' }}>
           <Syringe size={48} style={{ margin: '0 auto var(--space-4)', color: 'var(--color-text-faint)' }} aria-hidden />
@@ -60,27 +57,20 @@ export function VacinasPage() {
               calcularDosesStatus(v, registrosMembro, membro.dataNascimento).map(d => d.status)
             )
             const resumo = resumoStatus(todasDoses)
-            const aberto = expandido === membro.id
-            const vacinasAplicaveis = vacinas.filter(v =>
-              calcularDosesStatus(v, registrosMembro, membro.dataNascimento).some(d => d.status !== 'nao_aplicavel')
-            )
 
             return (
               <li key={membro.id}>
-                <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-                  {/* Cabeçalho do membro */}
-                  <button
-                    onClick={() => setExpandido(aberto ? null : membro.id)}
-                    style={{
-                      width: '100%', display: 'flex', alignItems: 'center',
-                      gap: 'var(--space-4)', padding: 'var(--space-4) var(--space-5)',
-                      background: 'none', cursor: 'pointer', minHeight: 44,
-                    }}
-                    aria-expanded={aberto}
-                    aria-label={`Vacinas de ${membro.nome}`}
+                <Link
+                  to={`/vacinas/membro/${membro.id}`}
+                  style={{ textDecoration: 'none' }}
+                  aria-label={`Gerenciar vacinas de ${membro.nome}`}
+                >
+                  <div
+                    className="card card-hover"
+                    style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)', padding: 'var(--space-4) var(--space-5)' }}
                   >
-                    <Avatar nome={membro.nome} tamanho={40} fotoUrl={membro.fotoUrl} />
-                    <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
+                    <Avatar nome={membro.nome} tamanho={44} fotoUrl={membro.fotoUrl} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
                       <p style={{ fontWeight: 600, color: 'var(--color-text)', fontSize: 'var(--text-sm)' }}>
                         {membro.nome}
                       </p>
@@ -88,61 +78,14 @@ export function VacinasPage() {
                         {PARENTESCO_LABEL[membro.parentesco]}
                       </p>
                     </div>
-                    <span style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: resumo.cor, marginRight: 'var(--space-2)' }}>
-                      {resumo.label}
-                    </span>
-                    {aberto
-                      ? <ChevronUp size={16} style={{ color: 'var(--color-text-faint)', flexShrink: 0 }} aria-hidden />
-                      : <ChevronDown size={16} style={{ color: 'var(--color-text-faint)', flexShrink: 0 }} aria-hidden />
-                    }
-                  </button>
-
-                  {/* Detalhe de vacinas */}
-                  {aberto && (
-                    <div>
-                      <hr className="divider" style={{ margin: 0 }} />
-                      <ul style={{ listStyle: 'none', padding: 'var(--space-2) 0' }} role="list">
-                        {vacinasAplicaveis.map(vacina => {
-                          const doses = calcularDosesStatus(vacina, registrosMembro, membro.dataNascimento)
-                            .filter(d => d.status !== 'nao_aplicavel')
-                          return (
-                            <li
-                              key={vacina.id}
-                              style={{
-                                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                                padding: 'var(--space-3) var(--space-5)', gap: 'var(--space-3)',
-                              }}
-                            >
-                              <div style={{ minWidth: 0, flex: 1 }}>
-                                <p style={{ fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--color-text)' }}>
-                                  {vacina.nome}
-                                </p>
-                                <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
-                                  {vacina.doses === 1 ? 'Dose única' : `${vacina.doses} doses`}
-                                </p>
-                              </div>
-                              <div style={{ display: 'flex', gap: 'var(--space-2)', flexShrink: 0 }}>
-                                {doses.map(d => (
-                                  <VacinaStatusBadge key={d.numeroDose} status={d.status} mostrarLabel={false} />
-                                ))}
-                              </div>
-                            </li>
-                          )
-                        })}
-                      </ul>
-                      <div style={{ padding: 'var(--space-3) var(--space-5)', borderTop: '1px solid var(--color-divider)' }}>
-                        <Link
-                          to="/vacinas/registrar"
-                          state={{ membroId: membro.id }}
-                          className="btn btn-ghost"
-                          style={{ width: '100%', gap: 'var(--space-2)', fontSize: 'var(--text-sm)' }}
-                        >
-                          <Plus size={15} aria-hidden /> Registrar dose para {membro.nome.split(' ')[0]}
-                        </Link>
-                      </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', flexShrink: 0 }}>
+                      <span style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: resumo.cor }}>
+                        {resumo.label}
+                      </span>
+                      <span style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-faint)' }}>›</span>
                     </div>
-                  )}
-                </div>
+                  </div>
+                </Link>
               </li>
             )
           })}

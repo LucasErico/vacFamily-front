@@ -1,0 +1,320 @@
+import { useState } from 'react'
+import { useParams, useNavigate, Link } from 'react-router-dom'
+import { ArrowLeft, Plus, CheckCircle2, Trash2, Clock, CalendarDays, ChevronDown } from 'lucide-react'
+import { useMembros, PARENTESCO_LABEL } from '@/contexts/MembrosContext'
+import { useVacinas, calcularDosesStatus } from '@/contexts/VacinasContext'
+import { useLembretes } from '@/contexts/LembretesContext'
+import { Avatar } from '@/components/ui/Avatar'
+import { VacinaStatusBadge } from '@/components/ui/VacinaStatusBadge'
+import type { DoseStatus } from '@/types'
+
+function formatarData(iso: string) {
+  const [ano, mes, dia] = iso.split('-')
+  return `${dia}/${mes}/${ano}`
+}
+
+type ModalState =
+  | { tipo: 'nenhum' }
+  | { tipo: 'marcarTomada'; dose: DoseStatus; vacinaNome: string }
+  | { tipo: 'apagarDose'; dose: DoseStatus; vacinaNome: string; registroId: string }
+  | { tipo: 'lembreteVinculado' }
+
+export function VacinaMembroPage() {
+  const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
+  const { membros } = useMembros()
+  const { vacinas, registros, registrarDose, removerRegistro, buscarRegistrosMembro } = useVacinas()
+  const { adicionarLembrete, lembretes, removerLembrete } = useLembretes()
+
+  const hoje = new Date().toISOString().slice(0, 10)
+
+  const [membroSelecionadoId, setMembroSelecionadoId] = useState(id ?? '')
+  const [seletorAberto, setSeletorAberto] = useState(false)
+  const [vacinaExpandida, setVacinaExpandida] = useState<string | null>(null)
+  const [modal, setModal] = useState<ModalState>({ tipo: 'nenhum' })
+
+  // Formulário "marcar como tomada"
+  const [dataConfirm, setDataConfirm] = useState(hoje)
+  const [localConfirm, setLocalConfirm] = useState('')
+  const [erroConfirm, setErroConfirm] = useState('')
+
+  const membro = membros.find(m => m.id === membroSelecionadoId)
+  const outrosMembros = membros.filter(m => m.id !== membroSelecionadoId)
+
+  if (!membro) {
+    return (
+      <div style={{ textAlign: 'center', padding: 'var(--space-16)' }}>
+        <p style={{ color: 'var(--color-text-muted)' }}>Membro não encontrado.</p>
+        <Link to="/vacinas" className="btn btn-ghost" style={{ marginTop: 'var(--space-4)' }}>Voltar para Vacinas</Link>
+      </div>
+    )
+  }
+
+  const registrosMembro = buscarRegistrosMembro(membroSelecionadoId)
+  const vacinasAplicaveis = vacinas.filter(v =>
+    calcularDosesStatus(v, registrosMembro, membro.dataNascimento).some(d => d.status !== 'nao_aplicavel')
+  )
+
+  function handleMarcarTomada() {
+    if (!dataConfirm) { setErroConfirm('Informe a data de aplicação.'); return }
+    if (dataConfirm > hoje) { setErroConfirm('A data não pode ser futura para uma dose já tomada.'); return }
+    if (!localConfirm.trim()) { setErroConfirm('Informe o local de aplicação.'); return }
+    if (modal.tipo !== 'marcarTomada') return
+
+    registrarDose(
+      { membroId: membroSelecionadoId, vacinaId: modal.dose.vacinaId, numeroDose: modal.dose.numeroDose, dataAplicacao: dataConfirm, localAplicacao: localConfirm },
+      (mId, vId, nDose, dataLembrete) => {
+        adicionarLembrete({ membroId: mId, vacinaId: vId, numeroDose: nDose, dataLembrete, status: 'pendente', automatico: true })
+      }
+    )
+
+    // Remover lembrete pendente dessa dose, se existir
+    const lembreteExistente = lembretes.find(
+      l => l.membroId === membroSelecionadoId && l.vacinaId === modal.dose.vacinaId && l.numeroDose === modal.dose.numeroDose && l.status === 'pendente'
+    )
+    if (lembreteExistente) removerLembrete(lembreteExistente.id)
+
+    setModal({ tipo: 'nenhum' })
+    setDataConfirm(hoje); setLocalConfirm(''); setErroConfirm('')
+  }
+
+  function handleApagarDose() {
+    if (modal.tipo !== 'apagarDose') return
+    removerRegistro(modal.registroId)
+    setModal({ tipo: 'nenhum' })
+  }
+
+  function isAtrasada(dose: DoseStatus) {
+    return dose.status === 'pendente' && dose.dataRecomendada < hoje
+  }
+
+  return (
+    <div style={{ maxWidth: 640, margin: '0 auto', paddingBottom: 'var(--space-8)' }}>
+
+      {/* Cabeçalho */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-5)' }}>
+        <button
+          onClick={() => navigate('/vacinas')}
+          style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', color: 'var(--color-text-muted)', fontSize: 'var(--text-sm)', minHeight: 44, flexShrink: 0 }}
+          aria-label="Voltar para Vacinas"
+        >
+          <ArrowLeft size={18} aria-hidden /> Voltar
+        </button>
+        <div style={{ flex: 1 }} />
+        <Link to="/vacinas/registrar" state={{ membroId: membroSelecionadoId }} className="btn btn-primary" style={{ gap: 'var(--space-2)', fontSize: 'var(--text-sm)' }}>
+          <Plus size={16} aria-hidden /> Registrar dose
+        </Link>
+      </div>
+
+      {/* Card do membro + seletor */}
+      <div className="card" style={{ marginBottom: 'var(--space-5)', padding: 'var(--space-4) var(--space-5)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
+          <Avatar nome={membro.nome} tamanho={48} fotoUrl={membro.fotoUrl} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ fontWeight: 700, color: 'var(--color-text)', fontSize: 'var(--text-base)' }}>{membro.nome}</p>
+            <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>{PARENTESCO_LABEL[membro.parentesco]}</p>
+          </div>
+          {outrosMembros.length > 0 && (
+            <button
+              onClick={() => setSeletorAberto(v => !v)}
+              className="btn btn-ghost"
+              style={{ fontSize: 'var(--text-xs)', gap: 'var(--space-1)', flexShrink: 0 }}
+              aria-expanded={seletorAberto}
+            >
+              Trocar <ChevronDown size={14} style={{ transform: seletorAberto ? 'rotate(180deg)' : 'none', transition: 'transform 150ms' }} aria-hidden />
+            </button>
+          )}
+        </div>
+
+        {/* Seletor de membro */}
+        {seletorAberto && (
+          <div style={{ marginTop: 'var(--space-3)', paddingTop: 'var(--space-3)', borderTop: '1px solid var(--color-divider)', display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+            {outrosMembros.map(m => (
+              <button
+                key={m.id}
+                onClick={() => { setMembroSelecionadoId(m.id); setSeletorAberto(false); navigate(`/vacinas/membro/${m.id}`, { replace: true }) }}
+                style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', padding: 'var(--space-2) var(--space-3)', borderRadius: 'var(--radius-md)', background: 'var(--color-surface-offset)', border: 'none', cursor: 'pointer', minHeight: 44, textAlign: 'left' }}
+              >
+                <Avatar nome={m.nome} tamanho={32} />
+                <div>
+                  <p style={{ fontWeight: 600, fontSize: 'var(--text-sm)', color: 'var(--color-text)' }}>{m.nome}</p>
+                  <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>{PARENTESCO_LABEL[m.parentesco]}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Lista de vacinas */}
+      {vacinasAplicaveis.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: 'var(--space-12) var(--space-8)', color: 'var(--color-text-muted)' }}>
+          <p style={{ fontSize: 'var(--text-sm)' }}>Nenhuma vacina aplicável para {membro.nome.split(' ')[0]} ainda.</p>
+        </div>
+      ) : (
+        <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }} role="list">
+          {vacinasAplicaveis.map(vacina => {
+            const doses = calcularDosesStatus(vacina, registrosMembro, membro.dataNascimento)
+              .filter(d => d.status !== 'nao_aplicavel')
+            const aberto = vacinaExpandida === vacina.id
+
+            return (
+              <li key={vacina.id}>
+                <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+                  <button
+                    onClick={() => setVacinaExpandida(aberto ? null : vacina.id)}
+                    style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 'var(--space-4)', padding: 'var(--space-4) var(--space-5)', background: 'none', cursor: 'pointer', minHeight: 48, textAlign: 'left' }}
+                    aria-expanded={aberto}
+                  >
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontWeight: 600, fontSize: 'var(--text-sm)', color: 'var(--color-text)' }}>{vacina.nome}</p>
+                      <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
+                        {vacina.doses === 1 ? 'Dose única' : `${vacina.doses} doses`}
+                      </p>
+                    </div>
+                    <div style={{ display: 'flex', gap: 'var(--space-1)', flexShrink: 0 }}>
+                      {doses.map(d => <VacinaStatusBadge key={d.numeroDose} status={isAtrasada(d) ? 'atrasada' : d.status} mostrarLabel={false} />)}
+                    </div>
+                    <ChevronDown size={16} style={{ color: 'var(--color-text-faint)', flexShrink: 0, transform: aberto ? 'rotate(180deg)' : 'none', transition: 'transform 150ms' }} aria-hidden />
+                  </button>
+
+                  {aberto && (
+                    <div>
+                      <hr className="divider" style={{ margin: 0 }} />
+                      <ul style={{ listStyle: 'none', padding: 'var(--space-2) 0' }} role="list">
+                        {doses.map(dose => {
+                          const atrasada = isAtrasada(dose)
+                          const statusEfetivo: typeof dose.status = atrasada ? 'atrasada' : dose.status
+                          const registro = registros.find(r => r.vacinaId === vacina.id && r.membroId === membroSelecionadoId && r.numeroDose === dose.numeroDose)
+
+                          return (
+                            <li key={dose.numeroDose} style={{ padding: 'var(--space-3) var(--space-5)', display: 'flex', alignItems: 'flex-start', gap: 'var(--space-3)', borderBottom: '1px solid var(--color-divider)' }}>
+                              <VacinaStatusBadge status={statusEfetivo} mostrarLabel={false} />
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <p style={{ fontWeight: 600, fontSize: 'var(--text-sm)', color: 'var(--color-text)' }}>
+                                  {dose.numeroDose}ª dose
+                                  {atrasada && <span style={{ marginLeft: 'var(--space-2)', fontSize: 'var(--text-xs)', color: 'var(--color-error)', fontWeight: 600 }}>ATRASADA</span>}
+                                </p>
+                                {dose.status === 'aplicada' && registro && (
+                                  <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
+                                    Aplicada em {formatarData(registro.dataAplicacao)}
+                                    {registro.localAplicacao ? ` · ${registro.localAplicacao}` : ''}
+                                  </p>
+                                )}
+                                {dose.status !== 'aplicada' && (
+                                  <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
+                                    Prevista para {formatarData(dose.dataRecomendada)}
+                                  </p>
+                                )}
+                              </div>
+
+                              {/* Ações */}
+                              <div style={{ display: 'flex', gap: 'var(--space-2)', flexShrink: 0 }}>
+                                {dose.status !== 'aplicada' && (
+                                  <button
+                                    onClick={() => setModal({ tipo: 'marcarTomada', dose, vacinaNome: vacina.nome })}
+                                    style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)', fontSize: 'var(--text-xs)', color: 'var(--color-success)', fontWeight: 600, padding: 'var(--space-2)', minHeight: 44, minWidth: 44, border: '1px solid var(--color-success-highlight)', borderRadius: 'var(--radius-md)', background: 'var(--color-success-highlight)' }}
+                                    aria-label={`Marcar ${dose.numeroDose}ª dose de ${vacina.nome} como tomada`}
+                                  >
+                                    <CheckCircle2 size={14} aria-hidden />
+                                    <span>Tomada</span>
+                                  </button>
+                                )}
+                                {dose.status === 'aplicada' && registro && (
+                                  <button
+                                    onClick={() => setModal({ tipo: 'apagarDose', dose, vacinaNome: vacina.nome, registroId: registro.id })}
+                                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-error)', padding: 'var(--space-2)', minHeight: 44, minWidth: 44 }}
+                                    aria-label={`Apagar registro da ${dose.numeroDose}ª dose de ${vacina.nome}`}
+                                  >
+                                    <Trash2 size={15} aria-hidden />
+                                  </button>
+                                )}
+                              </div>
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+
+      {/* Modal: Marcar como tomada */}
+      {modal.tipo === 'marcarTomada' && (
+        <div role="dialog" aria-modal="true" aria-labelledby="modal-title" style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', background: 'oklch(0 0 0 / 0.5)', padding: 'var(--space-4)' }} onClick={e => { if (e.target === e.currentTarget) setModal({ tipo: 'nenhum' }) }}>
+          <div className="card" style={{ width: '100%', maxWidth: 480, display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+              <CheckCircle2 size={20} style={{ color: 'var(--color-success)', flexShrink: 0 }} aria-hidden />
+              <h3 id="modal-title" style={{ fontFamily: 'var(--font-display)', fontWeight: 700, color: 'var(--color-text)', fontSize: 'var(--text-base)' }}>
+                Marcar {modal.dose.numeroDose}ª dose como tomada
+              </h3>
+            </div>
+            <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
+              Vacina: <strong>{modal.vacinaNome}</strong> · Membro: <strong>{membro.nome}</strong>
+            </p>
+            <div>
+              <label htmlFor="data-confirm" style={{ display: 'block', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginBottom: 'var(--space-2)', fontWeight: 500 }}>Data de aplicação *</label>
+              <input id="data-confirm" type="date" value={dataConfirm} max={hoje} onChange={e => { setDataConfirm(e.target.value); setErroConfirm('') }} className="input-field" style={{ minHeight: 48 }} />
+            </div>
+            <div>
+              <label htmlFor="local-confirm" style={{ display: 'block', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginBottom: 'var(--space-2)', fontWeight: 500 }}>Local de aplicação *</label>
+              <input id="local-confirm" type="text" value={localConfirm} onChange={e => { setLocalConfirm(e.target.value); setErroConfirm('') }} placeholder="Ex: UBS Centro" className="input-field" style={{ minHeight: 48 }} />
+            </div>
+            {erroConfirm && <p role="alert" style={{ fontSize: 'var(--text-xs)', color: 'var(--color-error)', background: 'var(--color-error-highlight)', borderRadius: 'var(--radius-md)', padding: 'var(--space-3)' }}>⚠️ {erroConfirm}</p>}
+            <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
+              <button onClick={() => { setModal({ tipo: 'nenhum' }); setErroConfirm('') }} className="btn btn-ghost" style={{ flex: 1 }}>Cancelar</button>
+              <button onClick={handleMarcarTomada} className="btn btn-primary" style={{ flex: 1, gap: 'var(--space-2)' }}><CheckCircle2 size={15} aria-hidden /> Confirmar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Apagar dose */}
+      {modal.tipo === 'apagarDose' && (
+        <div role="dialog" aria-modal="true" aria-labelledby="modal-apagar-title" style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', background: 'oklch(0 0 0 / 0.5)', padding: 'var(--space-4)' }} onClick={e => { if (e.target === e.currentTarget) setModal({ tipo: 'nenhum' }) }}>
+          <div className="card" style={{ width: '100%', maxWidth: 480, display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+              <Trash2 size={20} style={{ color: 'var(--color-error)', flexShrink: 0 }} aria-hidden />
+              <h3 id="modal-apagar-title" style={{ fontFamily: 'var(--font-display)', fontWeight: 700, color: 'var(--color-text)', fontSize: 'var(--text-base)' }}>
+                Apagar registro desta dose?
+              </h3>
+            </div>
+            <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)' }}>
+              Você está removendo o registro da <strong>{modal.dose.numeroDose}ª dose</strong> de <strong>{modal.vacinaNome}</strong> para <strong>{membro.nome}</strong>.
+              Esta ação não pode ser desfeita.
+            </p>
+            <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
+              <button onClick={() => setModal({ tipo: 'nenhum' })} className="btn btn-ghost" style={{ flex: 1 }}>Cancelar</button>
+              <button onClick={handleApagarDose} className="btn" style={{ flex: 1, background: 'var(--color-error)', color: '#fff', gap: 'var(--space-2)' }}><Trash2 size={15} aria-hidden /> Apagar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: lembrete vinculado a dose */}
+      {modal.tipo === 'lembreteVinculado' && (
+        <div role="dialog" aria-modal="true" aria-labelledby="modal-lem-title" style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', background: 'oklch(0 0 0 / 0.5)', padding: 'var(--space-4)' }} onClick={e => { if (e.target === e.currentTarget) setModal({ tipo: 'nenhum' }) }}>
+          <div className="card" style={{ width: '100%', maxWidth: 480, display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+              <CalendarDays size={20} style={{ color: 'var(--color-primary)', flexShrink: 0 }} aria-hidden />
+              <h3 id="modal-lem-title" style={{ fontFamily: 'var(--font-display)', fontWeight: 700, color: 'var(--color-text)', fontSize: 'var(--text-base)' }}>
+                Lembrete vinculado a uma dose
+              </h3>
+            </div>
+            <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)' }}>
+              Este lembrete está associado a uma dose já registrada. Para modificar ou remover, gerencie a dose diretamente na página de vacinas do membro.
+            </p>
+            <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
+              <button onClick={() => setModal({ tipo: 'nenhum' })} className="btn btn-ghost" style={{ flex: 1 }}>Fechar</button>
+              <Link to={`/vacinas/membro/${membroSelecionadoId}`} className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}>Ir para Vacinas</Link>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
