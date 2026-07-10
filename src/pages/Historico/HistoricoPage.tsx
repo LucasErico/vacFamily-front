@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import { ClipboardList, Plus, CheckCircle2, Clock, AlertCircle } from 'lucide-react'
-import { useMembros, PARENTESCO_LABEL } from '@/contexts/MembrosContext'
+import { useMembros } from '@/contexts/MembrosContext'
 import { useVacinas } from '@/contexts/VacinasContext'
 import { useLembretes } from '@/contexts/LembretesContext'
 import { Avatar } from '@/components/ui/Avatar'
