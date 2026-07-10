@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { ArrowLeft, Plus, CheckCircle2, Trash2, Clock, CalendarDays, ChevronDown } from 'lucide-react'
+import { ArrowLeft, Plus, CheckCircle2, Trash2, CalendarDays, ChevronDown } from 'lucide-react'
 import { useMembros, PARENTESCO_LABEL } from '@/contexts/MembrosContext'
 import { useVacinas, calcularDosesStatus } from '@/contexts/VacinasContext'
 import { useLembretes } from '@/contexts/LembretesContext'
@@ -85,7 +85,7 @@ export function VacinaMembroPage() {
   }
 
   function isAtrasada(dose: DoseStatus) {
-    return dose.status === 'pendente' && dose.dataRecomendada < hoje
+    return dose.status === 'pendente' && !!dose.dataRecomendada && dose.dataRecomendada < hoje
   }
 
   return (
@@ -201,7 +201,7 @@ export function VacinaMembroPage() {
                                     {registro.localAplicacao ? ` · ${registro.localAplicacao}` : ''}
                                   </p>
                                 )}
-                                {dose.status !== 'aplicada' && (
+                                {dose.status !== 'aplicada' && dose.dataRecomendada && (
                                   <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
                                     Prevista para {formatarData(dose.dataRecomendada)}
                                   </p>
