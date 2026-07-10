@@ -1,15 +1,10 @@
-import { Outlet, useRef } from 'react-router-dom'
+import { Outlet } from 'react-router-dom'
+import { useEffect, useState, useCallback } from 'react'
 import { TopBar } from './TopBar'
 import { BottomNav } from './BottomNav'
 import { Sidebar } from './Sidebar'
 import { ScrollToTopButton } from '@/components/ui/ScrollToTopButton'
-import { useEffect, useState, useCallback } from 'react'
-import { useRef as useReactRef } from 'react'
 
-/**
- * Hook inline para observar o scroll do main element via id,
- * evitando problemas de cast de RefObject.
- */
 function usePageScrollTop(threshold = 120) {
   const [visible, setVisible] = useState(false)
 
