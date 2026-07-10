@@ -9,6 +9,7 @@ import { useMembros, PARENTESCO_LABEL } from '@/contexts/MembrosContext'
 import { useVacinas, calcularDosesStatus } from '@/contexts/VacinasContext'
 import { useLembretes } from '@/contexts/LembretesContext'
 import { useAuth } from '@/contexts/AuthContext'
+import { InfoCarousel } from '@/components/ui/InfoCarousel'
 import type { StatusDose } from '@/types'
 
 /* ── helpers ────────────────────────────────────────── */
@@ -94,7 +95,6 @@ export function DashboardPage() {
   const { vacinas, registros } = useVacinas()
   const { lembretesPendentes } = useLembretes()
 
-  /* status vacinal por membro */
   const statusPorMembro = useMemo(() =>
     membros.map(membro => {
       const regsMembro = registros.filter(r => r.membroId === membro.id)
@@ -102,19 +102,16 @@ export function DashboardPage() {
       return { membro, status: statusGlobal(doses), totalDoses: doses.filter(d => d.status !== 'nao_aplicavel').length, aplicadas: doses.filter(d => d.status === 'aplicada').length }
     }), [membros, vacinas, registros])
 
-  /* contadores para os KPI cards */
-  const totalAtrasados = statusPorMembro.filter(s => s.status === 'atrasado').length
-  const totalEmDia    = statusPorMembro.filter(s => s.status === 'em_dia').length
-  const totalPendentes = lembretesPendentes.length
+  const totalAtrasados  = statusPorMembro.filter(s => s.status === 'atrasado').length
+  const totalEmDia      = statusPorMembro.filter(s => s.status === 'em_dia').length
+  const totalPendentes  = lembretesPendentes.length
 
-  /* próximos lembretes (ordenados por data, máx 4) */
   const proximosLembretes = useMemo(() =>
     [...lembretesPendentes]
       .sort((a, b) => a.dataLembrete.localeCompare(b.dataLembrete))
       .slice(0, 4)
   , [lembretesPendentes])
 
-  /* registros recentes (últimos 5) */
   const registrosRecentes = useMemo(() =>
     [...registros]
       .sort((a, b) => b.criadoEm.localeCompare(a.criadoEm))
@@ -123,7 +120,6 @@ export function DashboardPage() {
 
   const primeiroNome = usuario?.nome?.split(' ')[0] ?? 'Usuário'
 
-  /* ── render ── */
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
 
@@ -143,22 +139,15 @@ export function DashboardPage() {
         </p>
       </div>
 
+      {/* Carrossel de informações */}
+      <InfoCarousel />
+
       {/* KPI Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 'var(--space-3)' }}>
-        <KpiCard
-          value={membros.length}
-          label="Membros"
-          icon={Users}
-          color="var(--color-primary)"
-          highlight="var(--color-primary-subtle)"
-        />
-        <KpiCard
-          value={totalEmDia}
-          label="Em dia"
-          icon={ShieldCheck}
-          color="var(--color-success)"
-          highlight="var(--color-success-highlight)"
-        />
+        <KpiCard value={membros.length} label="Membros" icon={Users}
+          color="var(--color-primary)" highlight="var(--color-primary-subtle)" />
+        <KpiCard value={totalEmDia} label="Em dia" icon={ShieldCheck}
+          color="var(--color-success)" highlight="var(--color-success-highlight)" />
         <KpiCard
           value={totalAtrasados}
           label={totalAtrasados === 1 ? 'Atrasado' : 'Atrasados'}
@@ -172,11 +161,8 @@ export function DashboardPage() {
       <section aria-labelledby="membros-heading">
         <SectionHeader icon={Users} title="Status por membro" to="/membros" count={membros.length} />
         {membros.length === 0 ? (
-          <EmptyState
-            icon={Users}
-            message="Nenhum membro cadastrado ainda."
-            action={{ label: 'Adicionar membro', to: '/membros' }}
-          />
+          <EmptyState icon={Users} message="Nenhum membro cadastrado ainda."
+            action={{ label: 'Adicionar membro', to: '/membros' }} />
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
             {statusPorMembro.map(({ membro, status, totalDoses, aplicadas }) => {
@@ -184,25 +170,19 @@ export function DashboardPage() {
               const StatusIcon = cfg.icon
               const pct = totalDoses > 0 ? Math.round((aplicadas / totalDoses) * 100) : 0
               return (
-                <Link
-                  key={membro.id}
-                  to={`/membros/${membro.id}`}
+                <Link key={membro.id} to={`/membros/${membro.id}`}
                   className="card card-hover"
                   style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', padding: 'var(--space-4)', textDecoration: 'none' }}
                 >
-                  {/* Avatar inicial */}
                   <div style={{
                     width: 40, height: 40, borderRadius: 'var(--radius-full)',
                     background: 'var(--color-primary-highlight)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    flexShrink: 0,
-                    fontFamily: 'var(--font-display)', fontWeight: 700,
+                    flexShrink: 0, fontFamily: 'var(--font-display)', fontWeight: 700,
                     fontSize: 'var(--text-sm)', color: 'var(--color-primary)',
                   }} aria-hidden>
                     {membro.nome.charAt(0).toUpperCase()}
                   </div>
-
-                  {/* Info */}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
                       <span style={{ fontWeight: 600, fontSize: 'var(--text-sm)', color: 'var(--color-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -212,16 +192,12 @@ export function DashboardPage() {
                         {calcularIdade(membro.dataNascimento)} · {PARENTESCO_LABEL[membro.parentesco]}
                       </span>
                     </div>
-
-                    {/* barra de progresso */}
                     <div style={{ marginTop: 'var(--space-2)' }}>
                       <div style={{ height: 4, background: 'var(--color-surface-offset)', borderRadius: 'var(--radius-full)', overflow: 'hidden' }}>
                         <div style={{
-                          height: '100%',
-                          width: `${pct}%`,
+                          height: '100%', width: `${pct}%`,
                           background: status === 'atrasado' ? 'var(--color-error)' : status === 'pendente' ? 'var(--color-accent)' : 'var(--color-success)',
-                          borderRadius: 'var(--radius-full)',
-                          transition: 'width 0.4s ease',
+                          borderRadius: 'var(--radius-full)', transition: 'width 0.4s ease',
                         }} />
                       </div>
                       <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-faint)', marginTop: 2, display: 'block' }}>
@@ -229,12 +205,9 @@ export function DashboardPage() {
                       </span>
                     </div>
                   </div>
-
-                  {/* Badge status */}
                   <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 'var(--space-1)' }}>
                     <span className={`badge ${cfg.className}`}>
-                      <StatusIcon size={10} aria-hidden />
-                      {cfg.label}
+                      <StatusIcon size={10} aria-hidden />{cfg.label}
                     </span>
                     <ChevronRight size={16} style={{ color: 'var(--color-text-faint)' }} aria-hidden />
                   </div>
@@ -249,11 +222,8 @@ export function DashboardPage() {
       <section aria-labelledby="lembretes-heading">
         <SectionHeader icon={Bell} title="Próximos lembretes" to="/agenda" count={totalPendentes} />
         {proximosLembretes.length === 0 ? (
-          <EmptyState
-            icon={Bell}
-            message="Nenhum lembrete pendente."
-            action={{ label: 'Ver agenda', to: '/agenda' }}
-          />
+          <EmptyState icon={Bell} message="Nenhum lembrete pendente."
+            action={{ label: 'Ver agenda', to: '/agenda' }} />
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
             {proximosLembretes.map(lem => {
@@ -263,12 +233,13 @@ export function DashboardPage() {
               const urgente = dias <= 7 && dias >= 0
               const atrasado = dias < 0
               return (
-                <div key={lem.id} className="card" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', padding: 'var(--space-4)' }}>
+                <div key={lem.id} className="card"
+                  style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', padding: 'var(--space-4)' }}
+                >
                   <div style={{
                     width: 36, height: 36, borderRadius: 'var(--radius-md)',
                     background: atrasado ? 'var(--color-error-highlight)' : urgente ? 'var(--color-warning-highlight)' : 'var(--color-primary-subtle)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    flexShrink: 0,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                   }}>
                     <Calendar size={16} style={{ color: atrasado ? 'var(--color-error)' : urgente ? 'var(--color-warning)' : 'var(--color-primary)' }} aria-hidden />
                   </div>
@@ -294,23 +265,21 @@ export function DashboardPage() {
       <section aria-labelledby="recentes-heading">
         <SectionHeader icon={TrendingUp} title="Registros recentes" to="/vacinas" count={registros.length} />
         {registrosRecentes.length === 0 ? (
-          <EmptyState
-            icon={Syringe}
-            message="Nenhuma vacina registrada ainda."
-            action={{ label: 'Registrar vacina', to: '/vacinas/registrar' }}
-          />
+          <EmptyState icon={Syringe} message="Nenhuma vacina registrada ainda."
+            action={{ label: 'Registrar vacina', to: '/vacinas/registrar' }} />
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
             {registrosRecentes.map(reg => {
               const vacina = vacinas.find(v => v.id === reg.vacinaId)
               const membro = membros.find(m => m.id === reg.membroId)
               return (
-                <div key={reg.id} className="card" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', padding: 'var(--space-4)' }}>
+                <div key={reg.id} className="card"
+                  style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', padding: 'var(--space-4)' }}
+                >
                   <div style={{
                     width: 36, height: 36, borderRadius: 'var(--radius-md)',
                     background: 'var(--color-success-highlight)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    flexShrink: 0,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                   }}>
                     <Syringe size={16} style={{ color: 'var(--color-success)' }} aria-hidden />
                   </div>
@@ -336,8 +305,6 @@ export function DashboardPage() {
   )
 }
 
-/* ── KpiCard ─────────────────────────────────────────── */
-
 function KpiCard({ value, label, icon: Icon, color, highlight }: {
   value: number; label: string; icon: typeof Users; color: string; highlight: string
 }) {
@@ -361,8 +328,6 @@ function KpiCard({ value, label, icon: Icon, color, highlight }: {
   )
 }
 
-/* ── EmptyState ──────────────────────────────────────── */
-
 function EmptyState({ icon: Icon, message, action }: {
   icon: typeof Users; message: string; action?: { label: string; to: string }
 }) {
@@ -374,9 +339,7 @@ function EmptyState({ icon: Icon, message, action }: {
       <Icon size={32} style={{ color: 'var(--color-text-faint)' }} aria-hidden />
       <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)' }}>{message}</p>
       {action && (
-        <Link to={action.to} className="btn btn-sm btn-ghost">
-          {action.label}
-        </Link>
+        <Link to={action.to} className="btn btn-sm btn-ghost">{action.label}</Link>
       )}
     </div>
   )

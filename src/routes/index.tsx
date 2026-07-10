@@ -12,11 +12,29 @@ import { LembretesPage } from '@/pages/Lembretes/LembretesPage'
 import { HistoricoPage } from '@/pages/Historico/HistoricoPage'
 import { LoginPage } from '@/pages/Auth/LoginPage'
 import { RegisterPage } from '@/pages/Auth/RegisterPage'
+import { AdminLoginPage } from '@/pages/Admin/AdminLoginPage'
+import { AdminShell } from '@/pages/Admin/AdminShell'
+import { AdminOverviewPage } from '@/pages/Admin/AdminOverviewPage'
+import { AdminUsuariosPage } from '@/pages/Admin/AdminUsuariosPage'
+import { AdminCardsPage } from '@/pages/Admin/AdminCardsPage'
 
 export const router = createBrowserRouter([
-  { path: '/login',    element: <LoginPage /> },
-  { path: '/cadastro', element: <RegisterPage /> },
-  { path: '*',         element: <Navigate to="/" replace /> },
+  { path: '/login',       element: <LoginPage /> },
+  { path: '/cadastro',    element: <RegisterPage /> },
+
+  // ── Painel admin (acesso exclusivo via URL) ──────────────
+  { path: '/admin/login', element: <AdminLoginPage /> },
+  {
+    path: '/admin',
+    element: <AdminShell />,
+    children: [
+      { index: true,           element: <AdminOverviewPage /> },
+      { path: 'usuarios',      element: <AdminUsuariosPage /> },
+      { path: 'cards',         element: <AdminCardsPage /> },
+    ],
+  },
+
+  { path: '*', element: <Navigate to="/" replace /> },
   {
     path: '/',
     element: <RequireAuth><AppShell /></RequireAuth>,
