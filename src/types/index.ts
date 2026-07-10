@@ -57,9 +57,7 @@ export interface RegistroVacinal {
   numeroDose: number
   dataAplicacao: string // ISO 8601
   localAplicacao: string
-  lote?: string
   comprovanteUrl?: string
-  observacoes?: string
   criadoEm: string
 }
 

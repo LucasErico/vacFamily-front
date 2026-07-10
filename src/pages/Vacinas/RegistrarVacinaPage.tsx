@@ -33,8 +33,6 @@ export function RegistrarVacinaPage() {
   const [numeroDose, setNumeroDose] = useState(1)
   const [dataAplicacao, setDataAplicacao] = useState('')
   const [localAplicacao, setLocalAplicacao] = useState('')
-  const [lote, setLote] = useState('')
-  const [observacoes, setObservacoes] = useState('')
   const [erro, setErro] = useState('')
   const [modoSalvo, setModoSalvo] = useState<ModoSalvar>('historico')
 
@@ -51,7 +49,6 @@ export function RegistrarVacinaPage() {
     if (!membroId || !vacinaId) { setErro(ERROS_SIMPLES.camposObrigatorios); return }
 
     if (dataFutura) {
-      // Agendar: cria lembretes para TODAS as doses da vacina a partir da data
       if (!vacina) return
       const dataBase = new Date(dataAplicacao)
       for (let d = numeroDose; d <= vacina.doses; d++) {
@@ -68,10 +65,9 @@ export function RegistrarVacinaPage() {
         })
       }
     } else {
-      // Registrar no histórico
       if (!localAplicacao.trim()) { setErro(ERROS_SIMPLES.localObrigatorio); return }
       registrarDose(
-        { membroId, vacinaId, numeroDose, dataAplicacao, localAplicacao, lote: lote || undefined, observacoes: observacoes || undefined },
+        { membroId, vacinaId, numeroDose, dataAplicacao, localAplicacao },
         (mId, vId, nDose, dataLembrete) => {
           adicionarLembrete({ membroId: mId, vacinaId: vId, numeroDose: nDose, dataLembrete, status: 'pendente', automatico: true })
         }
@@ -86,7 +82,7 @@ export function RegistrarVacinaPage() {
   function resetar() {
     setStep('membro'); setMembroId(''); setVacinaId('')
     setNumeroDose(1); setDataAplicacao(''); setLocalAplicacao('')
-    setLote(''); setObservacoes(''); setErro('')
+    setErro('')
   }
 
   if (step === 'sucesso') {
@@ -225,7 +221,6 @@ export function RegistrarVacinaPage() {
             </p>
           </div>
 
-          {/* Banner contextual conforme a data escolhida */}
           {dataAplicacao && dataFutura && (
             <div style={{ display: 'flex', gap: 'var(--space-3)', alignItems: 'flex-start', padding: 'var(--space-3) var(--space-4)', background: 'var(--color-primary-highlight)', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-primary)' }}>
               <CalendarDays size={16} style={{ color: 'var(--color-primary)', flexShrink: 0, marginTop: 2 }} aria-hidden />
@@ -250,31 +245,12 @@ export function RegistrarVacinaPage() {
             </div>
           )}
 
-          {/* Campo local: só aparece para datas passadas */}
           {!dataFutura && (
             <div>
               <label htmlFor="local" style={{ display: 'block', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginBottom: 'var(--space-2)', fontWeight: 500 }}>
                 Onde foi aplicada? *
               </label>
               <input id="local" type="text" value={localAplicacao} onChange={e => { setLocalAplicacao(e.target.value); setErro('') }} placeholder="Ex: UBS Vila Madalena, Clínica São João" className="input-field" style={{ minHeight: 48 }} />
-            </div>
-          )}
-
-          {!dataFutura && (
-            <div>
-              <label htmlFor="lote" style={{ display: 'block', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginBottom: 'var(--space-2)', fontWeight: 500 }}>
-                Número do lote (opcional)
-              </label>
-              <input id="lote" type="text" value={lote} onChange={e => setLote(e.target.value)} placeholder="Ex: AB1234" className="input-field" style={{ minHeight: 48 }} />
-            </div>
-          )}
-
-          {!dataFutura && (
-            <div>
-              <label htmlFor="obs" style={{ display: 'block', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginBottom: 'var(--space-2)', fontWeight: 500 }}>
-                Observações (opcional)
-              </label>
-              <textarea id="obs" value={observacoes} onChange={e => setObservacoes(e.target.value)} placeholder="Reações, observações do profissional..." rows={3} className="input-field" style={{ resize: 'vertical' }} />
             </div>
           )}
 
