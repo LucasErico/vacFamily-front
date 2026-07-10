@@ -92,17 +92,9 @@ export function LoginPage() {
             </div>
 
             <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-2)' }}>
-                <label htmlFor="senha" style={{ fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--color-text)' }}>
-                  Senha
-                </label>
-                <Link
-                  to="/esqueci-senha"
-                  style={{ fontSize: 'var(--text-xs)', color: 'var(--color-primary)', fontWeight: 600 }}
-                >
-                  Esqueci minha senha
-                </Link>
-              </div>
+              <label htmlFor="senha" style={{ display: 'block', fontSize: 'var(--text-sm)', fontWeight: 500, marginBottom: 'var(--space-2)', color: 'var(--color-text)' }}>
+                Senha
+              </label>
               <div style={{ position: 'relative' }}>
                 <input
                   id="senha"
@@ -124,6 +116,15 @@ export function LoginPage() {
                   }}>
                   {mostrarSenha ? <EyeOff size={18} aria-hidden /> : <Eye size={18} aria-hidden />}
                 </button>
+              </div>
+              {/* Link abaixo do campo de senha */}
+              <div style={{ textAlign: 'right', marginTop: 'var(--space-2)' }}>
+                <Link
+                  to="/esqueci-senha"
+                  style={{ fontSize: 'var(--text-xs)', color: 'var(--color-primary)', fontWeight: 600 }}
+                >
+                  Esqueci minha senha
+                </Link>
               </div>
             </div>
 
