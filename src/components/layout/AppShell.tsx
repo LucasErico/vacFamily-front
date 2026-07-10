@@ -12,11 +12,6 @@ export function AppShell() {
     setScrollVisible(e.currentTarget.scrollTop > 120)
   }, [])
 
-  const scrollToTop = useCallback((e: React.UIEvent<HTMLElement> | null, el?: HTMLElement | null) => {
-    const target = el ?? document.getElementById('main-content')
-    target?.scrollTo({ top: 0, behavior: 'smooth' })
-  }, [])
-
   const handleScrollToTop = useCallback(() => {
     document.getElementById('main-content')?.scrollTo({ top: 0, behavior: 'smooth' })
   }, [])
