@@ -6,6 +6,14 @@ import type { Parentesco } from '@/types'
 
 const PARENTESCOS = Object.entries(PARENTESCO_LABEL) as [Parentesco, string][]
 
+// Mensagens de erro em Linguagem Simples (ABNT NBR 17060 / relatório Design Inclusivo)
+const ERROS_SIMPLES = {
+  nome: 'Por favor, informe o nome completo da pessoa. Exemplo: Maria da Silva.',
+  dataNascimentoObrigatoria: 'Por favor, informe a data de nascimento da pessoa.',
+  dataNascimentoFutura:
+    'A data informada ainda não chegou. Por favor, escolha uma data de hoje ou de dias anteriores.',
+}
+
 export function MembroFormPage() {
   const navigate = useNavigate()
   const { id } = useParams<{ id: string }>()
@@ -21,9 +29,12 @@ export function MembroFormPage() {
 
   function validar() {
     const e: Record<string, string> = {}
-    if (!nome.trim()) e.nome = 'Nome é obrigatório.'
-    if (!dataNascimento) e.dataNascimento = 'Data de nascimento é obrigatória.'
-    else if (new Date(dataNascimento) > new Date()) e.dataNascimento = 'Data não pode ser no futuro.'
+    if (!nome.trim()) e.nome = ERROS_SIMPLES.nome
+    if (!dataNascimento) {
+      e.dataNascimento = ERROS_SIMPLES.dataNascimentoObrigatoria
+    } else if (new Date(dataNascimento) > new Date()) {
+      e.dataNascimento = ERROS_SIMPLES.dataNascimentoFutura
+    }
     return e
   }
 
@@ -45,7 +56,13 @@ export function MembroFormPage() {
     <div style={{ maxWidth: 480, margin: '0 auto', paddingBottom: 'var(--space-8)' }}>
       <button
         onClick={() => navigate(-1)}
-        style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', color: 'var(--color-text-muted)', fontSize: 'var(--text-sm)', marginBottom: 'var(--space-6)', minHeight: 44 }}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 'var(--space-2)',
+          color: 'var(--color-text-muted)', fontSize: 'var(--text-sm)',
+          marginBottom: 'var(--space-6)',
+          minHeight: 48, // alvo de toque mínimo 48px (ABNT NBR 17060)
+          padding: 'var(--space-2) 0',
+        }}
       >
         <ArrowLeft size={18} aria-hidden /> Voltar
       </button>
@@ -59,7 +76,10 @@ export function MembroFormPage() {
 
           {/* Nome */}
           <div>
-            <label htmlFor="nome" style={{ display: 'block', fontSize: 'var(--text-sm)', fontWeight: 500, marginBottom: 'var(--space-2)', color: 'var(--color-text)' }}>
+            <label
+              htmlFor="nome"
+              style={{ display: 'block', fontSize: 'var(--text-sm)', fontWeight: 500, marginBottom: 'var(--space-2)', color: 'var(--color-text)' }}
+            >
               Nome completo *
             </label>
             <input
@@ -67,34 +87,78 @@ export function MembroFormPage() {
               type="text"
               autoComplete="name"
               value={nome}
-              onChange={e => setNome(e.target.value)}
+              onChange={e => { setNome(e.target.value); setErros(prev => ({ ...prev, nome: '' })) }}
               className={`input-field${erros.nome ? ' error' : ''}`}
               aria-describedby={erros.nome ? 'erro-nome' : undefined}
-              placeholder="Ex: Maria Silva"
+              aria-invalid={!!erros.nome}
+              placeholder="Ex: Maria da Silva"
+              style={{ minHeight: 48 }} // alvo de toque mínimo 48px
             />
-            {erros.nome && <p id="erro-nome" role="alert" style={{ fontSize: 'var(--text-xs)', color: 'var(--color-error)', marginTop: 'var(--space-1)' }}>{erros.nome}</p>}
+            {erros.nome && (
+              <p
+                id="erro-nome"
+                role="alert"
+                aria-live="assertive"
+                style={{
+                  fontSize: 'var(--text-sm)',
+                  color: 'var(--color-error)',
+                  background: 'var(--color-error-highlight)',
+                  borderRadius: 'var(--radius-md)',
+                  padding: 'var(--space-2) var(--space-3)',
+                  marginTop: 'var(--space-2)',
+                  lineHeight: 1.5,
+                }}
+              >
+                ⚠️ {erros.nome}
+              </p>
+            )}
           </div>
 
           {/* Data nascimento */}
           <div>
-            <label htmlFor="dataNasc" style={{ display: 'block', fontSize: 'var(--text-sm)', fontWeight: 500, marginBottom: 'var(--space-2)', color: 'var(--color-text)' }}>
+            <label
+              htmlFor="dataNasc"
+              style={{ display: 'block', fontSize: 'var(--text-sm)', fontWeight: 500, marginBottom: 'var(--space-2)', color: 'var(--color-text)' }}
+            >
               Data de nascimento *
             </label>
             <input
               id="dataNasc"
               type="date"
               value={dataNascimento}
-              onChange={e => setDataNascimento(e.target.value)}
+              onChange={e => { setDataNascimento(e.target.value); setErros(prev => ({ ...prev, dataNascimento: '' })) }}
               max={new Date().toISOString().split('T')[0]}
               className={`input-field${erros.dataNascimento ? ' error' : ''}`}
               aria-describedby={erros.dataNascimento ? 'erro-data' : undefined}
+              aria-invalid={!!erros.dataNascimento}
+              style={{ minHeight: 48 }} // alvo de toque mínimo 48px
             />
-            {erros.dataNascimento && <p id="erro-data" role="alert" style={{ fontSize: 'var(--text-xs)', color: 'var(--color-error)', marginTop: 'var(--space-1)' }}>{erros.dataNascimento}</p>}
+            {erros.dataNascimento && (
+              <p
+                id="erro-data"
+                role="alert"
+                aria-live="assertive"
+                style={{
+                  fontSize: 'var(--text-sm)',
+                  color: 'var(--color-error)',
+                  background: 'var(--color-error-highlight)',
+                  borderRadius: 'var(--radius-md)',
+                  padding: 'var(--space-2) var(--space-3)',
+                  marginTop: 'var(--space-2)',
+                  lineHeight: 1.5,
+                }}
+              >
+                ⚠️ {erros.dataNascimento}
+              </p>
+            )}
           </div>
 
           {/* Parentesco */}
           <div>
-            <label htmlFor="parentesco" style={{ display: 'block', fontSize: 'var(--text-sm)', fontWeight: 500, marginBottom: 'var(--space-2)', color: 'var(--color-text)' }}>
+            <label
+              htmlFor="parentesco"
+              style={{ display: 'block', fontSize: 'var(--text-sm)', fontWeight: 500, marginBottom: 'var(--space-2)', color: 'var(--color-text)' }}
+            >
               Parentesco
             </label>
             <select
@@ -102,7 +166,7 @@ export function MembroFormPage() {
               value={parentesco}
               onChange={e => setParentesco(e.target.value as Parentesco)}
               className="input-field"
-              style={{ cursor: 'pointer' }}
+              style={{ cursor: 'pointer', minHeight: 48 }} // alvo de toque mínimo 48px
             >
               {PARENTESCOS.map(([val, label]) => (
                 <option key={val} value={val}>{label}</option>
@@ -112,8 +176,19 @@ export function MembroFormPage() {
 
           {/* Botões */}
           <div style={{ display: 'flex', gap: 'var(--space-3)', paddingTop: 'var(--space-2)' }}>
-            <button type="button" onClick={() => navigate(-1)} className="btn btn-ghost" style={{ flex: 1 }}>Cancelar</button>
-            <button type="submit" className="btn btn-primary" style={{ flex: 2 }}>
+            <button
+              type="button"
+              onClick={() => navigate(-1)}
+              className="btn btn-ghost"
+              style={{ flex: 1, minHeight: 48 }} // alvo de toque mínimo 48px
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              className="btn btn-primary"
+              style={{ flex: 2, minHeight: 48 }} // alvo de toque mínimo 48px
+            >
               {isEdicao ? 'Salvar alterações' : 'Adicionar membro'}
             </button>
           </div>

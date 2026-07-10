@@ -7,6 +7,25 @@ import { useLembretes } from '@/contexts/LembretesContext'
 
 type Step = 'membro' | 'vacina' | 'detalhes' | 'sucesso'
 
+// Feedback tátil: vibra 2 vezes rapidamente ao salvar com sucesso
+function vibrarSucesso() {
+  if ('vibrate' in navigator) {
+    navigator.vibrate([80, 60, 80])
+  }
+}
+
+// Mensagens de erro em Linguagem Simples (ABNT NBR 17060 / relatório Design Inclusivo)
+const ERROS_SIMPLES: Record<string, string> = {
+  camposObrigatorios:
+    'Por favor, preencha todos os campos marcados com *. São eles: data da vacina e local onde foi aplicada.',
+  dataObrigatoria:
+    'Por favor, informe a data em que a vacina foi tomada. Exemplo: 15/08/2026.',
+  dataFutura:
+    'A data informada ainda não chegou. Por favor, escolha uma data de hoje ou de dias anteriores.',
+  localObrigatorio:
+    'Por favor, informe onde a vacina foi aplicada. Exemplo: UBS Centro, Clínica São João.',
+}
+
 export function RegistrarVacinaPage() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -33,10 +52,24 @@ export function RegistrarVacinaPage() {
   const stepIndex = STEPS.indexOf(step)
 
   function handleSalvar() {
-    if (!membroId || !vacinaId || !dataAplicacao || !localAplicacao) {
-      setErro('Preencha todos os campos obrigatórios.')
+    // Validações com mensagens em Linguagem Simples
+    if (!dataAplicacao) {
+      setErro(ERROS_SIMPLES.dataObrigatoria)
       return
     }
+    if (new Date(dataAplicacao) > new Date()) {
+      setErro(ERROS_SIMPLES.dataFutura)
+      return
+    }
+    if (!localAplicacao.trim()) {
+      setErro(ERROS_SIMPLES.localObrigatorio)
+      return
+    }
+    if (!membroId || !vacinaId) {
+      setErro(ERROS_SIMPLES.camposObrigatorios)
+      return
+    }
+
     registrarDose(
       { membroId, vacinaId, numeroDose, dataAplicacao, localAplicacao, lote: lote || undefined, observacoes: observacoes || undefined },
       (mId, vId, nDose, dataLembrete) => {
@@ -50,12 +83,20 @@ export function RegistrarVacinaPage() {
         })
       }
     )
+
+    // Feedback tátil ao registrar com sucesso
+    vibrarSucesso()
     setStep('sucesso')
   }
 
   if (step === 'sucesso') {
     return (
-      <div style={{ maxWidth: 480, margin: '0 auto', paddingBottom: 'var(--space-8)', textAlign: 'center', paddingTop: 'var(--space-12)' }}>
+      <div
+        style={{ maxWidth: 480, margin: '0 auto', paddingBottom: 'var(--space-8)', textAlign: 'center', paddingTop: 'var(--space-12)' }}
+        role="status"
+        aria-live="polite"
+        aria-label="Dose registrada com sucesso"
+      >
         <CheckCircle2 size={56} style={{ margin: '0 auto var(--space-4)', color: 'var(--color-success)' }} aria-hidden />
         <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--text-lg)', fontWeight: 700, color: 'var(--color-text)', marginBottom: 'var(--space-2)' }}>
           Dose registrada!
@@ -74,10 +115,15 @@ export function RegistrarVacinaPage() {
               setLocalAplicacao(''); setLote(''); setObservacoes(''); setErro('')
             }}
             className="btn btn-ghost"
+            style={{ minHeight: 48 }}
           >
             Registrar outra
           </button>
-          <button onClick={() => navigate('/vacinas')} className="btn btn-primary">
+          <button
+            onClick={() => navigate('/vacinas')}
+            className="btn btn-primary"
+            style={{ minHeight: 48 }}
+          >
             Ver vacinas
           </button>
         </div>
@@ -89,7 +135,13 @@ export function RegistrarVacinaPage() {
     <div style={{ maxWidth: 480, margin: '0 auto', paddingBottom: 'var(--space-8)' }}>
       <button
         onClick={() => (stepIndex > 0 ? setStep(STEPS[stepIndex - 1]) : navigate(-1))}
-        style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', color: 'var(--color-text-muted)', fontSize: 'var(--text-sm)', marginBottom: 'var(--space-6)', minHeight: 44 }}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 'var(--space-2)',
+          color: 'var(--color-text-muted)', fontSize: 'var(--text-sm)',
+          marginBottom: 'var(--space-6)',
+          minHeight: 48, // alvo de toque mínimo 48px (ABNT NBR 17060)
+          padding: 'var(--space-2) 0',
+        }}
         aria-label="Voltar"
       >
         <ArrowLeft size={18} aria-hidden /> Voltar
@@ -129,6 +181,7 @@ export function RegistrarVacinaPage() {
                     width: '100%', display: 'flex', alignItems: 'center',
                     gap: 'var(--space-4)', padding: 'var(--space-4) var(--space-5)',
                     cursor: 'pointer', textAlign: 'left',
+                    minHeight: 48, // alvo de toque mínimo 48px
                     outline: m.id === membroId ? '2px solid var(--color-primary)' : undefined,
                   }}
                 >
@@ -157,6 +210,7 @@ export function RegistrarVacinaPage() {
                   style={{
                     width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
                     padding: 'var(--space-4) var(--space-5)', cursor: 'pointer', textAlign: 'left',
+                    minHeight: 48, // alvo de toque mínimo 48px
                     outline: v.id === vacinaId ? '2px solid var(--color-primary)' : undefined,
                   }}
                 >
@@ -190,7 +244,7 @@ export function RegistrarVacinaPage() {
                     key={n}
                     onClick={() => setNumeroDose(n)}
                     className={numeroDose === n ? 'btn btn-primary' : 'btn btn-ghost'}
-                    style={{ minWidth: 44 }}
+                    style={{ minWidth: 48, minHeight: 48 }} // alvo de toque mínimo 48px
                   >
                     {n}ª
                   </button>
@@ -201,37 +255,90 @@ export function RegistrarVacinaPage() {
 
           <div>
             <label htmlFor="data" style={{ display: 'block', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginBottom: 'var(--space-2)', fontWeight: 500 }}>
-              Data de aplicação *
+              Data em que a vacina foi tomada *
             </label>
-            <input id="data" type="date" value={dataAplicacao} max={new Date().toISOString().slice(0, 10)} onChange={e => setDataAplicacao(e.target.value)} className="input-field" />
+            <input
+              id="data"
+              type="date"
+              value={dataAplicacao}
+              max={new Date().toISOString().slice(0, 10)}
+              onChange={e => { setDataAplicacao(e.target.value); setErro('') }}
+              className="input-field"
+              aria-describedby={erro ? 'erro-form' : undefined}
+              style={{ minHeight: 48 }}
+            />
           </div>
 
           <div>
             <label htmlFor="local" style={{ display: 'block', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginBottom: 'var(--space-2)', fontWeight: 500 }}>
-              Local de aplicação *
+              Onde a vacina foi aplicada? *
             </label>
-            <input id="local" type="text" value={localAplicacao} onChange={e => setLocalAplicacao(e.target.value)} placeholder="Ex: UBS Vila Madalena" className="input-field" />
+            <input
+              id="local"
+              type="text"
+              value={localAplicacao}
+              onChange={e => { setLocalAplicacao(e.target.value); setErro('') }}
+              placeholder="Ex: UBS Vila Madalena, Clínica São João"
+              className="input-field"
+              aria-describedby={erro ? 'erro-form' : undefined}
+              style={{ minHeight: 48 }}
+            />
           </div>
 
           <div>
             <label htmlFor="lote" style={{ display: 'block', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginBottom: 'var(--space-2)', fontWeight: 500 }}>
-              Lote (opcional)
+              Número do lote (opcional)
             </label>
-            <input id="lote" type="text" value={lote} onChange={e => setLote(e.target.value)} placeholder="Ex: AB1234" className="input-field" />
+            <input
+              id="lote"
+              type="text"
+              value={lote}
+              onChange={e => setLote(e.target.value)}
+              placeholder="Ex: AB1234"
+              className="input-field"
+              style={{ minHeight: 48 }}
+            />
           </div>
 
           <div>
             <label htmlFor="obs" style={{ display: 'block', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginBottom: 'var(--space-2)', fontWeight: 500 }}>
               Observações (opcional)
             </label>
-            <textarea id="obs" value={observacoes} onChange={e => setObservacoes(e.target.value)} placeholder="Reações, observações do profissional..." rows={3} className="input-field" style={{ resize: 'vertical' }} />
+            <textarea
+              id="obs"
+              value={observacoes}
+              onChange={e => setObservacoes(e.target.value)}
+              placeholder="Reações, observações do profissional de saúde..."
+              rows={3}
+              className="input-field"
+              style={{ resize: 'vertical' }}
+            />
           </div>
 
+          {/* Mensagem de erro em Linguagem Simples com role=alert para leitores de tela */}
           {erro && (
-            <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-error)' }} role="alert">{erro}</p>
+            <p
+              id="erro-form"
+              role="alert"
+              aria-live="assertive"
+              style={{
+                fontSize: 'var(--text-sm)',
+                color: 'var(--color-error)',
+                background: 'var(--color-error-highlight)',
+                borderRadius: 'var(--radius-md)',
+                padding: 'var(--space-3) var(--space-4)',
+                lineHeight: 1.5,
+              }}
+            >
+              ⚠️ {erro}
+            </p>
           )}
 
-          <button onClick={handleSalvar} className="btn btn-primary" style={{ width: '100%' }}>
+          <button
+            onClick={handleSalvar}
+            className="btn btn-primary"
+            style={{ width: '100%', minHeight: 48 }}
+          >
             Salvar registro
           </button>
         </div>
