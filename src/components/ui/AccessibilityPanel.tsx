@@ -1,7 +1,7 @@
 /**
  * AccessibilityPanel
  * Painel lateral: reset, contraste, fonte, TTS, visão de cores.
- * Cabeçalho fixo + corpo com scroll interno.
+ * Cabeçalho fixo + corpo com scroll interno + botão voltar ao topo.
  */
 import { useEffect, useRef } from 'react'
 import {
@@ -9,6 +9,8 @@ import {
   Contrast, Type, Eye, RotateCcw,
 } from 'lucide-react'
 import { useA11y, type FontScale, type ColorBlindMode } from '@/contexts/AccessibilityContext'
+import { useScrollTop } from '@/hooks/useScrollTop'
+import { ScrollToTopButton } from '@/components/ui/ScrollToTopButton'
 
 interface Props {
   onClose: () => void
@@ -36,6 +38,11 @@ export function AccessibilityPanel({ onClose }: Props) {
   } = useA11y()
 
   const panelRef = useRef<HTMLDivElement>(null)
+  const {
+    ref: bodyRef,
+    visible: showScrollTop,
+    scrollToTop,
+  } = useScrollTop<HTMLDivElement>({ threshold: 80 })
 
   useEffect(() => {
     panelRef.current?.focus()
@@ -95,7 +102,7 @@ export function AccessibilityPanel({ onClose }: Props) {
           overflow: 'hidden',
         }}
       >
-        {/* Cabeçalho */}
+        {/* Cabeçalho fixo */}
         <div style={{
           display: 'flex',
           alignItems: 'center',
@@ -123,21 +130,23 @@ export function AccessibilityPanel({ onClose }: Props) {
           </button>
         </div>
 
-        {/* Corpo */}
-        <div style={{
-          flex: 1,
-          overflowY: 'auto',
-          padding: 'var(--space-5)',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 'var(--space-5)',
-          scrollbarWidth: 'thin',
-          scrollbarColor: 'var(--color-border) transparent',
-        }}>
-
+        {/* Corpo com scroll — ref observado */}
+        <div
+          ref={bodyRef}
+          style={{
+            flex: 1,
+            overflowY: 'auto',
+            padding: 'var(--space-5)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 'var(--space-5)',
+            scrollbarWidth: 'thin',
+            scrollbarColor: 'var(--color-border) transparent',
+          }}
+        >
           {/* Botão reset — sempre primeiro */}
           <button
-            onClick={() => { resetA11y(); }}
+            onClick={() => { resetA11y() }}
             disabled={isDefault}
             aria-label="Restaurar configurações padrão de acessibilidade"
             style={{
@@ -241,6 +250,23 @@ export function AccessibilityPanel({ onClose }: Props) {
           </PanelSection>
 
           <div style={{ height: 'var(--space-2)', flexShrink: 0 }} aria-hidden />
+        </div>
+
+        {/* Botão voltar ao topo do painel — dentro do dialog, acima do rodapé */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'flex-end',
+          padding: showScrollTop ? 'var(--space-2) var(--space-4)' : '0 var(--space-4)',
+          borderTop: showScrollTop ? '1px solid var(--color-divider)' : '1px solid transparent',
+          maxHeight: showScrollTop ? 52 : 0,
+          overflow: 'hidden',
+          flexShrink: 0,
+          transition:
+            'max-height 220ms cubic-bezier(0.16,1,0.3,1), ' +
+            'padding 220ms cubic-bezier(0.16,1,0.3,1), ' +
+            'border-color 220ms ease',
+        }}>
+          <ScrollToTopButton visible={showScrollTop} onClick={scrollToTop} position="panel" />
         </div>
       </div>
     </>
