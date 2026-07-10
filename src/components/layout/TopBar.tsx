@@ -9,10 +9,10 @@ import { AccessibilityPanel } from '@/components/ui/AccessibilityPanel'
 
 const pageTitles: Record<string, string> = {
   '/':              'Início',
-  '/membros':       'Membros',
+  '/membros':       'Família',
   '/vacinas':       'Vacinas',
   '/agenda':        'Agenda',
-  '/conteudo':      'Conteúdo',
+  '/historico':     'Histórico',
   '/assistente':    'Assistente',
   '/configuracoes': 'Configurações',
 }
@@ -32,7 +32,6 @@ export function TopBar() {
   const [dropdownAberto, setDropdownAberto] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
-  // fecha dropdown ao clicar fora
   useEffect(() => {
     if (!dropdownAberto) return
     function handleClick(e: MouseEvent) {
@@ -61,7 +60,6 @@ export function TopBar() {
   return (
     <>
       <header className="topbar" role="banner">
-        {/* skip link */}
         <a
           href="#main-content"
           style={{
@@ -76,7 +74,6 @@ export function TopBar() {
           Pular para o conteúdo
         </a>
 
-        {/* logo + título */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
           <div style={{
             width: 28, height: 28, borderRadius: 'var(--radius-md)',
@@ -92,10 +89,7 @@ export function TopBar() {
           <span className="topbar-title">{title}</span>
         </div>
 
-        {/* controles */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)' }}>
-
-          {/* profile switcher */}
           <div ref={dropdownRef} style={{ position: 'relative' }}>
             <button
               className="theme-toggle"
@@ -106,7 +100,6 @@ export function TopBar() {
               title="Trocar membro"
               style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)', paddingInline: 'var(--space-2)', minHeight: 36 }}
             >
-              {/* avatar */}
               <div style={{
                 width: 24, height: 24, borderRadius: '50%',
                 background: bgAvatar,
@@ -116,7 +109,6 @@ export function TopBar() {
               }} aria-hidden>
                 {inicialNome}
               </div>
-              {/* nome (oculto em telas muito pequenas) */}
               <span style={{
                 fontSize: 'var(--text-sm)', fontWeight: 500,
                 maxWidth: 72, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
@@ -172,7 +164,6 @@ export function TopBar() {
                       onMouseEnter={e => { if (!isAtivo) (e.currentTarget as HTMLButtonElement).style.background = 'var(--color-surface-offset)' }}
                       onMouseLeave={e => { if (!isAtivo) (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
                     >
-                      {/* avatar */}
                       <div style={{
                         width: 28, height: 28, borderRadius: '50%',
                         background: bg, flexShrink: 0,
@@ -181,7 +172,6 @@ export function TopBar() {
                       }} aria-hidden>
                         {inicial}
                       </div>
-                      {/* info */}
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 'var(--text-sm)', fontWeight: isAtivo ? 600 : 400, color: 'var(--color-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {membro.nome}
@@ -190,7 +180,6 @@ export function TopBar() {
                           {PARENTESCO_LABEL[membro.parentesco]}
                         </div>
                       </div>
-                      {/* check ativo */}
                       {isAtivo && <Check size={14} color="var(--color-primary)" aria-hidden />}
                     </button>
                   )
@@ -199,29 +188,19 @@ export function TopBar() {
             )}
           </div>
 
-          {/* logout */}
-          <button
-            className="theme-toggle"
-            onClick={handleLogout}
-            aria-label="Sair da conta"
-            title="Sair"
-          >
+          <button className="theme-toggle" onClick={handleLogout} aria-label="Sair da conta" title="Sair">
             <LogOut size={18} aria-hidden />
           </button>
 
-          {/* dark mode */}
           <button
             className="theme-toggle"
             onClick={toggleTheme}
             aria-label={`Alternar para modo ${theme === 'dark' ? 'claro' : 'escuro'}`}
             title={`Modo ${theme === 'dark' ? 'claro' : 'escuro'}`}
           >
-            {theme === 'dark'
-              ? <Sun size={20} aria-hidden />
-              : <Moon size={20} aria-hidden />}
+            {theme === 'dark' ? <Sun size={20} aria-hidden /> : <Moon size={20} aria-hidden />}
           </button>
 
-          {/* acessibilidade */}
           <button
             className="theme-toggle"
             onClick={() => setPainelAberto(v => !v)}

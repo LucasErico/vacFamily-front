@@ -1,5 +1,5 @@
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { ArrowLeft, Edit2, Trash2, Calendar, User } from 'lucide-react'
+import { ArrowLeft, Edit2, Trash2, Calendar, User, ClipboardList, Syringe } from 'lucide-react'
 import { useMembros, PARENTESCO_LABEL } from '@/contexts/MembrosContext'
 import { Avatar } from '@/components/ui/Avatar'
 import { calcularIdade, formatarData } from '@/utils/idade'
@@ -17,7 +17,7 @@ export function MembroDetailPage() {
     return (
       <div style={{ textAlign: 'center', padding: 'var(--space-16)' }}>
         <p style={{ color: 'var(--color-text-muted)' }}>Membro não encontrado.</p>
-        <Link to="/membros" className="btn btn-ghost" style={{ marginTop: 'var(--space-4)' }}>Voltar</Link>
+        <Link to="/membros" className="btn btn-ghost" style={{ marginTop: 'var(--space-4)' }}>Voltar para Família</Link>
       </div>
     )
   }
@@ -31,11 +31,11 @@ export function MembroDetailPage() {
     <div style={{ maxWidth: 560, margin: '0 auto', paddingBottom: 'var(--space-8)' }}>
       {/* Voltar */}
       <button
-        onClick={() => navigate(-1)}
+        onClick={() => navigate('/membros')}
         style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', color: 'var(--color-text-muted)', fontSize: 'var(--text-sm)', marginBottom: 'var(--space-6)', minHeight: 44 }}
-        aria-label="Voltar"
+        aria-label="Voltar para Família"
       >
-        <ArrowLeft size={18} aria-hidden /> Voltar
+        <ArrowLeft size={18} aria-hidden /> Voltar para Família
       </button>
 
       {/* Perfil */}
@@ -76,7 +76,25 @@ export function MembroDetailPage() {
         </div>
       </div>
 
-      {/* Ações */}
+      {/* Ações rápidas */}
+      <div style={{ display: 'flex', gap: 'var(--space-3)', marginBottom: 'var(--space-4)' }}>
+        <Link
+          to={`/historico?membro=${membro.id}`}
+          className="btn btn-ghost"
+          style={{ flex: 1, gap: 'var(--space-2)' }}
+        >
+          <ClipboardList size={16} aria-hidden /> Ver histórico
+        </Link>
+        <Link
+          to={`/vacinas/membro/${membro.id}`}
+          className="btn btn-ghost"
+          style={{ flex: 1, gap: 'var(--space-2)' }}
+        >
+          <Syringe size={16} aria-hidden /> Gerenciar doses
+        </Link>
+      </div>
+
+      {/* Editar / Remover */}
       <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
         <Link
           to={`/membros/${membro.id}/editar`}
