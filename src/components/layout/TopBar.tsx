@@ -14,6 +14,57 @@ const pageTitles: Record<string, string> = {
   '/assistente': 'Assistente',
 }
 
+/** Botão da TopBar com ícone + label texto */
+function TopBarBtn({
+  icon, label, onClick, ariaLabel, ariaExpanded, ariaHasPopup,
+}: {
+  icon: React.ReactNode
+  label: string
+  onClick: () => void
+  ariaLabel: string
+  ariaExpanded?: boolean
+  ariaHasPopup?: 'dialog' | 'true' | 'false'
+}) {
+  return (
+    <button
+      onClick={onClick}
+      aria-label={ariaLabel}
+      aria-expanded={ariaExpanded}
+      aria-haspopup={ariaHasPopup}
+      title={ariaLabel}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 'var(--space-1)',
+        padding: 'var(--space-2) var(--space-3)',
+        borderRadius: 'var(--radius-md)',
+        background: 'transparent',
+        border: 'none',
+        cursor: 'pointer',
+        color: 'var(--color-text-muted)',
+        fontSize: 'var(--text-xs)',
+        fontWeight: 500,
+        minHeight: 44,
+        whiteSpace: 'nowrap',
+        transition: 'background var(--transition), color var(--transition)',
+      }}
+      onMouseEnter={e => {
+        const el = e.currentTarget as HTMLElement
+        el.style.background = 'var(--color-surface-offset)'
+        el.style.color = 'var(--color-text)'
+      }}
+      onMouseLeave={e => {
+        const el = e.currentTarget as HTMLElement
+        el.style.background = 'transparent'
+        el.style.color = 'var(--color-text-muted)'
+      }}
+    >
+      {icon}
+      <span aria-hidden>{label}</span>
+    </button>
+  )
+}
+
 export function TopBar() {
   const { pathname } = useLocation()
   const navigate = useNavigate()
@@ -28,10 +79,6 @@ export function TopBar() {
   function handleLogout() {
     logout()
     navigate('/login', { replace: true })
-  }
-
-  function handleLogoClick() {
-    navigate('/')
   }
 
   return (
@@ -51,10 +98,10 @@ export function TopBar() {
           Pular para o conteúdo
         </a>
 
+        {/* Logo + título da página */}
         <button
-          onClick={handleLogoClick}
+          onClick={() => navigate('/')}
           aria-label="Ir para a página inicial"
-          title="Início"
           style={{
             display: 'flex', alignItems: 'center', gap: 'var(--space-2)',
             background: 'none', border: 'none', cursor: 'pointer',
@@ -79,30 +126,33 @@ export function TopBar() {
           <span className="topbar-title">{title}</span>
         </button>
 
+        {/* Ações */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)' }}>
-          <button className="theme-toggle" onClick={handleLogout} aria-label="Sair da conta" title="Sair">
-            <LogOut size={18} aria-hidden />
-          </button>
+          <TopBarBtn
+            icon={<LogOut size={16} aria-hidden />}
+            label="Sair"
+            onClick={handleLogout}
+            ariaLabel="Sair da conta"
+          />
 
-          <button
-            className="theme-toggle"
+          <TopBarBtn
+            icon={theme === 'dark'
+              ? <Sun size={16} aria-hidden />
+              : <Moon size={16} aria-hidden />
+            }
+            label={theme === 'dark' ? 'Claro' : 'Escuro'}
             onClick={toggleTheme}
-            aria-label={`Alternar para modo ${theme === 'dark' ? 'claro' : 'escuro'}`}
-            title={`Modo ${theme === 'dark' ? 'claro' : 'escuro'}`}
-          >
-            {theme === 'dark' ? <Sun size={20} aria-hidden /> : <Moon size={20} aria-hidden />}
-          </button>
+            ariaLabel={`Alternar para modo ${theme === 'dark' ? 'claro' : 'escuro'}`}
+          />
 
-          <button
-            className="theme-toggle"
+          <TopBarBtn
+            icon={<Accessibility size={16} aria-hidden />}
+            label="Acessibilidade"
             onClick={() => setPainelAberto(v => !v)}
-            aria-label="Opções de acessibilidade"
-            aria-expanded={painelAberto}
-            aria-haspopup="dialog"
-            title="Acessibilidade"
-          >
-            <Accessibility size={20} aria-hidden />
-          </button>
+            ariaLabel="Opções de acessibilidade"
+            ariaExpanded={painelAberto}
+            ariaHasPopup="dialog"
+          />
         </div>
       </header>
 

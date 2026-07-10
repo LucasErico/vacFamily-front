@@ -1,11 +1,12 @@
 /**
  * AccessibilityPanel
  * Painel lateral: reset, contraste, fonte, TTS, visão de cores.
+ * Tema removido daqui — fica exclusivamente na TopBar.
  * Cabeçalho fixo + corpo com scroll interno + botão voltar ao topo.
  */
 import { useEffect, useRef } from 'react'
 import {
-  X, Sun, Moon, ZoomIn, Volume2, VolumeX,
+  X, ZoomIn, Volume2, VolumeX,
   Contrast, Type, Eye, RotateCcw,
 } from 'lucide-react'
 import { useA11y, type FontScale, type ColorBlindMode } from '@/contexts/AccessibilityContext'
@@ -32,8 +33,8 @@ const COLOR_BLIND_OPTIONS: { value: ColorBlindMode; label: string; desc: string 
 
 export function AccessibilityPanel({ onClose }: Props) {
   const {
-    theme, altoContraste, fontScale, ttsAtivo, colorBlindMode,
-    toggleTheme, toggleAltoContraste, setFontScale, toggleTTS,
+    altoContraste, fontScale, ttsAtivo, colorBlindMode,
+    toggleAltoContraste, setFontScale, toggleTTS,
     setColorBlindMode, resetA11y,
   } = useA11y()
 
@@ -130,7 +131,7 @@ export function AccessibilityPanel({ onClose }: Props) {
           </button>
         </div>
 
-        {/* Corpo com scroll — ref observado */}
+        {/* Corpo com scroll */}
         <div
           ref={bodyRef}
           style={{
@@ -144,9 +145,9 @@ export function AccessibilityPanel({ onClose }: Props) {
             scrollbarColor: 'var(--color-border) transparent',
           }}
         >
-          {/* Botão reset — sempre primeiro */}
+          {/* Botão reset */}
           <button
-            onClick={() => { resetA11y() }}
+            onClick={resetA11y}
             disabled={isDefault}
             aria-label="Restaurar configurações padrão de acessibilidade"
             style={{
@@ -170,14 +171,6 @@ export function AccessibilityPanel({ onClose }: Props) {
             <RotateCcw size={15} aria-hidden />
             Restaurar padrões
           </button>
-
-          {/* Tema */}
-          <PanelSection icon={theme === 'dark' ? Moon : Sun} title="Tema">
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-2)' }}>
-              <ToggleChip active={theme === 'light'} onClick={theme === 'dark' ? toggleTheme : undefined} label="Claro" icon={Sun} />
-              <ToggleChip active={theme === 'dark'} onClick={theme === 'light' ? toggleTheme : undefined} label="Escuro" icon={Moon} />
-            </div>
-          </PanelSection>
 
           {/* Alto contraste */}
           <PanelSection icon={Contrast} title="Alto contraste">
@@ -252,7 +245,7 @@ export function AccessibilityPanel({ onClose }: Props) {
           <div style={{ height: 'var(--space-2)', flexShrink: 0 }} aria-hidden />
         </div>
 
-        {/* Botão voltar ao topo do painel — dentro do dialog, acima do rodapé */}
+        {/* Botão voltar ao topo do painel */}
         <div style={{
           display: 'flex',
           justifyContent: 'flex-end',
@@ -273,15 +266,8 @@ export function AccessibilityPanel({ onClose }: Props) {
   )
 }
 
-/* ── RadioRow ── */
-function RadioRow({
-  active, onClick, label, desc, icon,
-}: {
-  active: boolean
-  onClick: () => void
-  label: string
-  desc: string
-  icon: React.ReactNode
+function RadioRow({ active, onClick, label, desc, icon }: {
+  active: boolean; onClick: () => void; label: string; desc: string; icon: React.ReactNode
 }) {
   return (
     <button
@@ -304,15 +290,12 @@ function RadioRow({
       }}
     >
       <span style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-        {icon}
-        {label}
+        {icon}{label}
       </span>
       <span style={{
         fontSize: 'var(--text-xs)',
         color: active ? 'var(--color-primary)' : 'var(--color-text-muted)',
-        textAlign: 'right',
-        maxWidth: 130,
-        flexShrink: 0,
+        textAlign: 'right', maxWidth: 130, flexShrink: 0,
       }}>
         {desc}
       </span>
@@ -320,16 +303,14 @@ function RadioRow({
   )
 }
 
-/* ── PanelSection ── */
 function PanelSection({ icon: Icon, title, children }: {
-  icon: typeof Sun; title: string; children: React.ReactNode
+  icon: React.ComponentType<{ size?: number; style?: React.CSSProperties; 'aria-hidden'?: boolean | 'true' }>
+  title: string
+  children: React.ReactNode
 }) {
   return (
     <section aria-label={title}>
-      <div style={{
-        display: 'flex', alignItems: 'center',
-        gap: 'var(--space-2)', marginBottom: 'var(--space-3)',
-      }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginBottom: 'var(--space-3)' }}>
         <Icon size={15} style={{ color: 'var(--color-primary)', flexShrink: 0 }} aria-hidden />
         <span style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--color-text)' }}>
           {title}
@@ -340,13 +321,10 @@ function PanelSection({ icon: Icon, title, children }: {
   )
 }
 
-/* ── ToggleSwitch ── */
 function ToggleSwitch({ checked, onChange, labelOn, labelOff, icon: Icon }: {
-  checked: boolean
-  onChange: () => void
-  labelOn: string
-  labelOff: string
-  icon: typeof Sun
+  checked: boolean; onChange: () => void
+  labelOn: string; labelOff: string
+  icon: React.ComponentType<{ size?: number; 'aria-hidden'?: boolean | 'true' }>
 }) {
   return (
     <button
@@ -355,62 +333,28 @@ function ToggleSwitch({ checked, onChange, labelOn, labelOff, icon: Icon }: {
       onClick={onChange}
       className="btn btn-ghost"
       style={{
-        width: '100%',
-        justifyContent: 'space-between',
+        width: '100%', justifyContent: 'space-between',
         background: checked ? 'var(--color-primary-subtle)' : undefined,
         color: checked ? 'var(--color-primary)' : undefined,
         borderColor: checked ? 'var(--color-primary)' : undefined,
       }}
     >
       <span style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-        <Icon size={16} aria-hidden />
-        {checked ? labelOn : labelOff}
+        <Icon size={16} aria-hidden />{checked ? labelOn : labelOff}
       </span>
       <span aria-hidden style={{
         display: 'inline-flex', width: 40, height: 22,
         borderRadius: 'var(--radius-full)',
         background: checked ? 'var(--color-primary)' : 'var(--color-surface-offset)',
-        position: 'relative',
-        transition: 'background var(--transition)',
-        flexShrink: 0,
+        position: 'relative', transition: 'background var(--transition)', flexShrink: 0,
       }}>
         <span style={{
-          position: 'absolute', top: 3,
-          left: checked ? 21 : 3,
-          width: 16, height: 16,
-          borderRadius: 'var(--radius-full)',
-          background: '#fff',
-          boxShadow: '0 1px 3px oklch(0 0 0 / 0.2)',
+          position: 'absolute', top: 3, left: checked ? 21 : 3,
+          width: 16, height: 16, borderRadius: 'var(--radius-full)',
+          background: '#fff', boxShadow: '0 1px 3px oklch(0 0 0 / 0.2)',
           transition: 'left var(--transition)',
         }} />
       </span>
-    </button>
-  )
-}
-
-/* ── ToggleChip ── */
-function ToggleChip({ active, onClick, label, icon: Icon }: {
-  active: boolean; onClick?: () => void; label: string; icon: typeof Sun
-}) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={active}
-      aria-pressed={active}
-      style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        gap: 'var(--space-2)',
-        padding: 'var(--space-3)',
-        borderRadius: 'var(--radius-md)',
-        border: `1.5px solid ${active ? 'var(--color-primary)' : 'var(--color-border)'}`,
-        background: active ? 'var(--color-primary-subtle)' : 'var(--color-bg)',
-        color: active ? 'var(--color-primary)' : 'var(--color-text-muted)',
-        cursor: active ? 'default' : 'pointer',
-        fontSize: 'var(--text-sm)', fontWeight: active ? 600 : 400,
-        transition: 'all var(--transition)',
-      }}
-    >
-      <Icon size={14} aria-hidden /> {label}
     </button>
   )
 }
