@@ -6,7 +6,7 @@ import { ScrollToTopButton } from '@/components/ui/ScrollToTopButton'
 import { useScrollTop } from '@/hooks/useScrollTop'
 
 export function AppShell() {
-  const { ref: mainRef, visible, scrollToTop } = useScrollTop<HTMLElement>({ threshold: 120 })
+  const { ref: mainRef, scrollToTop } = useScrollTop<HTMLElement>({ threshold: 120 })
 
   return (
     <div className="app-shell">
@@ -26,8 +26,9 @@ export function AppShell() {
         <BottomNav />
       </nav>
 
+      {/* TESTE: sempre visivel para verificar posicionamento */}
       <ScrollToTopButton
-        visible={visible}
+        visible={true}
         onClick={scrollToTop}
         position="page"
       />
