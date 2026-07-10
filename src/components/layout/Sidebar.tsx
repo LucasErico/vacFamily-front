@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { Home, Users, Syringe, CalendarDays, ClipboardList, Settings } from 'lucide-react'
+import { Home, Users, Syringe, CalendarDays, ClipboardList } from 'lucide-react'
 
 const navItems = [
   { to: '/',          icon: Home,          label: 'Início' },
@@ -37,15 +37,6 @@ export function Sidebar() {
           </NavLink>
         ))}
       </nav>
-
-      {/* Configurações */}
-      <NavLink
-        to="/configuracoes"
-        className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}
-      >
-        <Settings size={18} aria-hidden="true" />
-        Configurações
-      </NavLink>
     </aside>
   )
 }
