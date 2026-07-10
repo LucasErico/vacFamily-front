@@ -10,7 +10,6 @@ import { RegistrarVacinaPage } from '@/pages/Vacinas/RegistrarVacinaPage'
 import { LembretesPage } from '@/pages/Lembretes/LembretesPage'
 import { ConteudoPage } from '@/pages/Conteudo/ConteudoPage'
 import { ConteudoDetailPage } from '@/pages/Conteudo/ConteudoDetailPage'
-import { AssistentePage } from '@/pages/Assistente/AssistentePage'
 import { ConfiguracoesPage } from '@/pages/Configuracoes/ConfiguracoesPage'
 import { LoginPage } from '@/pages/Auth/LoginPage'
 import { RegisterPage } from '@/pages/Auth/RegisterPage'
@@ -34,7 +33,6 @@ export const router = createBrowserRouter([
       { path: 'lembretes',              element: <Navigate to="/agenda" replace /> },
       { path: 'conteudo',               element: <ConteudoPage /> },
       { path: 'conteudo/:id',           element: <ConteudoDetailPage /> },
-      { path: 'assistente',             element: <AssistentePage /> },
       { path: 'configuracoes',          element: <ConfiguracoesPage /> },
     ],
   },
