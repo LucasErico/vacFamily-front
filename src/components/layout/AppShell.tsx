@@ -1,12 +1,33 @@
 import { Outlet } from 'react-router-dom'
+import { useState, useCallback, useEffect } from 'react'
 import { TopBar } from './TopBar'
 import { BottomNav } from './BottomNav'
 import { Sidebar } from './Sidebar'
 import { ScrollToTopButton } from '@/components/ui/ScrollToTopButton'
-import { useScrollTop } from '@/hooks/useScrollTop'
+
+const MAIN_ID = 'main-content'
+const THRESHOLD = 120
+
+function getMain() {
+  return document.getElementById(MAIN_ID) as HTMLElement | null
+}
 
 export function AppShell() {
-  const { ref: mainRef, scrollToTop } = useScrollTop<HTMLElement>({ threshold: 120 })
+  const [visible, setVisible] = useState(false)
+
+  useEffect(() => {
+    // Aguarda o elemento existir no DOM
+    const el = getMain()
+    if (!el) return
+
+    const onScroll = () => setVisible(el.scrollTop > THRESHOLD)
+    el.addEventListener('scroll', onScroll, { passive: true })
+    return () => el.removeEventListener('scroll', onScroll)
+  }, [])
+
+  const scrollToTop = useCallback(() => {
+    getMain()?.scrollTo({ top: 0, behavior: 'smooth' })
+  }, [])
 
   return (
     <div className="app-shell">
@@ -14,10 +35,9 @@ export function AppShell() {
       <div className="app-main">
         <TopBar />
         <main
-          id="main-content"
+          id={MAIN_ID}
           className="page-content"
           role="main"
-          ref={mainRef}
         >
           <Outlet />
         </main>
@@ -26,9 +46,8 @@ export function AppShell() {
         <BottomNav />
       </nav>
 
-      {/* TESTE: sempre visivel para verificar posicionamento */}
       <ScrollToTopButton
-        visible={true}
+        visible={visible}
         onClick={scrollToTop}
         position="page"
       />
