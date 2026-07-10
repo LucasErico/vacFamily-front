@@ -1,7 +1,7 @@
 /**
  * AccessibilityPanel
- * Painel lateral: contraste, fonte, TTS, modo daltonismo.
- * Cabeçalho fixo + corpo com scroll interno → funciona em qualquer escala de fonte.
+ * Painel lateral: contraste, fonte, TTS, visão de cores.
+ * Cabeçalho fixo + corpo com scroll interno.
  */
 import { useEffect, useRef } from 'react'
 import {
@@ -20,11 +20,36 @@ const FONT_OPTIONS: { value: FontScale; label: string; desc: string }[] = [
   { value: 'muito_grande', label: 'Muito grande', desc: '145%' },
 ]
 
-const COLOR_BLIND_OPTIONS: { value: ColorBlindMode; label: string; desc: string }[] = [
-  { value: 'none',         label: 'Normal',       desc: 'Sem filtro' },
-  { value: 'deuteranopia', label: 'Deuteranopia', desc: 'Dificuldade com verde' },
-  { value: 'protanopia',   label: 'Protanopia',   desc: 'Dificuldade com vermelho' },
-  { value: 'tritanopia',   label: 'Tritanopia',   desc: 'Dificuldade com azul' },
+const COLOR_BLIND_OPTIONS: {
+  value: ColorBlindMode
+  label: string
+  desc: string
+}[] = [
+  {
+    value: 'none',
+    label: 'Padrão',
+    desc: 'Sem adaptação',
+  },
+  {
+    value: 'deuteranopia',
+    label: 'Deuteranopia',
+    desc: 'Dificuldade verde/vermelho',
+  },
+  {
+    value: 'protanopia',
+    label: 'Protanopia',
+    desc: 'Dificuldade com vermelho',
+  },
+  {
+    value: 'tritanopia',
+    label: 'Tritanopia',
+    desc: 'Dificuldade azul/amarelo',
+  },
+  {
+    value: 'acromatopsia',
+    label: 'Acromatopsia',
+    desc: 'Não distingue cores',
+  },
 ]
 
 export function AccessibilityPanel({ onClose }: Props) {
@@ -35,7 +60,6 @@ export function AccessibilityPanel({ onClose }: Props) {
 
   const panelRef = useRef<HTMLDivElement>(null)
 
-  /* foco trap + Escape */
   useEffect(() => {
     panelRef.current?.focus()
     const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
@@ -43,7 +67,6 @@ export function AccessibilityPanel({ onClose }: Props) {
     return () => document.removeEventListener('keydown', handleKey)
   }, [onClose])
 
-  /* fechar ao clicar fora */
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
       if (panelRef.current && !panelRef.current.contains(e.target as Node)) onClose()
@@ -54,7 +77,6 @@ export function AccessibilityPanel({ onClose }: Props) {
 
   return (
     <>
-      {/* backdrop */}
       <div
         aria-hidden
         style={{
@@ -66,7 +88,6 @@ export function AccessibilityPanel({ onClose }: Props) {
         onClick={onClose}
       />
 
-      {/* painel */}
       <div
         ref={panelRef}
         role="dialog"
@@ -91,7 +112,7 @@ export function AccessibilityPanel({ onClose }: Props) {
           overflow: 'hidden',
         }}
       >
-        {/* Cabeçalho fixo */}
+        {/* Cabeçalho */}
         <div style={{
           display: 'flex',
           alignItems: 'center',
@@ -119,7 +140,7 @@ export function AccessibilityPanel({ onClose }: Props) {
           </button>
         </div>
 
-        {/* Corpo com scroll */}
+        {/* Corpo */}
         <div style={{
           flex: 1,
           overflowY: 'auto',
@@ -134,18 +155,8 @@ export function AccessibilityPanel({ onClose }: Props) {
           {/* Tema */}
           <PanelSection icon={theme === 'dark' ? Moon : Sun} title="Tema">
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-2)' }}>
-              <ToggleChip
-                active={theme === 'light'}
-                onClick={theme === 'dark' ? toggleTheme : undefined}
-                label="Claro"
-                icon={Sun}
-              />
-              <ToggleChip
-                active={theme === 'dark'}
-                onClick={theme === 'light' ? toggleTheme : undefined}
-                label="Escuro"
-                icon={Moon}
-              />
+              <ToggleChip active={theme === 'light'} onClick={theme === 'dark' ? toggleTheme : undefined} label="Claro" icon={Sun} />
+              <ToggleChip active={theme === 'dark'} onClick={theme === 'light' ? toggleTheme : undefined} label="Escuro" icon={Moon} />
             </div>
           </PanelSection>
 
@@ -154,8 +165,7 @@ export function AccessibilityPanel({ onClose }: Props) {
             <ToggleSwitch
               checked={altoContraste}
               onChange={toggleAltoContraste}
-              labelOn="Ativado"
-              labelOff="Desativado"
+              labelOn="Ativado" labelOff="Desativado"
               icon={Contrast}
             />
           </PanelSection>
@@ -164,100 +174,58 @@ export function AccessibilityPanel({ onClose }: Props) {
           <PanelSection icon={Type} title="Tamanho do texto">
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
               {FONT_OPTIONS.map(opt => (
-                <button
+                <RadioRow
                   key={opt.value}
+                  active={fontScale === opt.value}
                   onClick={() => setFontScale(opt.value)}
-                  role="radio"
-                  aria-checked={fontScale === opt.value}
-                  style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: 'var(--space-3) var(--space-4)',
-                    borderRadius: 'var(--radius-md)',
-                    border: `1.5px solid ${fontScale === opt.value ? 'var(--color-primary)' : 'var(--color-border)'}`,
-                    background: fontScale === opt.value ? 'var(--color-primary-subtle)' : 'var(--color-bg)',
-                    color: fontScale === opt.value ? 'var(--color-primary)' : 'var(--color-text)',
-                    cursor: 'pointer',
-                    fontSize: 'var(--text-sm)',
-                    fontWeight: fontScale === opt.value ? 600 : 400,
-                    transition: 'all var(--transition)',
-                  }}
-                >
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-                    <ZoomIn size={15} aria-hidden />
-                    {opt.label}
-                  </span>
-                  <span style={{
-                    fontSize: 'var(--text-xs)',
-                    color: fontScale === opt.value ? 'var(--color-primary)' : 'var(--color-text-muted)',
-                  }}>
-                    {opt.desc}
-                  </span>
-                </button>
+                  label={opt.label}
+                  desc={opt.desc}
+                  icon={<ZoomIn size={15} aria-hidden />}
+                />
               ))}
             </div>
           </PanelSection>
 
-          {/* Leitura em voz alta (TTS) */}
+          {/* TTS */}
           <PanelSection icon={ttsAtivo ? Volume2 : VolumeX} title="Leitura em voz alta (TTS)">
             <ToggleSwitch
               checked={ttsAtivo}
               onChange={toggleTTS}
-              labelOn="Leitura ativada"
-              labelOff="Leitura desativada"
+              labelOn="Leitura ativada" labelOff="Leitura desativada"
               icon={ttsAtivo ? Volume2 : VolumeX}
             />
             {ttsAtivo && (
-              <p
-                role="status"
-                aria-live="polite"
-                style={{
-                  fontSize: 'var(--text-xs)',
-                  color: 'var(--color-text-muted)',
-                  marginTop: 'var(--space-2)',
-                  lineHeight: 1.5,
-                }}
-              >
+              <p role="status" aria-live="polite" style={{
+                fontSize: 'var(--text-xs)',
+                color: 'var(--color-text-muted)',
+                marginTop: 'var(--space-2)',
+                lineHeight: 1.5,
+              }}>
                 Passe o cursor ou foque em conteúdos para ouvi-los automaticamente.
               </p>
             )}
           </PanelSection>
 
-          {/* Visão de cores (daltonismo) */}
-          <PanelSection icon={Eye} title="Visão de cores">
+          {/* Visão de cores */}
+          <PanelSection icon={Eye} title="Adaptação de cores">
+            <p style={{
+              fontSize: 'var(--text-xs)',
+              color: 'var(--color-text-muted)',
+              marginBottom: 'var(--space-3)',
+              lineHeight: 1.5,
+            }}>
+              Ajusta a interface para maior conforto visual conforme seu tipo de visão.
+            </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
               {COLOR_BLIND_OPTIONS.map(opt => (
-                <button
+                <RadioRow
                   key={opt.value}
+                  active={colorBlindMode === opt.value}
                   onClick={() => setColorBlindMode(opt.value)}
-                  role="radio"
-                  aria-checked={colorBlindMode === opt.value}
-                  style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: 'var(--space-3) var(--space-4)',
-                    borderRadius: 'var(--radius-md)',
-                    border: `1.5px solid ${colorBlindMode === opt.value ? 'var(--color-primary)' : 'var(--color-border)'}`,
-                    background: colorBlindMode === opt.value ? 'var(--color-primary-subtle)' : 'var(--color-bg)',
-                    color: colorBlindMode === opt.value ? 'var(--color-primary)' : 'var(--color-text)',
-                    cursor: 'pointer',
-                    fontSize: 'var(--text-sm)',
-                    fontWeight: colorBlindMode === opt.value ? 600 : 400,
-                    transition: 'all var(--transition)',
-                    textAlign: 'left',
-                  }}
-                >
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-                    <Eye size={15} aria-hidden />
-                    {opt.label}
-                  </span>
-                  <span style={{
-                    fontSize: 'var(--text-xs)',
-                    color: colorBlindMode === opt.value ? 'var(--color-primary)' : 'var(--color-text-muted)',
-                    textAlign: 'right',
-                    maxWidth: 120,
-                  }}>
-                    {opt.desc}
-                  </span>
-                </button>
+                  label={opt.label}
+                  desc={opt.desc}
+                  icon={<Eye size={15} aria-hidden />}
+                />
               ))}
             </div>
           </PanelSection>
@@ -266,6 +234,53 @@ export function AccessibilityPanel({ onClose }: Props) {
         </div>
       </div>
     </>
+  )
+}
+
+/* ── RadioRow — chip de seleção genérico ── */
+function RadioRow({
+  active, onClick, label, desc, icon,
+}: {
+  active: boolean
+  onClick: () => void
+  label: string
+  desc: string
+  icon: React.ReactNode
+}) {
+  return (
+    <button
+      onClick={onClick}
+      role="radio"
+      aria-checked={active}
+      style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: 'var(--space-3) var(--space-4)',
+        borderRadius: 'var(--radius-md)',
+        border: `1.5px solid ${active ? 'var(--color-primary)' : 'var(--color-border)'}`,
+        background: active ? 'var(--color-primary-subtle)' : 'var(--color-bg)',
+        color: active ? 'var(--color-primary)' : 'var(--color-text)',
+        cursor: 'pointer',
+        fontSize: 'var(--text-sm)',
+        fontWeight: active ? 600 : 400,
+        transition: 'all var(--transition)',
+        textAlign: 'left',
+        width: '100%',
+      }}
+    >
+      <span style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+        {icon}
+        {label}
+      </span>
+      <span style={{
+        fontSize: 'var(--text-xs)',
+        color: active ? 'var(--color-primary)' : 'var(--color-text-muted)',
+        textAlign: 'right',
+        maxWidth: 130,
+        flexShrink: 0,
+      }}>
+        {desc}
+      </span>
+    </button>
   )
 }
 
@@ -315,21 +330,16 @@ function ToggleSwitch({ checked, onChange, labelOn, labelOff, icon: Icon }: {
         <Icon size={16} aria-hidden />
         {checked ? labelOn : labelOff}
       </span>
-      <span
-        aria-hidden
-        style={{
-          display: 'inline-flex',
-          width: 40, height: 22,
-          borderRadius: 'var(--radius-full)',
-          background: checked ? 'var(--color-primary)' : 'var(--color-surface-offset)',
-          position: 'relative',
-          transition: 'background var(--transition)',
-          flexShrink: 0,
-        }}
-      >
+      <span aria-hidden style={{
+        display: 'inline-flex', width: 40, height: 22,
+        borderRadius: 'var(--radius-full)',
+        background: checked ? 'var(--color-primary)' : 'var(--color-surface-offset)',
+        position: 'relative',
+        transition: 'background var(--transition)',
+        flexShrink: 0,
+      }}>
         <span style={{
-          position: 'absolute',
-          top: 3,
+          position: 'absolute', top: 3,
           left: checked ? 21 : 3,
           width: 16, height: 16,
           borderRadius: 'var(--radius-full)',

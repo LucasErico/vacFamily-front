@@ -1,17 +1,219 @@
 /*
- * Filtros CSS para adaptação de daltonismo
- * Aplicados via classe no <body> pelo AccessibilityContext
- * As matrizes feColorMatrix estão definidas em index.html (SVG oculto)
+ * Adaptação de cores para daltonismo — VacFamily
+ *
+ * ESTRATÉGIA em 2 camadas:
+ *   1. filter: url(#cb-*) no <body> → correção de matiz via feColorMatrix SVG
+ *      (matrizes de COMPENSAÇÃO, não de simulação)
+ *   2. Sobrescrita de tokens CSS críticos → garante que os elementos de
+ *      interface (status, badges, alertas) usem paletas seguras por tipo
+ *
+ * Por que duas camadas?
+ *   A matriz SVG corrige toda a renderização visual, mas alguns tokens
+ *   (vermelho de erro, verde de sucesso) ainda podem ser ambíguos mesmo
+ *   após a correção. A sobreescrita de token garante distinção inequívoca
+ *   usando as dimensões de cor que o usuário consegue perceber:
+ *     - Deuteranopia/Protanopia: eixo azul-amarelo (seguro)
+ *     - Tritanopia: eixo vermelho-verde (seguro)
+ *     - Acromatopsia: contraste de luminância puro (L* no CIELAB)
  */
 
+/* ============================================================
+   DEUTERANOPIA — dificuldade verde/vermelho
+   Paleta segura: azul (info) para "ok", laranja/amarelo para "atenção",
+   roxo para "erro" — todos perceptíveis no eixo azul-amarelo.
+   ============================================================ */
 body.cb-deuteranopia {
   filter: url(#cb-deuteranopia);
+
+  /* success: azul-petróleo (distinguível do vermelho) */
+  --color-success:           #0077b6;
+  --color-success-hover:     #005f8a;
+  --color-success-highlight: #cce3f0;
+
+  /* error: roxo-índigo (inequívoco mesmo sem vermelho) */
+  --color-error:             #7b2d8b;
+  --color-error-hover:       #601f6e;
+  --color-error-highlight:   #e8d5ed;
+
+  /* warning: laranja-âmbar (eixo amarelo, seguro) */
+  --color-warning:           #c07000;
+  --color-warning-hover:     #9a5800;
+  --color-warning-highlight: #fde8c0;
+
+  /* primary (verde nativo → pode conflitar): shift para azul-verde seguro */
+  --color-primary:           #0077b6;
+  --color-primary-hover:     #005f8a;
+  --color-primary-active:    #004468;
+  --color-primary-highlight: #cce3f0;
+  --color-primary-subtle:    #e3f3fb;
 }
 
+[data-theme="dark"] body.cb-deuteranopia,
+body.cb-deuteranopia [data-theme="dark"] {
+  --color-success:           #48cae4;
+  --color-success-highlight: #0a3a4a;
+  --color-error:             #c77dff;
+  --color-error-highlight:   #3a1a4a;
+  --color-primary:           #48cae4;
+  --color-primary-hover:     #30b4d0;
+  --color-primary-highlight: #0a3a4a;
+  --color-primary-subtle:    #082830;
+}
+
+/* ============================================================
+   PROTANOPIA — dificuldade com vermelho (canal L ausente)
+   Semelhante à deuteranopia mas exige ajuste maior no vermelho.
+   ============================================================ */
 body.cb-protanopia {
   filter: url(#cb-protanopia);
+
+  /* success: azul (canal S/M preservado) */
+  --color-success:           #0077b6;
+  --color-success-hover:     #005f8a;
+  --color-success-highlight: #cce3f0;
+
+  /* error: azul-violeta intenso (percebido com nitidez) */
+  --color-error:             #5a2d82;
+  --color-error-hover:       #471e68;
+  --color-error-highlight:   #ddd0ea;
+
+  /* warning: amarelo-ouro saturado */
+  --color-warning:           #b58900;
+  --color-warning-hover:     #8a6800;
+  --color-warning-highlight: #fdf0c0;
+
+  /* primary: mantém azul-verde (M/S seguro para protanopia) */
+  --color-primary:           #0077b6;
+  --color-primary-hover:     #005f8a;
+  --color-primary-active:    #004468;
+  --color-primary-highlight: #cce3f0;
+  --color-primary-subtle:    #e3f3fb;
 }
 
+[data-theme="dark"] body.cb-protanopia,
+body.cb-protanopia [data-theme="dark"] {
+  --color-success:           #48cae4;
+  --color-success-highlight: #0a3a4a;
+  --color-error:             #b69cf5;
+  --color-error-highlight:   #2e1a4a;
+  --color-primary:           #48cae4;
+  --color-primary-hover:     #30b4d0;
+  --color-primary-highlight: #0a3a4a;
+  --color-primary-subtle:    #082830;
+}
+
+/* ============================================================
+   TRITANOPIA — dificuldade azul/amarelo (canal S ausente)
+   Paleta segura: eixo vermelho-verde (L/M preservados).
+   ============================================================ */
 body.cb-tritanopia {
   filter: url(#cb-tritanopia);
+
+  /* success: verde-lima saturado (canal M forte) */
+  --color-success:           #2d7d0a;
+  --color-success-hover:     #1f5c06;
+  --color-success-highlight: #d0ecbf;
+
+  /* error: vermelho intenso (canal L forte — distinguível) */
+  --color-error:             #c0392b;
+  --color-error-hover:       #96301f;
+  --color-error-highlight:   #f5d0cd;
+
+  /* warning: laranja-vermelho (L forte, distinguível do verde) */
+  --color-warning:           #c0560a;
+  --color-warning-hover:     #9a3e06;
+  --color-warning-highlight: #f5dac8;
+
+  /* accent (amarelo nativo — problemático para tritanopia): shift laranja */
+  --color-accent:            #e07020;
+  --color-accent-hover:      #c05a10;
+  --color-accent-text:       #4a1e00;
+  --color-accent-highlight:  #fde8d0;
+
+  /* info (azul nativo — problemático): shift para roxo-magenta */
+  --color-info:              #8e2496;
+  --color-info-hover:        #6e1874;
+  --color-info-highlight:    #f0d0f2;
+  --color-info-subtle:       #fae8fb;
+}
+
+[data-theme="dark"] body.cb-tritanopia,
+body.cb-tritanopia [data-theme="dark"] {
+  --color-success:           #6fcf4a;
+  --color-success-highlight: #1a3a0a;
+  --color-error:             #f87171;
+  --color-error-highlight:   #3d1010;
+  --color-accent:            #ffa04a;
+  --color-accent-text:       #ffe8d0;
+  --color-info:              #d46fdc;
+  --color-info-highlight:    #3a1040;
+}
+
+/* ============================================================
+   ACROMATOPSIA — não distingue cores (visão monocromática)
+   Converte para escala de cinza. Toda informação é transmitida
+   por contraste de luminância, tamanho e forma — nunca por cor.
+   ============================================================ */
+body.cb-acromatopsia {
+  filter: url(#cb-acromatopsia);
+
+  /*
+   * Com a matriz de cinza aplicada, cores perdem significado.
+   * Aqui definimos os tokens com valores de luminância distinta
+   * para que o filtro gere cinzas bem separados:
+   *   success  → L* ≈ 60  (cinza médio-claro)
+   *   error    → L* ≈ 35  (cinza escuro)
+   *   warning  → L* ≈ 50  (cinza médio)
+   *   info     → L* ≈ 70  (cinza claro)
+   *   primary  → L* ≈ 35  (cinza escuro — botões destacados)
+   */
+  --color-primary:           #4a4a4a;
+  --color-primary-hover:     #333333;
+  --color-primary-active:    #1a1a1a;
+  --color-primary-highlight: #d8d8d8;
+  --color-primary-subtle:    #efefef;
+
+  --color-success:           #888888;
+  --color-success-hover:     #666666;
+  --color-success-highlight: #dddddd;
+
+  --color-error:             #2a2a2a;
+  --color-error-hover:       #111111;
+  --color-error-highlight:   #c8c8c8;
+
+  --color-warning:           #666666;
+  --color-warning-hover:     #444444;
+  --color-warning-highlight: #e0e0e0;
+
+  --color-info:              #999999;
+  --color-info-hover:        #777777;
+  --color-info-highlight:    #e8e8e8;
+  --color-info-subtle:       #f5f5f5;
+
+  --color-accent:            #555555;
+  --color-accent-hover:      #333333;
+  --color-accent-text:       #ffffff;
+  --color-accent-highlight:  #d0d0d0;
+
+  /* aumenta contraste de borda para compensar ausência de cor */
+  --color-border:            #888888;
+  --color-divider:           #aaaaaa;
+}
+
+[data-theme="dark"] body.cb-acromatopsia,
+body.cb-acromatopsia [data-theme="dark"] {
+  --color-primary:           #aaaaaa;
+  --color-primary-hover:     #cccccc;
+  --color-primary-highlight: #333333;
+  --color-primary-subtle:    #222222;
+  --color-success:           #888888;
+  --color-success-highlight: #2a2a2a;
+  --color-error:             #dddddd;
+  --color-error-highlight:   #111111;
+  --color-warning:           #aaaaaa;
+  --color-warning-highlight: #222222;
+  --color-info:              #bbbbbb;
+  --color-info-highlight:    #1a1a1a;
+  --color-border:            #555555;
+  --color-divider:           #3a3a3a;
 }

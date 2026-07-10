@@ -13,35 +13,66 @@
     <title>VacFamily</title>
   </head>
   <body>
-    <!-- Filtros SVG para simulação/adaptação de daltonismo (ocultos) -->
+    <!--
+      Filtros SVG para CORREÇÃO de daltonismo (ocultos).
+      Objetivo: compensar a deficiência para tornar a interface mais
+      confortável — NÃO simular como o daltônico enxerga.
+
+      Estratégia:
+        - Deuteranopia / Protanopia: rotação de matiz + boost de saturação
+          nos canais que o usuário consegue distinguir melhor (azul/amarelo).
+          A matriz amplifica diferenças percebidas sem distorcer demais.
+        - Tritanopia: reforça canal vermelho/verde (preservados) e atenua
+          a confusão azul/verde.
+        - Acromatopsia: converte para tons de cinza de alto contraste,
+          removendo dependência de cor para transmitir informação.
+    -->
     <svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
-      <!-- Deuteranopia: dificuldade com verde -->
+
+      <!-- DEUTERANOPIA — compensa dificuldade verde/vermelho -->
+      <!-- Desloca percepção para eixo azul-amarelo que o usuário distingue bem -->
       <filter id="cb-deuteranopia" color-interpolation-filters="linearRGB">
         <feColorMatrix type="matrix" values="
-          0.625 0.375 0     0 0
-          0.7   0.3   0     0 0
-          0     0.3   0.7   0 0
-          0     0     0     1 0
+           1.0   0.0  -0.05  0  0.02
+           0.0   0.9   0.15  0  0.0
+           0.0   0.1   0.95  0  0.0
+           0     0     0     1  0
         "/>
       </filter>
-      <!-- Protanopia: dificuldade com vermelho -->
+
+      <!-- PROTANOPIA — compensa dificuldade vermelho (canal L ausente) -->
+      <!-- Amplifica vermelho usando sinal do canal verde (que o usuário preserva) -->
       <filter id="cb-protanopia" color-interpolation-filters="linearRGB">
         <feColorMatrix type="matrix" values="
-          0.567 0.433 0     0 0
-          0.558 0.442 0     0 0
-          0     0.242 0.758 0 0
-          0     0     0     1 0
+           0.85  0.20  -0.05  0  0.02
+           0.10  0.90   0.0   0  0.0
+          -0.05  0.10   0.95  0  0.0
+           0     0      0     1  0
         "/>
       </filter>
-      <!-- Tritanopia: dificuldade com azul -->
+
+      <!-- TRITANOPIA — compensa dificuldade azul/amarelo -->
+      <!-- Reforça canal vermelho/verde, reduz confusão azul-verde -->
       <filter id="cb-tritanopia" color-interpolation-filters="linearRGB">
         <feColorMatrix type="matrix" values="
-          0.95  0.05  0     0 0
-          0     0.433 0.567 0 0
-          0     0.475 0.525 0 0
-          0     0     0     1 0
+           0.95  0.05   0.0   0  0.0
+           0.0   0.88   0.12  0  0.0
+           0.0  -0.18   1.18  0  0.0
+           0     0      0     1  0
         "/>
       </filter>
+
+      <!-- ACROMATOPSIA — escala de cinza perceptualmente uniforme (pesos ITU-R BT.709) -->
+      <!-- Garante que toda informação transmitida por cor funcione por contraste de luminância -->
+      <filter id="cb-acromatopsia" color-interpolation-filters="linearRGB">
+        <feColorMatrix type="matrix" values="
+          0.2126 0.7152 0.0722 0 0
+          0.2126 0.7152 0.0722 0 0
+          0.2126 0.7152 0.0722 0 0
+          0      0      0      1 0
+        "/>
+      </filter>
+
     </svg>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>

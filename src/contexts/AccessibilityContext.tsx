@@ -1,7 +1,20 @@
 /**
  * AccessibilityContext
- * Gerencia: tema (light/dark), alto contraste, escala de fonte, TTS ativo, modo daltonismo
- * Persiste preferências em sessionStorage (compatível com ambientes sandbox)
+ * Gerencia: tema, alto contraste, escala de fonte, TTS, modo daltonismo.
+ *
+ * Modos de daltonismo:
+ *   'none'         — sem filtro
+ *   'deuteranopia' — corrige dificuldade verde/vermelho
+ *   'protanopia'   — corrige dificuldade vermelho
+ *   'tritanopia'   — corrige dificuldade azul/amarelo
+ *   'acromatopsia' — escala de cinza para quem não distingue cores
+ *
+ * Cada modo combina:
+ *   1. Filtro SVG feColorMatrix (correção de matiz via CSS filter)
+ *   2. Classe CSS no <body> que sobrescreve tokens de paleta com
+ *      variantes otimizadas para o tipo de daltonismo
+ *
+ * Persiste em sessionStorage.
  */
 import {
   createContext, useContext, useState, useEffect, useCallback,
@@ -10,7 +23,7 @@ import {
 
 export type Theme = 'light' | 'dark'
 export type FontScale = 'normal' | 'grande' | 'muito_grande'
-export type ColorBlindMode = 'none' | 'deuteranopia' | 'protanopia' | 'tritanopia'
+export type ColorBlindMode = 'none' | 'deuteranopia' | 'protanopia' | 'tritanopia' | 'acromatopsia'
 
 interface A11yState {
   theme: Theme
@@ -38,11 +51,16 @@ const FONT_SCALE_FACTOR: Record<FontScale, number> = {
   muito_grande: 1.45,
 }
 
-const CB_CLASSES: Record<ColorBlindMode, string> = {
+/** Classe CSS aplicada no <body> por modo. A classe:
+ *  - aplica filter: url(#cb-*) para a correção de matiz
+ *  - pode sobrescrever tokens CSS via globals.css (ver colorblind.css)
+ */
+const CB_BODY_CLASS: Record<ColorBlindMode, string> = {
   none:         '',
   deuteranopia: 'cb-deuteranopia',
   protanopia:   'cb-protanopia',
   tritanopia:   'cb-tritanopia',
+  acromatopsia: 'cb-acromatopsia',
 }
 
 function lerSessao(): Partial<A11yState> {
@@ -70,7 +88,7 @@ export function AccessibilityProvider({ children }: { children: ReactNode }) {
   const [ttsAtivo, setTtsAtivo] = useState(salvo.ttsAtivo ?? false)
   const [colorBlindMode, setColorBlindModeState] = useState<ColorBlindMode>(salvo.colorBlindMode ?? 'none')
 
-  /* ── aplica tokens no <html> e filtro de daltonismo no <body> ── */
+  /* ── aplica tokens + classe de daltonismo ── */
   useEffect(() => {
     const html = document.documentElement
     html.setAttribute('data-theme', theme)
@@ -78,10 +96,10 @@ export function AccessibilityProvider({ children }: { children: ReactNode }) {
     html.style.setProperty('--font-scale', String(FONT_SCALE_FACTOR[fontScale]))
 
     // remove todas as classes CB antes de aplicar a nova
-    Object.values(CB_CLASSES).forEach(cls => {
+    Object.values(CB_BODY_CLASS).forEach(cls => {
       if (cls) document.body.classList.remove(cls)
     })
-    const cls = CB_CLASSES[colorBlindMode]
+    const cls = CB_BODY_CLASS[colorBlindMode]
     if (cls) document.body.classList.add(cls)
 
     salvarSessao({ theme, altoContraste, fontScale, ttsAtivo, colorBlindMode })
@@ -101,11 +119,8 @@ export function AccessibilityProvider({ children }: { children: ReactNode }) {
     window.speechSynthesis.speak(utt)
   }, [ttsAtivo])
 
-  const pararFala = useCallback(() => {
-    window.speechSynthesis?.cancel()
-  }, [])
+  const pararFala = useCallback(() => { window.speechSynthesis?.cancel() }, [])
 
-  /* ── actions ── */
   const toggleTheme = useCallback(() => setTheme(t => t === 'dark' ? 'light' : 'dark'), [])
   const toggleAltoContraste = useCallback(() => setAltoContraste(v => !v), [])
   const setFontScale = useCallback((s: FontScale) => setFontScaleState(s), [])
