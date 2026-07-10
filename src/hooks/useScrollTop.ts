@@ -4,17 +4,17 @@
  *   - visible: se o botão deve aparecer (scrollTop > threshold)
  *   - scrollToTop: função para rolar suavemente ao topo
  */
-import { useEffect, useRef, useState, useCallback, type RefObject } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 
 interface Options {
-  threshold?: number   // px de scroll mínimo para mostrar o botão (default 120)
+  threshold?: number
 }
 
 export function useScrollTop<T extends HTMLElement>(
   options: Options = {}
-): { ref: RefObject<T>; visible: boolean; scrollToTop: () => void } {
+) {
   const { threshold = 120 } = options
-  const ref = useRef<T>(null)
+  const ref = useRef<T | null>(null)
   const [visible, setVisible] = useState(false)
 
   useEffect(() => {
