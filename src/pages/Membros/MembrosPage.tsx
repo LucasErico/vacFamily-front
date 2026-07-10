@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Plus, Users, ClipboardList } from 'lucide-react'
+import { Plus, Users, ClipboardList, Syringe } from 'lucide-react'
 import { useMembros, PARENTESCO_LABEL } from '@/contexts/MembrosContext'
 import { Avatar } from '@/components/ui/Avatar'
 import { calcularIdade } from '@/utils/idade'
@@ -65,6 +65,7 @@ export function MembrosPage() {
           {filtrados.map(membro => (
             <li key={membro.id}>
               <div className="card" style={{ padding: 'var(--space-4) var(--space-5)' }}>
+                {/* Linha principal: avatar + info + perfil */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
                   <Avatar nome={membro.nome} tamanho={48} fotoUrl={membro.fotoUrl} />
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -84,8 +85,15 @@ export function MembrosPage() {
                     Perfil
                   </Link>
                 </div>
-                {/* Botão Ver histórico */}
-                <div style={{ marginTop: 'var(--space-3)', paddingTop: 'var(--space-3)', borderTop: '1px solid var(--color-divider)' }}>
+
+                {/* Ações rápidas */}
+                <div style={{
+                  marginTop: 'var(--space-3)',
+                  paddingTop: 'var(--space-3)',
+                  borderTop: '1px solid var(--color-divider)',
+                  display: 'flex',
+                  gap: 'var(--space-4)',
+                }}>
                   <Link
                     to={`/historico?membro=${membro.id}`}
                     style={{
@@ -96,7 +104,20 @@ export function MembrosPage() {
                     aria-label={`Ver histórico vacinal de ${membro.nome}`}
                   >
                     <ClipboardList size={14} aria-hidden />
-                    Ver histórico vacinal
+                    Ver histórico
+                  </Link>
+
+                  <Link
+                    to={`/vacinas/membro/${membro.id}`}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 'var(--space-2)',
+                      fontSize: 'var(--text-xs)', color: 'var(--color-primary)',
+                      fontWeight: 500, textDecoration: 'none', minHeight: 36,
+                    }}
+                    aria-label={`Administrar doses de ${membro.nome}`}
+                  >
+                    <Syringe size={14} aria-hidden />
+                    Administrar doses
                   </Link>
                 </div>
               </div>
