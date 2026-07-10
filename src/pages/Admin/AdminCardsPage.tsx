@@ -17,26 +17,24 @@ import {
   type CardConteudo,
 } from '@/services/adminStorage'
 
-// ── Paleta de cores em HEX ────────────────────────────────────
 const COR_OPTIONS = [
-  { label: 'Teal (primário)',   value: '#01696f', preview: '#01696f' },
-  { label: 'Verde sucesso',     value: '#437a22', preview: '#437a22' },
-  { label: 'Laranja',           value: '#964219', preview: '#964219' },
-  { label: 'Azul',              value: '#006494', preview: '#006494' },
-  { label: 'Roxo',              value: '#7a39bb', preview: '#7a39bb' },
-  { label: 'Vermelho',          value: '#a12c7b', preview: '#a12c7b' },
-  { label: 'Rosa',              value: '#c2185b', preview: '#c2185b' },
-  { label: 'Índigo',            value: '#3949ab', preview: '#3949ab' },
-  { label: 'Ciano',             value: '#00838f', preview: '#00838f' },
-  { label: 'Lima',              value: '#558b2f', preview: '#558b2f' },
-  { label: 'Âmbar',             value: '#f57f17', preview: '#f57f17' },
-  { label: 'Marrom',            value: '#5d4037', preview: '#5d4037' },
-  { label: 'Cinza escuro',      value: '#424242', preview: '#424242' },
-  { label: 'Azul marinho',      value: '#1a237e', preview: '#1a237e' },
-  { label: 'Verde-água escuro', value: '#004d40', preview: '#004d40' },
+  { label: 'Teal (primário)',   value: '#01696f' },
+  { label: 'Verde sucesso',     value: '#437a22' },
+  { label: 'Laranja',           value: '#964219' },
+  { label: 'Azul',              value: '#006494' },
+  { label: 'Roxo',              value: '#7a39bb' },
+  { label: 'Vermelho',          value: '#a12c7b' },
+  { label: 'Rosa',              value: '#c2185b' },
+  { label: 'Índigo',            value: '#3949ab' },
+  { label: 'Ciano',             value: '#00838f' },
+  { label: 'Lima',              value: '#558b2f' },
+  { label: 'Âmbar',             value: '#f57f17' },
+  { label: 'Marrom',            value: '#5d4037' },
+  { label: 'Cinza escuro',      value: '#424242' },
+  { label: 'Azul marinho',      value: '#1a237e' },
+  { label: 'Verde-água escuro', value: '#004d40' },
 ]
 
-// ── Ícones disponíveis ────────────────────────────────────────
 const ICONE_OPTIONS = [
   { label: 'Escudo',        value: 'ShieldCheck',   icon: <ShieldCheck   size={16} aria-hidden /> },
   { label: 'Seringa',       value: 'Syringe',       icon: <Syringe       size={16} aria-hidden /> },
@@ -104,9 +102,6 @@ export function AdminCardsPage() {
 
   const totalAtivos = useMemo(() => cards.filter(c => c.ativo).length, [cards])
 
-  // Encontra a cor selecionada para preview
-  const corSelecionada = COR_OPTIONS.find(c => c.value === form.cor)
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
       {/* Header */}
@@ -169,7 +164,8 @@ export function AdminCardsPage() {
             />
           </Field>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)' }}
+          >
             {/* Seletor de cor com preview */}
             <Field label="Cor de fundo">
               <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
@@ -204,7 +200,7 @@ export function AdminCardsPage() {
             </Field>
           </div>
 
-          {/* Preview do card */}
+          {/* Preview ao vivo do card */}
           <div style={{
             borderRadius: '12px',
             padding: '16px',
@@ -279,7 +275,6 @@ export function AdminCardsPage() {
                 transition: 'opacity 180ms ease',
               }}
             >
-              {/* Bolinha de cor */}
               <div style={{
                 width: 12, height: 40,
                 borderRadius: '999px',

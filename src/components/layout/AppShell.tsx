@@ -4,6 +4,7 @@ import { TopBar } from './TopBar'
 import { BottomNav } from './BottomNav'
 import { Sidebar } from './Sidebar'
 import { OnboardingTour, shouldShowOnboarding } from '@/components/ui/OnboardingTour'
+import { TourFAB } from '@/components/ui/TourFAB'
 
 export function AppShell() {
   const [showTour, setShowTour] = useState(false)
@@ -11,7 +12,6 @@ export function AppShell() {
   // Dispara automaticamente na 1ª visita após login
   useEffect(() => {
     if (shouldShowOnboarding()) {
-      // Pequeno delay para o layout estar pronto
       const t = setTimeout(() => setShowTour(true), 600)
       return () => clearTimeout(t)
     }
@@ -29,6 +29,9 @@ export function AppShell() {
       <nav className="bottom-nav" aria-label="Navegação principal">
         <BottomNav />
       </nav>
+
+      {/* FAB de tour — só visível no mobile (≤768px), acima da bottom-nav */}
+      <TourFAB onClick={() => setShowTour(true)} bottomOffset={72} />
 
       {showTour && (
         <OnboardingTour onClose={() => setShowTour(false)} />
