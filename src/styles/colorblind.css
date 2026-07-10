@@ -1,0 +1,17 @@
+/*
+ * Filtros CSS para adaptação de daltonismo
+ * Aplicados via classe no <body> pelo AccessibilityContext
+ * As matrizes feColorMatrix estão definidas em index.html (SVG oculto)
+ */
+
+body.cb-deuteranopia {
+  filter: url(#cb-deuteranopia);
+}
+
+body.cb-protanopia {
+  filter: url(#cb-protanopia);
+}
+
+body.cb-tritanopia {
+  filter: url(#cb-tritanopia);
+}

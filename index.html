@@ -13,6 +13,36 @@
     <title>VacFamily</title>
   </head>
   <body>
+    <!-- Filtros SVG para simulação/adaptação de daltonismo (ocultos) -->
+    <svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
+      <!-- Deuteranopia: dificuldade com verde -->
+      <filter id="cb-deuteranopia" color-interpolation-filters="linearRGB">
+        <feColorMatrix type="matrix" values="
+          0.625 0.375 0     0 0
+          0.7   0.3   0     0 0
+          0     0.3   0.7   0 0
+          0     0     0     1 0
+        "/>
+      </filter>
+      <!-- Protanopia: dificuldade com vermelho -->
+      <filter id="cb-protanopia" color-interpolation-filters="linearRGB">
+        <feColorMatrix type="matrix" values="
+          0.567 0.433 0     0 0
+          0.558 0.442 0     0 0
+          0     0.242 0.758 0 0
+          0     0     0     1 0
+        "/>
+      </filter>
+      <!-- Tritanopia: dificuldade com azul -->
+      <filter id="cb-tritanopia" color-interpolation-filters="linearRGB">
+        <feColorMatrix type="matrix" values="
+          0.95  0.05  0     0 0
+          0     0.433 0.567 0 0
+          0     0.475 0.525 0 0
+          0     0     0     1 0
+        "/>
+      </filter>
+    </svg>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

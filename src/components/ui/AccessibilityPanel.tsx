@@ -1,14 +1,14 @@
 /**
  * AccessibilityPanel
- * Painel lateral: contraste, fonte, TTS.
+ * Painel lateral: contraste, fonte, TTS, modo daltonismo.
  * Cabeçalho fixo + corpo com scroll interno → funciona em qualquer escala de fonte.
  */
 import { useEffect, useRef } from 'react'
 import {
   X, Sun, Moon, ZoomIn, Volume2, VolumeX,
-  Contrast, Type,
+  Contrast, Type, Eye,
 } from 'lucide-react'
-import { useA11y, type FontScale } from '@/contexts/AccessibilityContext'
+import { useA11y, type FontScale, type ColorBlindMode } from '@/contexts/AccessibilityContext'
 
 interface Props {
   onClose: () => void
@@ -20,10 +20,17 @@ const FONT_OPTIONS: { value: FontScale; label: string; desc: string }[] = [
   { value: 'muito_grande', label: 'Muito grande', desc: '145%' },
 ]
 
+const COLOR_BLIND_OPTIONS: { value: ColorBlindMode; label: string; desc: string }[] = [
+  { value: 'none',         label: 'Normal',       desc: 'Sem filtro' },
+  { value: 'deuteranopia', label: 'Deuteranopia', desc: 'Dificuldade com verde' },
+  { value: 'protanopia',   label: 'Protanopia',   desc: 'Dificuldade com vermelho' },
+  { value: 'tritanopia',   label: 'Tritanopia',   desc: 'Dificuldade com azul' },
+]
+
 export function AccessibilityPanel({ onClose }: Props) {
   const {
-    theme, altoContraste, fontScale, ttsAtivo,
-    toggleTheme, toggleAltoContraste, setFontScale, toggleTTS,
+    theme, altoContraste, fontScale, ttsAtivo, colorBlindMode,
+    toggleTheme, toggleAltoContraste, setFontScale, toggleTTS, setColorBlindMode,
   } = useA11y()
 
   const panelRef = useRef<HTMLDivElement>(null)
@@ -59,7 +66,7 @@ export function AccessibilityPanel({ onClose }: Props) {
         onClick={onClose}
       />
 
-      {/* painel — flex column: header fixo + body scroll */}
+      {/* painel */}
       <div
         ref={panelRef}
         role="dialog"
@@ -71,7 +78,6 @@ export function AccessibilityPanel({ onClose }: Props) {
           top: 'var(--topbar-h)',
           right: 'var(--space-3)',
           width: 'min(320px, calc(100vw - var(--space-6)))',
-          /* altura máxima: da topbar até 16px do fundo, respeita barra inferior mobile */
           maxHeight: 'calc(100dvh - var(--topbar-h) - var(--space-4))',
           display: 'flex',
           flexDirection: 'column',
@@ -82,10 +88,10 @@ export function AccessibilityPanel({ onClose }: Props) {
           zIndex: 50,
           outline: 'none',
           animation: 'slideDown 180ms cubic-bezier(0.16,1,0.3,1)',
-          overflow: 'hidden', /* garante que o border-radius envolve tudo */
+          overflow: 'hidden',
         }}
       >
-        {/* ── Cabeçalho fixo ── */}
+        {/* Cabeçalho fixo */}
         <div style={{
           display: 'flex',
           alignItems: 'center',
@@ -113,7 +119,7 @@ export function AccessibilityPanel({ onClose }: Props) {
           </button>
         </div>
 
-        {/* ── Corpo com scroll interno ── */}
+        {/* Corpo com scroll */}
         <div style={{
           flex: 1,
           overflowY: 'auto',
@@ -121,7 +127,6 @@ export function AccessibilityPanel({ onClose }: Props) {
           display: 'flex',
           flexDirection: 'column',
           gap: 'var(--space-5)',
-          /* scroll suave + indicador visível */
           scrollbarWidth: 'thin',
           scrollbarColor: 'var(--color-border) transparent',
         }}>
@@ -217,7 +222,46 @@ export function AccessibilityPanel({ onClose }: Props) {
             )}
           </PanelSection>
 
-          {/* espaço extra no final para não colar no scroll */}
+          {/* Visão de cores (daltonismo) */}
+          <PanelSection icon={Eye} title="Visão de cores">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+              {COLOR_BLIND_OPTIONS.map(opt => (
+                <button
+                  key={opt.value}
+                  onClick={() => setColorBlindMode(opt.value)}
+                  role="radio"
+                  aria-checked={colorBlindMode === opt.value}
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: 'var(--space-3) var(--space-4)',
+                    borderRadius: 'var(--radius-md)',
+                    border: `1.5px solid ${colorBlindMode === opt.value ? 'var(--color-primary)' : 'var(--color-border)'}`,
+                    background: colorBlindMode === opt.value ? 'var(--color-primary-subtle)' : 'var(--color-bg)',
+                    color: colorBlindMode === opt.value ? 'var(--color-primary)' : 'var(--color-text)',
+                    cursor: 'pointer',
+                    fontSize: 'var(--text-sm)',
+                    fontWeight: colorBlindMode === opt.value ? 600 : 400,
+                    transition: 'all var(--transition)',
+                    textAlign: 'left',
+                  }}
+                >
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                    <Eye size={15} aria-hidden />
+                    {opt.label}
+                  </span>
+                  <span style={{
+                    fontSize: 'var(--text-xs)',
+                    color: colorBlindMode === opt.value ? 'var(--color-primary)' : 'var(--color-text-muted)',
+                    textAlign: 'right',
+                    maxWidth: 120,
+                  }}>
+                    {opt.desc}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </PanelSection>
+
           <div style={{ height: 'var(--space-2)', flexShrink: 0 }} aria-hidden />
         </div>
       </div>
@@ -225,8 +269,7 @@ export function AccessibilityPanel({ onClose }: Props) {
   )
 }
 
-/* ── PanelSection ─────────────────────────────── */
-
+/* ── PanelSection ── */
 function PanelSection({ icon: Icon, title, children }: {
   icon: typeof Sun; title: string; children: React.ReactNode
 }) {
@@ -246,8 +289,7 @@ function PanelSection({ icon: Icon, title, children }: {
   )
 }
 
-/* ── ToggleSwitch reutilizável ─────────────────── */
-
+/* ── ToggleSwitch ── */
 function ToggleSwitch({ checked, onChange, labelOn, labelOff, icon: Icon }: {
   checked: boolean
   onChange: () => void
@@ -273,7 +315,6 @@ function ToggleSwitch({ checked, onChange, labelOn, labelOff, icon: Icon }: {
         <Icon size={16} aria-hidden />
         {checked ? labelOn : labelOff}
       </span>
-      {/* pill toggle */}
       <span
         aria-hidden
         style={{
@@ -301,8 +342,7 @@ function ToggleSwitch({ checked, onChange, labelOn, labelOff, icon: Icon }: {
   )
 }
 
-/* ── ToggleChip ───────────────────────────────── */
-
+/* ── ToggleChip ── */
 function ToggleChip({ active, onClick, label, icon: Icon }: {
   active: boolean; onClick?: () => void; label: string; icon: typeof Sun
 }) {
