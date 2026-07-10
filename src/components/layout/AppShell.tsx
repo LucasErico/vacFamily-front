@@ -1,20 +1,12 @@
 import { Outlet } from 'react-router-dom'
-import { useState, useCallback } from 'react'
 import { TopBar } from './TopBar'
 import { BottomNav } from './BottomNav'
 import { Sidebar } from './Sidebar'
 import { ScrollToTopButton } from '@/components/ui/ScrollToTopButton'
+import { useScrollTop } from '@/hooks/useScrollTop'
 
 export function AppShell() {
-  const [scrollVisible, setScrollVisible] = useState(false)
-
-  const handleScroll = useCallback((e: React.UIEvent<HTMLElement>) => {
-    setScrollVisible(e.currentTarget.scrollTop > 120)
-  }, [])
-
-  const handleScrollToTop = useCallback(() => {
-    document.getElementById('main-content')?.scrollTo({ top: 0, behavior: 'smooth' })
-  }, [])
+  const { ref: mainRef, visible, scrollToTop } = useScrollTop<HTMLElement>({ threshold: 120 })
 
   return (
     <div className="app-shell">
@@ -25,7 +17,7 @@ export function AppShell() {
           id="main-content"
           className="page-content"
           role="main"
-          onScroll={handleScroll}
+          ref={mainRef}
         >
           <Outlet />
         </main>
@@ -35,8 +27,8 @@ export function AppShell() {
       </nav>
 
       <ScrollToTopButton
-        visible={scrollVisible}
-        onClick={handleScrollToTop}
+        visible={visible}
+        onClick={scrollToTop}
         position="page"
       />
     </div>
