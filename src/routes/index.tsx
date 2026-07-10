@@ -12,6 +12,8 @@ import { LembretesPage } from '@/pages/Lembretes/LembretesPage'
 import { HistoricoPage } from '@/pages/Historico/HistoricoPage'
 import { LoginPage } from '@/pages/Auth/LoginPage'
 import { RegisterPage } from '@/pages/Auth/RegisterPage'
+import { ForgotPasswordPage } from '@/pages/Auth/ForgotPasswordPage'
+import { VerifyEmailPage } from '@/pages/Auth/VerifyEmailPage'
 import { AdminLoginPage } from '@/pages/Admin/AdminLoginPage'
 import { AdminShell } from '@/pages/Admin/AdminShell'
 import { AdminOverviewPage } from '@/pages/Admin/AdminOverviewPage'
@@ -19,18 +21,20 @@ import { AdminUsuariosPage } from '@/pages/Admin/AdminUsuariosPage'
 import { AdminCardsPage } from '@/pages/Admin/AdminCardsPage'
 
 export const router = createBrowserRouter([
-  { path: '/login',       element: <LoginPage /> },
-  { path: '/cadastro',    element: <RegisterPage /> },
+  { path: '/login',           element: <LoginPage /> },
+  { path: '/cadastro',        element: <RegisterPage /> },
+  { path: '/esqueci-senha',   element: <ForgotPasswordPage /> },
+  { path: '/verificar-email', element: <VerifyEmailPage /> },
 
-  // ── Painel admin (acesso exclusivo via URL) ──────────────
+  // ── Painel admin ──────────────────────────────────────────
   { path: '/admin/login', element: <AdminLoginPage /> },
   {
     path: '/admin',
     element: <AdminShell />,
     children: [
-      { index: true,           element: <AdminOverviewPage /> },
-      { path: 'usuarios',      element: <AdminUsuariosPage /> },
-      { path: 'cards',         element: <AdminCardsPage /> },
+      { index: true,      element: <AdminOverviewPage /> },
+      { path: 'usuarios', element: <AdminUsuariosPage /> },
+      { path: 'cards',    element: <AdminCardsPage /> },
     ],
   },
 
