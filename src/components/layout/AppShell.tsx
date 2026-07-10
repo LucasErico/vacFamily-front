@@ -1,12 +1,35 @@
-import { Outlet } from 'react-router-dom'
+import { Outlet, useRef } from 'react-router-dom'
 import { TopBar } from './TopBar'
 import { BottomNav } from './BottomNav'
 import { Sidebar } from './Sidebar'
 import { ScrollToTopButton } from '@/components/ui/ScrollToTopButton'
-import { useScrollTop } from '@/hooks/useScrollTop'
+import { useEffect, useState, useCallback } from 'react'
+import { useRef as useReactRef } from 'react'
+
+/**
+ * Hook inline para observar o scroll do main element via id,
+ * evitando problemas de cast de RefObject.
+ */
+function usePageScrollTop(threshold = 120) {
+  const [visible, setVisible] = useState(false)
+
+  useEffect(() => {
+    const el = document.getElementById('main-content')
+    if (!el) return
+    const onScroll = () => setVisible(el.scrollTop > threshold)
+    el.addEventListener('scroll', onScroll, { passive: true })
+    return () => el.removeEventListener('scroll', onScroll)
+  }, [threshold])
+
+  const scrollToTop = useCallback(() => {
+    document.getElementById('main-content')?.scrollTo({ top: 0, behavior: 'smooth' })
+  }, [])
+
+  return { visible, scrollToTop }
+}
 
 export function AppShell() {
-  const { ref, visible, scrollToTop } = useScrollTop<HTMLElement>({ threshold: 120 })
+  const { visible, scrollToTop } = usePageScrollTop(120)
 
   return (
     <div className="app-shell">
@@ -17,7 +40,6 @@ export function AppShell() {
           id="main-content"
           className="page-content"
           role="main"
-          ref={ref as React.RefObject<HTMLElement>}
         >
           <Outlet />
         </main>
@@ -26,7 +48,6 @@ export function AppShell() {
         <BottomNav />
       </nav>
 
-      {/* Botão flutuante — aparece após 120px de scroll na área de conteúdo */}
       <ScrollToTopButton visible={visible} onClick={scrollToTop} position="page" />
     </div>
   )
