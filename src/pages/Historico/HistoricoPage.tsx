@@ -12,7 +12,7 @@ function formatarData(iso: string) {
 }
 
 type EntradaTimeline =
-  | { tipo: 'aplicada'; data: string; vacinaNome: string; numeroDose: number; local?: string; lote?: string }
+  | { tipo: 'aplicada'; data: string; vacinaNome: string; numeroDose: number; local?: string }
   | { tipo: 'pendente'; data: string; vacinaNome: string; numeroDose: number }
   | { tipo: 'atrasada'; data: string; vacinaNome: string; numeroDose: number }
 
@@ -49,7 +49,6 @@ export function HistoricoPage() {
         vacinaNome: vacina.nome,
         numeroDose: reg.numeroDose,
         local: reg.localAplicacao,
-        lote: reg.lote,
       })
     }
 
@@ -259,7 +258,6 @@ export function HistoricoPage() {
                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)', marginTop: 'var(--space-1)' }}>
                             <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>{formatarData(e.data)}</span>
                             {'local' in e && e.local && <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>· {e.local}</span>}
-                            {'lote' in e && e.lote && <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-faint)' }}>Lote: {e.lote}</span>}
                           </div>
                         </div>
                       </li>
