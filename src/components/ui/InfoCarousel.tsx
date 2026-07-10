@@ -1,40 +1,52 @@
 /**
- * InfoCarousel
- * Carrossel horizontal de cards informativos no topo do Dashboard.
- * Cards vêm do adminStorage e podem ser editados pelo painel admin.
+ * InfoCarousel — v3
+ * Carrossel de cards informativos no Dashboard.
  *
- * Funcionalidades:
- * - Autoplay com pausa ao hover/focus
- * - Swipe touch (mobile)
- * - Dots de navegação clicáveis + setas prev/next
- * - Contador numérico
- * - Animação fadeSlide na troca de card
- * - Acessível: aria-live, aria-label, aria-current
+ * Layout: seta esquerda | conteúdo | seta direita
+ * - Ícone 32 px, título bold/lg, descrição sm
+ * - Autoplay 10 000 ms com pausa em hover/focus/touch
+ * - Swipe touch (threshold 40 px)
+ * - Dots + contador no rodapé
+ * - fadeSlide animation, prefers-reduced-motion respeitado
+ * - Cores em hex → sem dependência de CSS vars no background inline
  */
 import { useEffect, useState, useRef, useCallback } from 'react'
-import { ChevronLeft, ChevronRight, ShieldCheck, Syringe, Bell, Users, Info } from 'lucide-react'
+import {
+  ChevronLeft, ChevronRight,
+  ShieldCheck, Syringe, Bell, Users, Info,
+  Heart, Baby, Star, Stethoscope, Activity,
+  ClipboardList, CalendarCheck, AlertTriangle, BookOpen, Smile,
+} from 'lucide-react'
 import { getCards, type CardConteudo } from '@/services/adminStorage'
 
 const ICONS: Record<string, React.ReactNode> = {
-  ShieldCheck: <ShieldCheck size={22} aria-hidden />,
-  Syringe:     <Syringe     size={22} aria-hidden />,
-  Bell:        <Bell        size={22} aria-hidden />,
-  Users:       <Users       size={22} aria-hidden />,
-  Info:        <Info        size={22} aria-hidden />,
+  ShieldCheck:    <ShieldCheck    size={32} aria-hidden />,
+  Syringe:        <Syringe        size={32} aria-hidden />,
+  Bell:           <Bell           size={32} aria-hidden />,
+  Users:          <Users          size={32} aria-hidden />,
+  Info:           <Info           size={32} aria-hidden />,
+  Heart:          <Heart          size={32} aria-hidden />,
+  Baby:           <Baby           size={32} aria-hidden />,
+  Star:           <Star           size={32} aria-hidden />,
+  Stethoscope:    <Stethoscope    size={32} aria-hidden />,
+  Activity:       <Activity       size={32} aria-hidden />,
+  ClipboardList:  <ClipboardList  size={32} aria-hidden />,
+  CalendarCheck:  <CalendarCheck  size={32} aria-hidden />,
+  AlertTriangle:  <AlertTriangle  size={32} aria-hidden />,
+  BookOpen:       <BookOpen       size={32} aria-hidden />,
+  Smile:          <Smile          size={32} aria-hidden />,
 }
 
-const AUTOPLAY_MS = 4500
-const SWIPE_THRESHOLD = 40 // px mínimos para considerar swipe
+const AUTOPLAY_MS = 10_000
+const SWIPE_THRESHOLD = 40
 
 export function InfoCarousel() {
-  const [cards, setCards]   = useState<CardConteudo[]>([])
-  const [idx, setIdx]       = useState(0)
-  const [paused, setPaused] = useState(false)
-  const [animKey, setAnimKey] = useState(0) // força re-mount da animação
-
-  // Touch tracking
-  const touchStartX = useRef<number | null>(null)
-  const timerRef    = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [cards, setCards]     = useState<CardConteudo[]>([])
+  const [idx, setIdx]         = useState(0)
+  const [paused, setPaused]   = useState(false)
+  const [animKey, setAnimKey] = useState(0)
+  const touchStartX           = useRef<number | null>(null)
+  const timerRef              = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     const ativos = getCards().filter(c => c.ativo).sort((a, b) => a.ordem - b.ordem)
@@ -51,25 +63,21 @@ export function InfoCarousel() {
   const prev = useCallback(() => goTo((idx - 1 + total) % total), [idx, total, goTo])
   const next = useCallback(() => goTo((idx + 1) % total), [idx, total, goTo])
 
-  // Autoplay
   useEffect(() => {
     if (paused || total <= 1) return
     timerRef.current = setTimeout(next, AUTOPLAY_MS)
     return () => { if (timerRef.current) clearTimeout(timerRef.current) }
   }, [idx, paused, next, total])
 
-  // Swipe touch
   function handleTouchStart(e: React.TouchEvent) {
     touchStartX.current = e.touches[0].clientX
   }
-
   function handleTouchEnd(e: React.TouchEvent) {
     if (touchStartX.current === null) return
     const delta = e.changedTouches[0].clientX - touchStartX.current
     touchStartX.current = null
     if (Math.abs(delta) < SWIPE_THRESHOLD) return
-    if (delta < 0) next()
-    else prev()
+    delta < 0 ? next() : prev()
   }
 
   if (total === 0) return null
@@ -80,14 +88,35 @@ export function InfoCarousel() {
     <>
       <style>{`
         @keyframes carouselFadeSlide {
-          from { opacity: 0; transform: translateY(6px); }
+          from { opacity: 0; transform: translateY(8px); }
           to   { opacity: 1; transform: translateY(0); }
         }
         .carousel-content {
-          animation: carouselFadeSlide 280ms cubic-bezier(0.16, 1, 0.3, 1) both;
+          animation: carouselFadeSlide 300ms cubic-bezier(0.16, 1, 0.3, 1) both;
         }
         @media (prefers-reduced-motion: reduce) {
           .carousel-content { animation: none; }
+        }
+        .carousel-arrow {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 32px;
+          min-width: 32px;
+          height: 32px;
+          border-radius: 50%;
+          border: none;
+          background: rgba(255,255,255,0.18);
+          color: #fff;
+          cursor: pointer;
+          transition: background 180ms ease;
+          flex-shrink: 0;
+        }
+        .carousel-arrow:hover {
+          background: rgba(255,255,255,0.32);
+        }
+        .carousel-arrow:active {
+          background: rgba(255,255,255,0.45);
         }
       `}</style>
 
@@ -101,99 +130,105 @@ export function InfoCarousel() {
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
         style={{
-          position: 'relative',
-          borderRadius: 'var(--radius-xl)',
+          borderRadius: '16px',
           overflow: 'hidden',
           background: card.cor,
-          minHeight: 110,
           display: 'flex',
           flexDirection: 'column',
-          justifyContent: 'space-between',
-          boxShadow: 'var(--shadow-md)',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
           userSelect: 'none',
+          minHeight: 140,
         }}
       >
-        {/* Conteúdo com animação */}
-        <div
-          key={animKey}
-          className="carousel-content"
-          aria-live="polite"
-          aria-atomic="true"
-          style={{
-            padding: 'var(--space-5) var(--space-5) var(--space-3)',
-            display: 'flex',
-            gap: 'var(--space-4)',
-            alignItems: 'flex-start',
-          }}
-        >
-          {/* Ícone */}
-          <div style={{
-            width: 40, height: 40,
-            borderRadius: 'var(--radius-md)',
-            background: 'oklch(100% 0 0 / 0.18)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            flexShrink: 0,
-            color: '#fff',
-          }}>
-            {ICONS[card.icone] ?? ICONS.Info}
+        {/* Linha principal: seta | conteúdo | seta */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          padding: '20px 16px 12px',
+          flex: 1,
+        }}>
+          {/* Seta esquerda */}
+          {total > 1 && (
+            <button className="carousel-arrow" onClick={prev} aria-label="Card anterior">
+              <ChevronLeft size={18} aria-hidden />
+            </button>
+          )}
+
+          {/* Conteúdo animado */}
+          <div
+            key={animKey}
+            className="carousel-content"
+            aria-live="polite"
+            aria-atomic="true"
+            style={{
+              flex: 1,
+              display: 'flex',
+              gap: '16px',
+              alignItems: 'flex-start',
+              minWidth: 0,
+            }}
+          >
+            {/* Ícone */}
+            <div style={{
+              width: 52,
+              height: 52,
+              borderRadius: '12px',
+              background: 'rgba(255,255,255,0.20)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#fff',
+              flexShrink: 0,
+            }}>
+              {ICONS[card.icone] ?? ICONS.Info}
+            </div>
+
+            {/* Texto */}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{
+                fontSize: '17px',
+                fontWeight: 800,
+                color: '#fff',
+                marginBottom: '6px',
+                lineHeight: 1.25,
+                letterSpacing: '-0.01em',
+              }}>
+                {card.titulo}
+              </p>
+              <p style={{
+                fontSize: '13px',
+                color: 'rgba(255,255,255,0.88)',
+                lineHeight: 1.55,
+              }}>
+                {card.descricao}
+              </p>
+            </div>
           </div>
 
-          {/* Texto */}
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <p style={{
-              fontSize: 'var(--text-sm)',
-              fontWeight: 700,
-              color: '#fff',
-              marginBottom: 'var(--space-1)',
-              lineHeight: 1.3,
-            }}>
-              {card.titulo}
-            </p>
-            <p style={{
-              fontSize: 'var(--text-xs)',
-              color: 'oklch(100% 0 0 / 0.85)',
-              lineHeight: 1.5,
-            }}>
-              {card.descricao}
-            </p>
-          </div>
+          {/* Seta direita */}
+          {total > 1 && (
+            <button className="carousel-arrow" onClick={next} aria-label="Próximo card">
+              <ChevronRight size={18} aria-hidden />
+            </button>
+          )}
         </div>
 
-        {/* Rodapé: nav + dots + contador */}
+        {/* Rodapé: dots + contador */}
         {total > 1 && (
           <div style={{
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: 'var(--space-2) var(--space-4) var(--space-3)',
+            justifyContent: 'center',
+            gap: '8px',
+            padding: '0 16px 14px',
+            position: 'relative',
           }}>
-            {/* Setas prev/next */}
-            <div style={{ display: 'flex', gap: 'var(--space-1)' }}>
-              <button
-                onClick={prev}
-                aria-label="Card anterior"
-                style={carouselBtnStyle}
-                onMouseEnter={e => (e.currentTarget.style.background = 'oklch(100% 0 0 / 0.3)')}
-                onMouseLeave={e => (e.currentTarget.style.background = 'oklch(100% 0 0 / 0.18)')}
-              >
-                <ChevronLeft size={14} aria-hidden />
-              </button>
-              <button
-                onClick={next}
-                aria-label="Próximo card"
-                style={carouselBtnStyle}
-                onMouseEnter={e => (e.currentTarget.style.background = 'oklch(100% 0 0 / 0.3)')}
-                onMouseLeave={e => (e.currentTarget.style.background = 'oklch(100% 0 0 / 0.18)')}
-              >
-                <ChevronRight size={14} aria-hidden />
-              </button>
-            </div>
-
-            {/* Dots indicadores */}
+            {/* Dots */}
             <div
               role="tablist"
               aria-label="Selecionar card"
-              style={{ display: 'flex', gap: 'var(--space-1)', alignItems: 'center' }}
+              style={{ display: 'flex', gap: '6px', alignItems: 'center' }}
             >
               {cards.map((c, i) => (
                 <button
@@ -203,15 +238,15 @@ export function InfoCarousel() {
                   aria-label={`Card ${i + 1}: ${c.titulo}`}
                   aria-selected={i === idx}
                   style={{
-                    width: i === idx ? 16 : 6,
+                    width: i === idx ? 18 : 6,
                     height: 6,
-                    borderRadius: 'var(--radius-full)',
+                    borderRadius: '999px',
                     border: 'none',
                     cursor: 'pointer',
                     padding: 0,
                     background: i === idx
-                      ? 'oklch(100% 0 0 / 0.95)'
-                      : 'oklch(100% 0 0 / 0.35)',
+                      ? 'rgba(255,255,255,0.95)'
+                      : 'rgba(255,255,255,0.35)',
                     transition: 'width 250ms ease, background 250ms ease',
                   }}
                 />
@@ -220,11 +255,11 @@ export function InfoCarousel() {
 
             {/* Contador */}
             <span style={{
-              fontSize: 'var(--text-xs)',
-              color: 'oklch(100% 0 0 / 0.7)',
+              position: 'absolute',
+              right: 16,
+              fontSize: '11px',
+              color: 'rgba(255,255,255,0.65)',
               fontVariantNumeric: 'tabular-nums',
-              minWidth: '2.5ch',
-              textAlign: 'right',
             }}>
               {idx + 1}/{total}
             </span>
@@ -233,15 +268,4 @@ export function InfoCarousel() {
       </section>
     </>
   )
-}
-
-const carouselBtnStyle: React.CSSProperties = {
-  display: 'flex', alignItems: 'center', justifyContent: 'center',
-  width: 26, height: 26,
-  borderRadius: 'var(--radius-full)',
-  border: 'none',
-  background: 'oklch(100% 0 0 / 0.18)',
-  color: '#fff',
-  cursor: 'pointer',
-  transition: 'background 180ms ease',
 }

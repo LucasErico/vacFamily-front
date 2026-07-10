@@ -3,13 +3,17 @@
  * Camada de persistência do painel admin via localStorage.
  * Toda função aqui pode ser substituída por chamadas de API sem
  * alterar os componentes consumidores.
+ *
+ * IMPORTANTE: cores dos cards devem ser HEX (não CSS vars), pois
+ * são usadas em style={{ background: card.cor }} — CSS vars não
+ * resolvem em propriedades inline fora do escopo de variáveis.
  */
 
 export interface CardConteudo {
   id: string
   titulo: string
   descricao: string
-  cor: string   // var(--color-*) ou hex
+  cor: string   // hex obrigatório
   icone: string // nome do ícone Lucide como string
   ativo: boolean
   ordem: number
@@ -74,9 +78,6 @@ export function reorderCards(ids: string[]): void {
 }
 
 // ── Snapshot de usuários ─────────────────────────────────────
-// O front não tem acesso ao banco — os usuários se auto-registram
-// e cada um persiste seus dados no localStorage com sua própria chave.
-// O admin ve apenas o snapshot gerado no registro.
 
 export function registrarSnapshotUsuario(perfil: PerfilAdmin): void {
   const lista = getSnapshotUsuarios()
@@ -98,35 +99,35 @@ export function deleteSnapshotUsuario(id: string): void {
   localStorage.setItem(KEYS.usuarios, JSON.stringify(lista))
 }
 
-// ── Cards padrão ─────────────────────────────────────────────
+// ── Cards padrão (cores em HEX) ───────────────────────────────
 
 function defaultCards(): CardConteudo[] {
   const defaults: Omit<CardConteudo, 'id' | 'criadoEm' | 'ordem'>[] = [
     {
       titulo: 'Vacinas em dia protegem a família',
       descricao: 'Manter o calendário vacinal atualizado é a forma mais eficaz de prevenir doenças graves.',
-      cor: 'var(--color-primary)',
+      cor: '#01696f',
       icone: 'ShieldCheck',
       ativo: true,
     },
     {
       titulo: 'Registre cada dose',
       descricao: 'Após cada vacina aplicada, registre no app para acompanhar o histórico completo.',
-      cor: 'var(--color-success)',
+      cor: '#437a22',
       icone: 'Syringe',
       ativo: true,
     },
     {
       titulo: 'Lembretes automáticos',
       descricao: 'O VacFamily gera alertas de reforço automaticamente com base nas doses registradas.',
-      cor: 'var(--color-warning)',
+      cor: '#964219',
       icone: 'Bell',
       ativo: true,
     },
     {
       titulo: 'Toda a família em um lugar',
       descricao: 'Gerencie o histórico de todos os membros da família com facilidade.',
-      cor: 'var(--color-blue)',
+      cor: '#006494',
       icone: 'Users',
       ativo: true,
     },
