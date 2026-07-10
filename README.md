@@ -19,36 +19,82 @@ O sistema permite que um responsável familiar centralize e acompanhe o históri
 
 ---
 
-## Funcionalidades
+## Funcionalidades implementadas
 
-- Cadastro e autenticação de usuário
-- Cadastro e gerenciamento de perfis familiares
+### Autenticação e Conta
+- Login com e-mail e senha
+- Criação de conta com validação de e-mail por token de confirmação
+- **Modo de teste**: botão para criar conta sem confirmar e-mail (bypass do token)
+- **Esqueci minha senha**: fluxo em 2 etapas — envio de código por e-mail + redefinição de senha
+- **Medidor de força de senha** com 5 níveis (Muito fraca → Muito forte) e sugestões inline em tempo real
+- Campos de senha com show/hide e confirmação de senha com erro inline
+- Persistência de sessão (mantém login entre abas e recarregamentos)
+- Logout via TopBar
+
+### Gestão familiar
+- Cadastro e gerenciamento de perfis familiares (membros)
+- Seletor de membro ativo (Profile Switcher) na barra superior
+
+### Vacinação
 - Registro, consulta, edição e exclusão do histórico vacinal por membro
 - Visualização de vacinas pendentes, doses futuras e reforços
-- Lembretes e alertas internos de vacinação
 - Indicador de situação vacinal simplificada (em dia / pendente / atenção)
-- Funcionamento offline com sincronização automática ao retornar conectividade
-- Interface acessível com linguagem clara e navegação simplificada
-- Seletor de membro ativo (Profile Switcher) na barra superior
 - Feedback multissensorial no registro de vacinas (visual + vibração)
-- Acessibilidade avançada: alto contraste, escala de fonte, Text-to-Speech (Web Speech API)
 
-### Diferenciais previstos (fora do core)
-- Integração com ferramentas de IA (chatbot assistente)
-- Ferramentas de acessibilidade (transcrição de áudio, descrição de áudio)
+### Lembretes
+- Lembretes e alertas de vacinação agrupados
+- Geração automática de lembretes de reforço
+- Suporte a campanhas gerais (sem membro específico)
+
+### Dashboard
+- Status vacinal geral da família
+- Registros recentes e próximos lembretes
+
+### Acessibilidade
+- Alto contraste
+- Escala de fonte ajustável
+- Text-to-Speech via Web Speech API
+- ARIA completo em todos os componentes interativos
+- Painel de acessibilidade acessível via ícone na barra superior
+
+### Conteúdo e Assistente
+- Seção de conteúdos informativos sobre vacinação
+- Estrutura do Assistente IA (chatbot) criada — integração com back pendente
 
 ---
 
 ## Stack tecnológica
 
-| Tecnologia | Uso |
-|---|---|
-| **React** | Framework de interface |
-| **Vite** | Build tool e dev server |
-| **TypeScript** | Linguagem principal |
-| **PWA (Service Worker)** | Suporte offline e instalabilidade |
-| **IndexedDB** | Armazenamento local offline |
-| **Vercel** | Deploy (free tier) |
+| Tecnologia | Versão | Uso |
+|---|---|---|
+| **React** | 19 | Framework de interface |
+| **Vite** | — | Build tool e dev server |
+| **TypeScript** | — | Linguagem principal |
+| **React Router** | 7 | Roteamento |
+| **Tailwind CSS** | 4 | Estilização |
+| **Lucide React** | — | Ícones |
+| **vite-plugin-pwa** | — | PWA / Service Worker |
+| **IndexedDB** | — | Armazenamento local offline |
+| **Vercel** | — | Deploy (free tier) |
+
+---
+
+## Rotas implementadas
+
+| Rota | Componente | Tipo |
+|---|---|---|
+| `/login` | `LoginPage` | Pública |
+| `/cadastro` | `RegisterPage` | Pública |
+| `/verificar-email` | `VerifyEmailPage` | Pública |
+| `/esqueci-senha` | `ForgotPasswordPage` | Pública |
+| `/` | `Dashboard` | Protegida |
+| `/membros` | `MembrosPage` | Protegida |
+| `/vacinas` | `VacinasPage` | Protegida |
+| `/vacinas/registrar` | `RegistrarVacinaPage` | Protegida |
+| `/lembretes` | `LembretesPage` | Protegida |
+| `/configuracoes` | `ConfiguracoesPage` | Protegida |
+| `/conteudo` | `ConteudoPage` | Protegida |
+| `/assistente` | `AssistentePage` | Protegida |
 
 ---
 
@@ -64,6 +110,13 @@ React + Vite          Node.js + Fastify      PostgreSQL (Supabase)
 > O front-end **nunca** se comunica diretamente com o banco de dados.  
 > Todo fluxo de informação respeita obrigatoriamente: `Front ↔ Back ↔ Banco`.
 
+### Segurança — tratamento de credenciais
+
+- O front-end envia **senha em texto plano sobre HTTPS** para o back-end
+- **Hashing com bcrypt é responsabilidade exclusiva do back-end**
+- O front-end nunca tenta criptografar ou hashar senhas localmente
+- Tokens JWT recebidos do back-end são armazenados em memória (não em `localStorage` nem `sessionStorage`)
+
 ### Offline First
 
 | Situação | Comportamento |
@@ -75,11 +128,47 @@ React + Vite          Node.js + Fastify      PostgreSQL (Supabase)
 
 Estratégia de conflitos: **híbrida** — versionamento por campo `version` + fila de operações (Operation Log).
 
+### Contexts globais
+
+| Context | Responsabilidade |
+|---|---|
+| `AuthContext` | Sessão, login, logout, usuário atual |
+| `AccessibilityContext` | Tema, fonte, alto contraste, TTS |
+| `MembrosContext` | CRUD e membro ativo selecionado |
+| `VacinasContext` | Catálogo de vacinas e registros vacinais |
+| `LembretesContext` | Lembretes e geração automática de reforços |
+
+---
+
+## Endpoints de back-end esperados (TODOs no código)
+
+O front-end possui `TODO` markers exatos em cada chamada pendente:
+
+| Endpoint | Arquivo | Descrição |
+|---|---|---|
+| `POST /auth/register` | `RegisterPage.tsx` | Cria conta; retorna `{ requiresVerification, userId }` |
+| `POST /auth/verify-email` | `VerifyEmailPage.tsx` | Valida token de 6 dígitos |
+| `POST /auth/resend-verification` | `VerifyEmailPage.tsx` | Reenvia código de confirmação |
+| `POST /auth/forgot-password` | `ForgotPasswordPage.tsx` | Envia código de recuperação por e-mail |
+| `POST /auth/reset-password` | `ForgotPasswordPage.tsx` | Redefine senha com código válido |
+| `POST /auth/login` | `AuthContext` | Retorna JWT |
+| `GET /membros` | `MembrosContext` | Lista membros do usuário |
+| `POST /membros` | `MembrosContext` | Cria membro familiar |
+| `PUT /membros/:id` | `MembrosContext` | Atualiza membro |
+| `DELETE /membros/:id` | `MembrosContext` | Remove membro |
+| `GET /vacinas` | `VacinasContext` | Catálogo de vacinas (seed do banco) |
+| `GET /registros` | `VacinasContext` | Histórico vacinal do membro ativo |
+| `POST /registros` | `VacinasContext` | Registra dose aplicada |
+| `GET /lembretes` | `LembretesContext` | Lembretes do usuário |
+| `POST /lembretes` | `LembretesContext` | Cria lembrete manual |
+| `POST /sync` | Service Worker | Envia fila de operações offline |
+| `POST /assistente/mensagem` | `AssistentePage` | Envia mensagem ao chatbot IA |
+
 ---
 
 ## Instalação e execução local
 
-> Pré-requisitos: Node.js 18+ e npm ou yarn
+> Pré-requisitos: Node.js 18+ e npm
 
 ```bash
 # Clone o repositório
@@ -107,33 +196,16 @@ VITE_API_URL=http://localhost:3000
 
 ---
 
-## Possibilidades futuras
+## Possibilidades futuras (pós-TCC)
 
-As funcionalidades abaixo foram identificadas como evoluções desejáveis para versões pós-MVP, mas estão **fora do escopo do TCC** por exigirem credenciamentos, APIs nativas ou integrações institucionais inviáveis no contexto acadêmico atual.
+As funcionalidades abaixo foram identificadas como evoluções desejáveis para versões pós-MVP, mas estão **fora do escopo do TCC**.
 
-### Login via gov.br
-
-Autenticação federada via **gov.br**, permitindo ao usuário acessar o vacFamily com a mesma identidade digital de serviços públicos federais. Eliminaria o cadastro manual e aumentaria a confiança institucional na aplicação. Requer registro como Serviço Público Digital (SPD) junto à SGD/MGI, aplicável apenas a órgãos públicos ou parceiros credenciados.
-
-### Biometria no acesso diário
-
-Autenticação por impressão digital ou reconhecimento facial para desbloquear o aplicativo sem reinserir senha — especialmente útil para cuidadores de uso frequente. A Web Authentication API (WebAuthn) tem suporte limitado a biometria de desbloquear sessão em PWA; a implementação completa requer wrapper nativo (Capacitor ou React Native).
-
-### Importação automática do histórico vacinal (CadSUS / RNDS)
-
-Importação automática das doses registradas em postos públicos de saúde via integração com o **CadSUS** ou a **RNDS (HL7 FHIR R4)**, eliminando o preenchimento manual de histórico pré-existente. Depende de credenciamento no DATASUS — viabilizado no back-end, não no front-end.
-
-### Push Notifications nativas
-
-Envio de lembretes de vacinação via notificações push mesmo com o aplicativo fechado, utilizando **Firebase Cloud Messaging (FCM)** e a Web Push API. No MVP atual, os alertas funcionam apenas dentro do aplicativo. A implementação via PWA é tecnicamente possível, mas exige servidor de push dedicado com gerenciamento de chaves VAPID.
-
-### Histórico de conversa com o Assistente IA
-
-Persistência do histórico de conversa com o chatbot assistente entre sessões, permitindo ao assistente retomar o contexto de consultas anteriores. No MVP, o histórico de conversa existe apenas na memória da sessão atual. A persistência em banco requer uma tabela dedicada e estratégia de expiração de contexto por janela de tokens.
-
-### Temas visuais personalizados por membro
-
-Possibilidade de o usuário definir uma cor de identificação por membro familiar (ex: azul para o filho, verde para a avó), reforçando visualmente o Profile Switcher e os cards vacinais. Previsto como melhoria estética de baixo esforço para versões futuras.
+- **Login via gov.br** — requer credenciamento como Serviço Público Digital junto à SGD/MGI
+- **Biometria no acesso diário** — requer wrapper nativo (Capacitor ou React Native)
+- **Importação automática do histórico vacinal (CadSUS / RNDS)** — depende de credenciamento no DATASUS
+- **Push Notifications nativas** — requer servidor de push dedicado com chaves VAPID
+- **Histórico de conversa com o Assistente IA** — tabela dedicada no banco com estratégia de expiração de contexto
+- **Temas visuais personalizados por membro** — cor de identificação por membro no Profile Switcher
 
 ---
 
