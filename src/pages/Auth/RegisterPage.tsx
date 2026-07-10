@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
+import { registrarSnapshotUsuario } from '@/services/adminStorage'
 import { Syringe } from 'lucide-react'
 
 export function RegisterPage() {
@@ -19,10 +20,29 @@ export function RegisterPage() {
     if (senha.length < 6) { setErro('A senha deve ter ao menos 6 caracteres.'); return }
     setErro('')
     setCarregando(true)
-    // Mock: qualquer cadastro redireciona como usuário demo
-    await login('demo@vacfamily.com', 'demo1234')
-    setCarregando(false)
-    navigate('/', { replace: true })
+
+    // TODO (back-end): substituir por chamada real de cadastro
+    // Ex: const { data, error } = await supabase.auth.signUp({ email, password: senha })
+    // Por ora usa o mock de login demo
+    const result = await login('demo@vacfamily.com', 'demo1234')
+
+    if (result.ok) {
+      // Registra snapshot para o painel admin visualizar o usuário
+      // Quando o back estiver integrado, usar o id/email reais do usuário criado
+      registrarSnapshotUsuario({
+        id: `usr_${Date.now()}`,
+        nome: nome.trim(),
+        email: email.trim().toLowerCase(),
+        criadoEm: new Date().toISOString(),
+        membros: 0,
+      })
+
+      setCarregando(false)
+      navigate('/', { replace: true })
+    } else {
+      setErro(result.erro ?? 'Erro ao criar conta. Tente novamente.')
+      setCarregando(false)
+    }
   }
 
   return (
