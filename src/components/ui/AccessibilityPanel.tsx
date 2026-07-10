@@ -1,12 +1,12 @@
 /**
  * AccessibilityPanel
- * Painel lateral: contraste, fonte, TTS, visão de cores.
+ * Painel lateral: reset, contraste, fonte, TTS, visão de cores.
  * Cabeçalho fixo + corpo com scroll interno.
  */
 import { useEffect, useRef } from 'react'
 import {
   X, Sun, Moon, ZoomIn, Volume2, VolumeX,
-  Contrast, Type, Eye,
+  Contrast, Type, Eye, RotateCcw,
 } from 'lucide-react'
 import { useA11y, type FontScale, type ColorBlindMode } from '@/contexts/AccessibilityContext'
 
@@ -20,42 +20,19 @@ const FONT_OPTIONS: { value: FontScale; label: string; desc: string }[] = [
   { value: 'muito_grande', label: 'Muito grande', desc: '145%' },
 ]
 
-const COLOR_BLIND_OPTIONS: {
-  value: ColorBlindMode
-  label: string
-  desc: string
-}[] = [
-  {
-    value: 'none',
-    label: 'Padrão',
-    desc: 'Sem adaptação',
-  },
-  {
-    value: 'deuteranopia',
-    label: 'Deuteranopia',
-    desc: 'Dificuldade verde/vermelho',
-  },
-  {
-    value: 'protanopia',
-    label: 'Protanopia',
-    desc: 'Dificuldade com vermelho',
-  },
-  {
-    value: 'tritanopia',
-    label: 'Tritanopia',
-    desc: 'Dificuldade azul/amarelo',
-  },
-  {
-    value: 'acromatopsia',
-    label: 'Acromatopsia',
-    desc: 'Não distingue cores',
-  },
+const COLOR_BLIND_OPTIONS: { value: ColorBlindMode; label: string; desc: string }[] = [
+  { value: 'none',         label: 'Padrão',       desc: 'Sem adaptação' },
+  { value: 'deuteranopia', label: 'Deuteranopia', desc: 'Dificuldade verde/vermelho' },
+  { value: 'protanopia',   label: 'Protanopia',   desc: 'Dificuldade com vermelho' },
+  { value: 'tritanopia',   label: 'Tritanopia',   desc: 'Dificuldade azul/amarelo' },
+  { value: 'acromatopsia', label: 'Acromatopsia', desc: 'Não distingue cores' },
 ]
 
 export function AccessibilityPanel({ onClose }: Props) {
   const {
     theme, altoContraste, fontScale, ttsAtivo, colorBlindMode,
-    toggleTheme, toggleAltoContraste, setFontScale, toggleTTS, setColorBlindMode,
+    toggleTheme, toggleAltoContraste, setFontScale, toggleTTS,
+    setColorBlindMode, resetA11y,
   } = useA11y()
 
   const panelRef = useRef<HTMLDivElement>(null)
@@ -74,6 +51,12 @@ export function AccessibilityPanel({ onClose }: Props) {
     const t = setTimeout(() => document.addEventListener('mousedown', handleClick), 100)
     return () => { clearTimeout(t); document.removeEventListener('mousedown', handleClick) }
   }, [onClose])
+
+  const isDefault =
+    !altoContraste &&
+    fontScale === 'normal' &&
+    !ttsAtivo &&
+    colorBlindMode === 'none'
 
   return (
     <>
@@ -152,6 +135,33 @@ export function AccessibilityPanel({ onClose }: Props) {
           scrollbarColor: 'var(--color-border) transparent',
         }}>
 
+          {/* Botão reset — sempre primeiro */}
+          <button
+            onClick={() => { resetA11y(); }}
+            disabled={isDefault}
+            aria-label="Restaurar configurações padrão de acessibilidade"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 'var(--space-2)',
+              width: '100%',
+              padding: 'var(--space-3) var(--space-4)',
+              borderRadius: 'var(--radius-md)',
+              border: `1.5px solid ${isDefault ? 'var(--color-border)' : 'var(--color-warning)'}`,
+              background: isDefault ? 'var(--color-surface-offset)' : 'var(--color-warning-highlight)',
+              color: isDefault ? 'var(--color-text-faint)' : 'var(--color-warning)',
+              cursor: isDefault ? 'not-allowed' : 'pointer',
+              fontSize: 'var(--text-sm)',
+              fontWeight: 600,
+              transition: 'all var(--transition)',
+              opacity: isDefault ? 0.6 : 1,
+            }}
+          >
+            <RotateCcw size={15} aria-hidden />
+            Restaurar padrões
+          </button>
+
           {/* Tema */}
           <PanelSection icon={theme === 'dark' ? Moon : Sun} title="Tema">
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-2)' }}>
@@ -206,7 +216,7 @@ export function AccessibilityPanel({ onClose }: Props) {
             )}
           </PanelSection>
 
-          {/* Visão de cores */}
+          {/* Adaptação de cores */}
           <PanelSection icon={Eye} title="Adaptação de cores">
             <p style={{
               fontSize: 'var(--text-xs)',
@@ -237,7 +247,7 @@ export function AccessibilityPanel({ onClose }: Props) {
   )
 }
 
-/* ── RadioRow — chip de seleção genérico ── */
+/* ── RadioRow ── */
 function RadioRow({
   active, onClick, label, desc, icon,
 }: {

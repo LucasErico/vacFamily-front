@@ -1,19 +1,6 @@
 /**
  * AccessibilityContext
  * Gerencia: tema, alto contraste, escala de fonte, TTS, modo daltonismo.
- *
- * Modos de daltonismo:
- *   'none'         — sem filtro
- *   'deuteranopia' — corrige dificuldade verde/vermelho
- *   'protanopia'   — corrige dificuldade vermelho
- *   'tritanopia'   — corrige dificuldade azul/amarelo
- *   'acromatopsia' — escala de cinza para quem não distingue cores
- *
- * Cada modo combina:
- *   1. Filtro SVG feColorMatrix (correção de matiz via CSS filter)
- *   2. Classe CSS no <body> que sobrescreve tokens de paleta com
- *      variantes otimizadas para o tipo de daltonismo
- *
  * Persiste em sessionStorage.
  */
 import {
@@ -33,6 +20,14 @@ interface A11yState {
   colorBlindMode: ColorBlindMode
 }
 
+export const A11Y_DEFAULTS: A11yState = {
+  theme:          'light',
+  altoContraste:  false,
+  fontScale:      'normal',
+  ttsAtivo:       false,
+  colorBlindMode: 'none',
+}
+
 interface A11yContextValue extends A11yState {
   toggleTheme: () => void
   toggleAltoContraste: () => void
@@ -41,6 +36,7 @@ interface A11yContextValue extends A11yState {
   falar: (texto: string) => void
   pararFala: () => void
   setColorBlindMode: (mode: ColorBlindMode) => void
+  resetA11y: () => void
 }
 
 const A11yContext = createContext<A11yContextValue | null>(null)
@@ -51,10 +47,6 @@ const FONT_SCALE_FACTOR: Record<FontScale, number> = {
   muito_grande: 1.45,
 }
 
-/** Classe CSS aplicada no <body> por modo. A classe:
- *  - aplica filter: url(#cb-*) para a correção de matiz
- *  - pode sobrescrever tokens CSS via globals.css (ver colorblind.css)
- */
 const CB_BODY_CLASS: Record<ColorBlindMode, string> = {
   none:         '',
   deuteranopia: 'cb-deuteranopia',
@@ -83,19 +75,18 @@ export function AccessibilityProvider({ children }: { children: ReactNode }) {
     salvo.theme ??
     (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
   )
-  const [altoContraste, setAltoContraste] = useState(salvo.altoContraste ?? false)
-  const [fontScale, setFontScaleState] = useState<FontScale>(salvo.fontScale ?? 'normal')
-  const [ttsAtivo, setTtsAtivo] = useState(salvo.ttsAtivo ?? false)
-  const [colorBlindMode, setColorBlindModeState] = useState<ColorBlindMode>(salvo.colorBlindMode ?? 'none')
+  const [altoContraste, setAltoContraste]   = useState(salvo.altoContraste  ?? A11Y_DEFAULTS.altoContraste)
+  const [fontScale, setFontScaleState]       = useState<FontScale>(salvo.fontScale ?? A11Y_DEFAULTS.fontScale)
+  const [ttsAtivo, setTtsAtivo]             = useState(salvo.ttsAtivo       ?? A11Y_DEFAULTS.ttsAtivo)
+  const [colorBlindMode, setColorBlindModeState] = useState<ColorBlindMode>(salvo.colorBlindMode ?? A11Y_DEFAULTS.colorBlindMode)
 
-  /* ── aplica tokens + classe de daltonismo ── */
+  /* aplica tokens + classe de daltonismo */
   useEffect(() => {
     const html = document.documentElement
     html.setAttribute('data-theme', theme)
     html.setAttribute('data-contrast', altoContraste ? 'high' : 'normal')
     html.style.setProperty('--font-scale', String(FONT_SCALE_FACTOR[fontScale]))
 
-    // remove todas as classes CB antes de aplicar a nova
     Object.values(CB_BODY_CLASS).forEach(cls => {
       if (cls) document.body.classList.remove(cls)
     })
@@ -105,7 +96,7 @@ export function AccessibilityProvider({ children }: { children: ReactNode }) {
     salvarSessao({ theme, altoContraste, fontScale, ttsAtivo, colorBlindMode })
   }, [theme, altoContraste, fontScale, ttsAtivo, colorBlindMode])
 
-  /* ── TTS ── */
+  /* TTS */
   const falar = useCallback((texto: string) => {
     if (!ttsAtivo || !window.speechSynthesis) return
     window.speechSynthesis.cancel()
@@ -121,10 +112,10 @@ export function AccessibilityProvider({ children }: { children: ReactNode }) {
 
   const pararFala = useCallback(() => { window.speechSynthesis?.cancel() }, [])
 
-  const toggleTheme = useCallback(() => setTheme(t => t === 'dark' ? 'light' : 'dark'), [])
+  const toggleTheme        = useCallback(() => setTheme(t => t === 'dark' ? 'light' : 'dark'), [])
   const toggleAltoContraste = useCallback(() => setAltoContraste(v => !v), [])
-  const setFontScale = useCallback((s: FontScale) => setFontScaleState(s), [])
-  const toggleTTS = useCallback(() => {
+  const setFontScale        = useCallback((s: FontScale) => setFontScaleState(s), [])
+  const toggleTTS           = useCallback(() => {
     setTtsAtivo(v => {
       if (v) window.speechSynthesis?.cancel()
       return !v
@@ -132,11 +123,23 @@ export function AccessibilityProvider({ children }: { children: ReactNode }) {
   }, [])
   const setColorBlindMode = useCallback((mode: ColorBlindMode) => setColorBlindModeState(mode), [])
 
+  /* reset para defaults */
+  const resetA11y = useCallback(() => {
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+    setTheme(prefersDark ? 'dark' : 'light')
+    setAltoContraste(A11Y_DEFAULTS.altoContraste)
+    setFontScaleState(A11Y_DEFAULTS.fontScale)
+    setTtsAtivo(A11Y_DEFAULTS.ttsAtivo)
+    setColorBlindModeState(A11Y_DEFAULTS.colorBlindMode)
+    window.speechSynthesis?.cancel()
+    try { sessionStorage.removeItem('a11y_prefs') } catch { /* noop */ }
+  }, [])
+
   return (
     <A11yContext.Provider value={{
       theme, altoContraste, fontScale, ttsAtivo, colorBlindMode,
       toggleTheme, toggleAltoContraste, setFontScale,
-      toggleTTS, falar, pararFala, setColorBlindMode,
+      toggleTTS, falar, pararFala, setColorBlindMode, resetA11y,
     }}>
       {children}
     </A11yContext.Provider>

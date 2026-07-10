@@ -30,6 +30,10 @@ export function TopBar() {
     navigate('/login', { replace: true })
   }
 
+  function handleLogoClick() {
+    navigate('/')
+  }
+
   return (
     <>
       <header className="topbar" role="banner">
@@ -47,7 +51,20 @@ export function TopBar() {
           Pular para o conteúdo
         </a>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+        <button
+          onClick={handleLogoClick}
+          aria-label="Ir para a página inicial"
+          title="Início"
+          style={{
+            display: 'flex', alignItems: 'center', gap: 'var(--space-2)',
+            background: 'none', border: 'none', cursor: 'pointer',
+            padding: 'var(--space-1) var(--space-2)',
+            borderRadius: 'var(--radius-md)',
+            transition: 'background var(--transition)',
+          }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--color-surface-offset)' }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}
+        >
           <div style={{
             width: 28, height: 28, borderRadius: 'var(--radius-md)',
             background: 'var(--color-primary)',
@@ -60,7 +77,7 @@ export function TopBar() {
             </svg>
           </div>
           <span className="topbar-title">{title}</span>
-        </div>
+        </button>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)' }}>
           <button className="theme-toggle" onClick={handleLogout} aria-label="Sair da conta" title="Sair">
