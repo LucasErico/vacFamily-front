@@ -247,12 +247,12 @@ export function DashboardPage() {
 
       {/* Próximos Lembretes */}
       <section aria-labelledby="lembretes-heading">
-        <SectionHeader icon={Bell} title="Próximos lembretes" to="/lembretes" count={totalPendentes} />
+        <SectionHeader icon={Bell} title="Próximos lembretes" to="/agenda" count={totalPendentes} />
         {proximosLembretes.length === 0 ? (
           <EmptyState
             icon={Bell}
             message="Nenhum lembrete pendente."
-            action={{ label: 'Ver lembretes', to: '/lembretes' }}
+            action={{ label: 'Ver agenda', to: '/agenda' }}
           />
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>

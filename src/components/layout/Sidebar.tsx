@@ -1,11 +1,11 @@
 import { NavLink } from 'react-router-dom'
-import { Home, Users, Syringe, Bell, BookOpen, MessageCircle, Settings } from 'lucide-react'
+import { Home, Users, Syringe, CalendarDays, BookOpen, MessageCircle, Settings } from 'lucide-react'
 
 const navItems = [
   { to: '/',           icon: Home,          label: 'Início' },
   { to: '/membros',    icon: Users,          label: 'Membros' },
   { to: '/vacinas',    icon: Syringe,        label: 'Vacinas' },
-  { to: '/lembretes',  icon: Bell,           label: 'Lembretes' },
+  { to: '/agenda',     icon: CalendarDays,   label: 'Agenda' },
   { to: '/conteudo',   icon: BookOpen,       label: 'Conteúdo' },
   { to: '/assistente', icon: MessageCircle,  label: 'Assistente' },
 ]

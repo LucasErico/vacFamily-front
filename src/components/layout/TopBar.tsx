@@ -9,7 +9,7 @@ const pageTitles: Record<string, string> = {
   '/':              'Início',
   '/membros':       'Membros',
   '/vacinas':       'Vacinas',
-  '/lembretes':     'Lembretes',
+  '/agenda':        'Agenda',
   '/conteudo':      'Conteúdo',
   '/assistente':    'Assistente',
   '/configuracoes': 'Configurações',
