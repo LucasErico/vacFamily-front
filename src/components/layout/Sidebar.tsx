@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom'
+import { NavLink, useNavigate } from 'react-router-dom'
 import { Home, Users, Syringe, CalendarDays, ClipboardList } from 'lucide-react'
 
 const navItems = [
@@ -10,10 +10,25 @@ const navItems = [
 ]
 
 export function Sidebar() {
+  const navigate = useNavigate()
+
   return (
     <aside className="sidebar" aria-label="Menu lateral">
       {/* Logo */}
-      <div className="sidebar-logo">
+      <button
+        onClick={() => navigate('/')}
+        aria-label="Ir para a página inicial"
+        title="Início"
+        className="sidebar-logo"
+        style={{
+          background: 'none',
+          border: 'none',
+          cursor: 'pointer',
+          width: '100%',
+          textAlign: 'left',
+          padding: 0,
+        }}
+      >
         <div className="sidebar-logo-icon">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <path d="M9 12h6m-3-3v6"/>
@@ -21,7 +36,7 @@ export function Sidebar() {
           </svg>
         </div>
         <span className="sidebar-logo-text">VacFamily</span>
-      </div>
+      </button>
 
       {/* Links */}
       <nav className="sidebar-nav" aria-label="Menu principal">
