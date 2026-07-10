@@ -8,6 +8,7 @@ import { VacinasProvider } from '@/contexts/VacinasContext'
 import { LembretesProvider } from '@/contexts/LembretesContext'
 import { router } from '@/routes'
 import '@/styles/globals.css'
+import '@/styles/colorblind.css'
 
 const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
 document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light')
