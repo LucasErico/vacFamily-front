@@ -4,6 +4,7 @@ import { RouterProvider } from 'react-router-dom'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { AccessibilityProvider } from '@/contexts/AccessibilityContext'
 import { MembrosProvider } from '@/contexts/MembrosContext'
+import { MembroAtivoProvider } from '@/contexts/MembroAtivoContext'
 import { VacinasProvider } from '@/contexts/VacinasContext'
 import { LembretesProvider } from '@/contexts/LembretesContext'
 import { router } from '@/routes'
@@ -17,11 +18,13 @@ createRoot(document.getElementById('root')!).render(
     <AccessibilityProvider>
       <AuthProvider>
         <MembrosProvider>
-          <VacinasProvider>
-            <LembretesProvider>
-              <RouterProvider router={router} />
-            </LembretesProvider>
-          </VacinasProvider>
+          <MembroAtivoProvider>
+            <VacinasProvider>
+              <LembretesProvider>
+                <RouterProvider router={router} />
+              </LembretesProvider>
+            </VacinasProvider>
+          </MembroAtivoProvider>
         </MembrosProvider>
       </AuthProvider>
     </AccessibilityProvider>
