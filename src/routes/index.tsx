@@ -10,7 +10,6 @@ import { VacinaMembroPage } from '@/pages/Vacinas/VacinaMembroPage'
 import { RegistrarVacinaPage } from '@/pages/Vacinas/RegistrarVacinaPage'
 import { LembretesPage } from '@/pages/Lembretes/LembretesPage'
 import { HistoricoPage } from '@/pages/Historico/HistoricoPage'
-import { ConfiguracoesPage } from '@/pages/Configuracoes/ConfiguracoesPage'
 import { LoginPage } from '@/pages/Auth/LoginPage'
 import { RegisterPage } from '@/pages/Auth/RegisterPage'
 
@@ -35,7 +34,7 @@ export const router = createBrowserRouter([
       { path: 'historico',                 element: <HistoricoPage /> },
       { path: 'conteudo',                  element: <Navigate to="/historico" replace /> },
       { path: 'conteudo/:id',              element: <Navigate to="/historico" replace /> },
-      { path: 'configuracoes',             element: <ConfiguracoesPage /> },
+      { path: 'configuracoes',             element: <Navigate to="/" replace /> },
     ],
   },
 ])
