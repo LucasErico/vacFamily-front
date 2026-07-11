@@ -1,6 +1,6 @@
-import { useState } from 'react'
-import { useParams, useNavigate, Link } from 'react-router-dom'
-import { ArrowLeft, Plus, CheckCircle2, Trash2, ChevronDown } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { useParams, useNavigate, Link, useLocation } from 'react-router-dom'
+import { ArrowLeft, Plus, CheckCircle2, Trash2, ChevronDown, ListChecks } from 'lucide-react'
 import { useMembros, RELACAO_LABEL } from '@/contexts/MembrosContext'
 import { useVacinas, calcularDosesStatus, isAtrasada } from '@/contexts/VacinasContext'
 import { useLembretes } from '@/contexts/LembretesContext'
@@ -17,6 +17,7 @@ type ModalState =
   | { tipo: 'nenhum' }
   | { tipo: 'marcarTomada'; dose: DoseStatus; vacinaNome: string }
   | { tipo: 'apagarDose'; dose: DoseStatus; vacinaNome: string; registroId: string }
+  | { tipo: 'confirmarTodas' }
   | { tipo: 'lembreteVinculado' }
 
 function lembreteVacinal(
@@ -56,6 +57,7 @@ function VacinaSkeletonRow() {
 export function VacinaMembroPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const location = useLocation()
   const { membros } = useMembros()
   const {
     vacinas, registros, carregando,
@@ -74,8 +76,65 @@ export function VacinaMembroPage() {
   const [localConfirm, setLocalConfirm] = useState('')
   const [erroConfirm, setErroConfirm] = useState('')
 
+  // Estado do modal "confirmar todas"
+  const [dataConfirmarTodas, setDataConfirmarTodas] = useState(hoje)
+  const [localConfirmarTodas, setLocalConfirmarTodas] = useState('')
+  const [erroConfirmarTodas, setErroConfirmarTodas] = useState('')
+  const [confirmandoTodas, setConfirmandoTodas] = useState(false)
+
+  // Banner após auto-registro infantil
+  const [bannerInfantis, setBannerInfantis] = useState('')
+
   const membro = membros.find(m => m.id === membroSelecionadoId)
   const outrosMembros = membros.filter(m => m.id !== membroSelecionadoId)
+
+  // Auto-registro infantil a partir do state de navegação (MembroFormPage)
+  const confirmarInfantisFlag = (location.state as { confirmarInfantis?: boolean; localInfantis?: string } | null)
+    ?.confirmarInfantis
+  const localInfantisNavState = (location.state as { confirmarInfantis?: boolean; localInfantis?: string } | null)
+    ?.localInfantis ?? ''
+
+  useEffect(() => {
+    if (
+      !confirmarInfantisFlag ||
+      !membro ||
+      carregando ||
+      vacinas.length === 0
+    ) return
+
+    const registrosMembro = buscarRegistrosMembro(membroSelecionadoId)
+    // Só dispara se ainda não há nenhum registro para não duplicar
+    if (registrosMembro.length > 0) return
+
+    const vacinasInfantis = vacinas.filter(
+      v => Array.isArray(v.faixa_etaria) && v.faixa_etaria.includes('infantil')
+    )
+
+    let totalDoses = 0
+    vacinasInfantis.forEach(vacina => {
+      for (let numeroDose = 1; numeroDose <= (vacina.doses_total ?? 1); numeroDose++) {
+        registrarDose(
+          {
+            membro_id: membroSelecionadoId,
+            vacina_id: vacina.id,
+            numero_dose: numeroDose,
+            data_aplicacao: hoje,
+            local_aplicacao: localInfantisNavState,
+          },
+          () => { /* não criar lembretes retroativos */ }
+        )
+        totalDoses++
+      }
+    })
+
+    setBannerInfantis(
+      `Histórico infantil preenchido automaticamente — ${totalDoses} doses registradas com data de hoje e local “${localInfantisNavState}”. Você pode editar ou apagar qualquer dose individualmente.`
+    )
+
+    // Limpar o state de navegação para não re-disparar
+    navigate(location.pathname, { replace: true, state: null })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [confirmarInfantisFlag, membro, carregando, vacinas.length])
 
   if (!membro) {
     return (
@@ -90,8 +149,7 @@ export function VacinaMembroPage() {
 
   const aguardandoAPI = carregando || vacinas.length === 0
 
-  // Mostra todas as vacinas que têm ao menos uma dose pendente/aplicável,
-  // independentemente de o membro já ter algum registro ou não.
+  // Mostra todas as vacinas que têm ao menos uma dose pendente/aplicável
   const vacinasAplicaveis = !aguardandoAPI
     ? vacinas.filter(v => {
         const doses = calcularDosesStatus(v, registrosMembro, membro.data_nascimento)
@@ -100,6 +158,12 @@ export function VacinaMembroPage() {
         return dosesVisiveis.some(d => d.status !== 'aplicada')
       })
     : []
+
+  // Vacinas infantis pendentes (para botão "Confirmar todas")
+  const vacinasInfantisPendentes = vacinasAplicaveis.filter(
+    v => Array.isArray(v.faixa_etaria) && v.faixa_etaria.includes('infantil')
+  )
+  const temInfantisPendentes = vacinasInfantisPendentes.length > 0
 
   function handleMarcarTomada() {
     if (!dataConfirm) { setErroConfirm('Informe a data de aplicação.'); return }
@@ -139,6 +203,39 @@ export function VacinaMembroPage() {
     setModal({ tipo: 'nenhum' })
   }
 
+  async function handleConfirmarTodas() {
+    if (!dataConfirmarTodas) { setErroConfirmarTodas('Informe a data de aplicação.'); return }
+    if (dataConfirmarTodas > hoje) { setErroConfirmarTodas('A data não pode ser futura.'); return }
+    if (!localConfirmarTodas.trim()) { setErroConfirmarTodas('Informe o local de aplicação.'); return }
+
+    setConfirmandoTodas(true)
+    try {
+      for (const vacina of vacinasInfantisPendentes) {
+        const doses = calcularDosesStatus(vacina, registrosMembro, membro.data_nascimento)
+        for (const dose of doses) {
+          if (dose.status !== 'aplicada' && dose.status !== 'nao_aplicavel') {
+            registrarDose(
+              {
+                membro_id: membroSelecionadoId,
+                vacina_id: vacina.id,
+                numero_dose: dose.numeroDose,
+                data_aplicacao: dataConfirmarTodas,
+                local_aplicacao: localConfirmarTodas.trim(),
+              },
+              () => { /* sem lembretes */ }
+            )
+          }
+        }
+      }
+    } finally {
+      setConfirmandoTodas(false)
+      setModal({ tipo: 'nenhum' })
+      setDataConfirmarTodas(hoje)
+      setLocalConfirmarTodas('')
+      setErroConfirmarTodas('')
+    }
+  }
+
   return (
     <div style={{ maxWidth: 640, margin: '0 auto', paddingBottom: 'var(--space-8)' }}>
 
@@ -156,6 +253,33 @@ export function VacinaMembroPage() {
           <Plus size={16} aria-hidden /> Registrar dose
         </Link>
       </div>
+
+      {/* Banner após auto-registro infantil */}
+      {bannerInfantis && (
+        <div
+          role="status"
+          style={{
+            background: 'var(--color-primary-highlight)',
+            border: '1px solid oklch(from var(--color-primary) l c h / 0.25)',
+            borderRadius: 'var(--radius-md)',
+            padding: 'var(--space-3) var(--space-4)',
+            marginBottom: 'var(--space-4)',
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: 'var(--space-3)',
+          }}
+        >
+          <CheckCircle2 size={16} style={{ color: 'var(--color-primary)', flexShrink: 0, marginTop: 2 }} aria-hidden />
+          <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text)', lineHeight: 1.5 }}>{bannerInfantis}</p>
+          <button
+            onClick={() => setBannerInfantis('')}
+            style={{ marginLeft: 'auto', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', flexShrink: 0 }}
+            aria-label="Fechar aviso"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* Card do membro + seletor */}
       <div className="card" style={{ marginBottom: 'var(--space-5)', padding: 'var(--space-4) var(--space-5)' }}>
@@ -195,6 +319,36 @@ export function VacinaMembroPage() {
           </div>
         )}
       </div>
+
+      {/* Botão "Confirmar todas" para vacinas infantis pendentes */}
+      {!aguardandoAPI && temInfantisPendentes && (
+        <div
+          style={{
+            background: 'var(--color-surface)',
+            border: '1px solid var(--color-border)',
+            borderRadius: 'var(--radius-lg)',
+            padding: 'var(--space-4)',
+            marginBottom: 'var(--space-4)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 'var(--space-3)',
+          }}
+        >
+          <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', lineHeight: 1.5 }}>
+            Se você sabe que este membro já está com o cartão de vacinas da infância completo, pode marcar
+            todas as doses pendentes do calendário infantil como tomadas de uma vez. Você poderá editar ou
+            apagar cada dose individualmente depois.
+          </p>
+          <button
+            onClick={() => setModal({ tipo: 'confirmarTodas' })}
+            className="btn btn-ghost"
+            style={{ alignSelf: 'flex-start', gap: 'var(--space-2)', fontSize: 'var(--text-sm)' }}
+          >
+            <ListChecks size={16} aria-hidden />
+            Confirmar todas as vacinas infantis como tomadas
+          </button>
+        </div>
+      )}
 
       {/* Lista de vacinas */}
       {aguardandoAPI ? (
@@ -354,6 +508,41 @@ export function VacinaMembroPage() {
             <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
               <button onClick={() => setModal({ tipo: 'nenhum' })} className="btn btn-ghost" style={{ flex: 1 }}>Cancelar</button>
               <button onClick={handleApagarDose} className="btn" style={{ flex: 1, background: 'var(--color-error)', color: '#fff', gap: 'var(--space-2)' }}><Trash2 size={15} aria-hidden /> Apagar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Confirmar todas as vacinas infantis */}
+      {modal.tipo === 'confirmarTodas' && (
+        <div role="dialog" aria-modal="true" aria-labelledby="modal-confirmar-todas-title" style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', background: 'oklch(0 0 0 / 0.5)', padding: 'var(--space-4)' }} onClick={e => { if (e.target === e.currentTarget) setModal({ tipo: 'nenhum' }) }}>
+          <div className="card" style={{ width: '100%', maxWidth: 480, display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+              <ListChecks size={20} style={{ color: 'var(--color-primary)', flexShrink: 0 }} aria-hidden />
+              <h3 id="modal-confirmar-todas-title" style={{ fontFamily: 'var(--font-display)', fontWeight: 700, color: 'var(--color-text)', fontSize: 'var(--text-base)' }}>
+                Confirmar vacinas infantis como tomadas
+              </h3>
+            </div>
+            <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', lineHeight: 1.5 }}>
+              Esta ação marcará todas as doses pendentes do calendário infantil como tomadas.
+              Não marca campanhas, reforços extras ou vacinas especiais.
+              Você poderá editar ou apagar qualquer dose individualmente depois.
+            </p>
+            <div>
+              <label htmlFor="data-confirmar-todas" style={{ display: 'block', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginBottom: 'var(--space-2)', fontWeight: 500 }}>Data de aplicação *</label>
+              <input id="data-confirmar-todas" type="date" value={dataConfirmarTodas} max={hoje} onChange={e => { setDataConfirmarTodas(e.target.value); setErroConfirmarTodas('') }} className="input-field" style={{ minHeight: 48 }} />
+            </div>
+            <div>
+              <label htmlFor="local-confirmar-todas" style={{ display: 'block', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginBottom: 'var(--space-2)', fontWeight: 500 }}>Local de aplicação *</label>
+              <input id="local-confirmar-todas" type="text" value={localConfirmarTodas} onChange={e => { setLocalConfirmarTodas(e.target.value); setErroConfirmarTodas('') }} placeholder="Ex: UBS Centro" className="input-field" style={{ minHeight: 48 }} />
+            </div>
+            {erroConfirmarTodas && <p role="alert" style={{ fontSize: 'var(--text-xs)', color: 'var(--color-error)', background: 'var(--color-error-highlight)', borderRadius: 'var(--radius-md)', padding: 'var(--space-3)' }}>⚠️ {erroConfirmarTodas}</p>}
+            <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
+              <button onClick={() => { setModal({ tipo: 'nenhum' }); setErroConfirmarTodas('') }} className="btn btn-ghost" style={{ flex: 1 }} disabled={confirmandoTodas}>Cancelar</button>
+              <button onClick={handleConfirmarTodas} className="btn btn-primary" style={{ flex: 1, gap: 'var(--space-2)' }} disabled={confirmandoTodas}>
+                <ListChecks size={15} aria-hidden />
+                {confirmandoTodas ? 'Confirmando…' : 'Confirmar todas'}
+              </button>
             </div>
           </div>
         </div>
