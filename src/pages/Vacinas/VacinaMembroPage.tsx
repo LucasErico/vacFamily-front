@@ -19,7 +19,6 @@ type ModalState =
   | { tipo: 'apagarDose'; dose: DoseStatus; vacinaNome: string; registroId: string }
   | { tipo: 'lembreteVinculado' }
 
-/** Monta um CriarLembretePayload para doses vacinais automáticas */
 function lembreteVacinal(
   vacinaId: string,
   membroFamiliarId: string,
@@ -36,7 +35,6 @@ function lembreteVacinal(
   }
 }
 
-/** Skeleton de uma linha de vacina enquanto aguarda a API */
 function VacinaSkeletonRow() {
   return (
     <li>
@@ -61,7 +59,6 @@ export function VacinaMembroPage() {
   const { membros } = useMembros()
   const {
     vacinas, registros, carregando,
-    membrosCarregados, membrosCarregadosUmaVez,
     registrarDose, removerRegistro, buscarRegistrosMembro,
   } = useVacinas()
   const { adicionarLembrete, lembretes, removerLembrete } = useLembretes()
@@ -89,29 +86,11 @@ export function VacinaMembroPage() {
     )
   }
 
-  /**
-   * A única fonte de verdade é a API.
-   *
-   * aguardandoAPI = true quando qualquer uma das condições abaixo for verdadeira:
-   *   1. carregando       — requisição em andamento
-   *   2. !membrosCarregadosUmaVez — a primeira carga da API ainda não rodou;
-   *      não há como saber se membrosCarregados está vazio por falta de membros
-   *      ou por falta de carga. Exibe skeleton até a carga inicial completar.
-   *   3. !jaCarregado     — carga já rodou, mas este membro específico
-   *      ainda não foi marcado (ex: membro recém-criado antes do marcarMembroNovo)
-   *
-   * Nunca pré-renderiza nada a partir da seed local.
-   */
-  const jaCarregado = membrosCarregados.has(membroSelecionadoId)
-  const aguardandoAPI = carregando || !membrosCarregadosUmaVez || !jaCarregado
-
   const registrosMembro = buscarRegistrosMembro(membroSelecionadoId)
 
-  /**
-   * Só computa vacinas aplicáveis após confirmação da API para este membro.
-   * Se aguardandoAPI === true, retorna [] — nenhuma dose é exibida,
-   * independentemente do que a seed calcularia.
-   */
+  // Exibe skeleton enquanto carregando (registros) ou vacinas ainda não chegaram do banco
+  const aguardandoAPI = carregando || vacinas.length === 0
+
   const vacinasAplicaveis = !aguardandoAPI
     ? vacinas.filter(v => {
         const doses = calcularDosesStatus(v, registrosMembro, membro.data_nascimento)
@@ -218,12 +197,10 @@ export function VacinaMembroPage() {
 
       {/* Lista de vacinas */}
       {aguardandoAPI ? (
-        // Skeleton enquanto a API não respondeu — nunca exibe dados da seed
         <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }} role="list" aria-label="Carregando vacinas..." aria-busy="true">
           {Array.from({ length: 5 }).map((_, i) => <VacinaSkeletonRow key={i} />)}
         </ul>
       ) : vacinasAplicaveis.length === 0 ? (
-        // API respondeu + não há doses pendentes: membro em dia ou novo sem registros
         <div style={{ textAlign: 'center', padding: 'var(--space-12) var(--space-8)', color: 'var(--color-text-muted)' }}>
           <p style={{ fontSize: 'var(--text-sm)' }}>Nenhuma vacina pendente para {membro.nome.split(' ')[0]}. ✅</p>
         </div>
@@ -245,7 +222,7 @@ export function VacinaMembroPage() {
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p style={{ fontWeight: 600, fontSize: 'var(--text-sm)', color: 'var(--color-text)' }}>{vacina.nome}</p>
                       <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
-                        {vacina.doses === 1 ? 'Dose única' : `${vacina.doses} doses`}
+                        {vacina.doses_total === 1 ? 'Dose única' : `${vacina.doses_total} doses`}
                       </p>
                     </div>
                     <div style={{ display: 'flex', gap: 'var(--space-1)', flexShrink: 0 }}>
@@ -270,7 +247,7 @@ export function VacinaMembroPage() {
                           const registro = registros.find(
                             r =>
                               r.vacina_id === vacina.id &&
-                              r.membro_id === membroSelecionadoId &&
+                              (r.membro_id === membroSelecionadoId || r.membro_familiar_id === membroSelecionadoId) &&
                               r.numero_dose === dose.numeroDose
                           )
 
