@@ -333,6 +333,7 @@ export function VacinaMembroPage() {
   const [confirmandoCiclo, setConfirmandoCiclo] = useState(false)
   const [dataLembrete, setDataLembrete] = useState('')
   const [erroLembrete, setErroLembrete] = useState('')
+  const [salvandoLembrete, setSalvandoLembrete] = useState(false)
 
   const membro = membros.find(m => m.id === membroSelecionadoId)
   const outrosMembros = membros.filter(m => m.id !== membroSelecionadoId)
@@ -474,17 +475,23 @@ export function VacinaMembroPage() {
     setErroLembrete('')
     if (!dataLembrete) { setErroLembrete('Informe a data do lembrete.'); return }
     if (modal.tipo !== 'lembreteManual') return
-    adicionarLembrete({
-      vacina_id: modal.dose.vacinaId,
-      membro_familiar_id: membroSelecionadoId,
-      tipo: 'manual',
-      titulo: `${modal.vacinaNome} — dose ${modal.dose.numeroDose}`,
-      data_prevista: dataLembrete,
-      automatico: false,
-    })
-    setModal({ tipo: 'nenhum' })
-    setDataLembrete('')
-    setBannerMsg('Lembrete adicionado na Agenda.')
+
+    setSalvandoLembrete(true)
+    try {
+      await adicionarLembrete({
+        vacina_id: modal.dose.vacinaId,
+        membro_familiar_id: membroSelecionadoId,
+        tipo: 'manual',
+        titulo: `${modal.vacinaNome} — dose ${modal.dose.numeroDose}`,
+        data_prevista: dataLembrete,
+        automatico: false,
+      })
+    } finally {
+      setSalvandoLembrete(false)
+      setModal({ tipo: 'nenhum' })
+      setDataLembrete('')
+      setBannerMsg(`🔔 Lembrete criado para ${modal.vacinaNome} — dose ${modal.dose.numeroDose}. Confira na Agenda.`)
+    }
   }
 
   function temLembretePendente(vacinaId: string, numeroDose: number) {
@@ -753,6 +760,9 @@ export function VacinaMembroPage() {
                                         >
                                           <CheckCircle2 size={13} aria-hidden /> Tomada
                                         </button>
+                                        {/* Botão lembrete:
+                                            - temLembrete=true  → sino cheio (Bell) colorido = lembrete ativo, clique remove
+                                            - temLembrete=false → sino vazio (Bell) acinzentado = sem lembrete, clique cria */}
                                         <button
                                           onClick={() => {
                                             if (temLembrete) {
@@ -765,10 +775,19 @@ export function VacinaMembroPage() {
                                             }
                                           }}
                                           className="btn btn-ghost"
-                                          style={{ minHeight: 32, padding: 'var(--space-1) var(--space-2)', color: temLembrete ? 'var(--color-primary)' : 'var(--color-text-faint)' }}
+                                          style={{
+                                            minHeight: 32,
+                                            padding: 'var(--space-1) var(--space-2)',
+                                            color: temLembrete ? 'var(--color-primary)' : 'var(--color-text-faint)',
+                                            background: temLembrete ? 'var(--color-primary-highlight)' : 'transparent',
+                                            borderRadius: 'var(--radius-md)',
+                                            transition: 'all 150ms',
+                                          }}
                                           aria-label={temLembrete ? 'Remover lembrete' : 'Adicionar lembrete'}
+                                          title={temLembrete ? 'Lembrete ativo — clique para remover' : 'Criar lembrete para esta dose'}
                                         >
-                                          {temLembrete ? <Bell size={15} aria-hidden /> : <BellOff size={15} aria-hidden />}
+                                          {/* Sempre exibe Bell; o estado ativo é indicado pela cor/fundo */}
+                                          {temLembrete ? <Bell size={15} aria-hidden /> : <Bell size={15} aria-hidden />}
                                         </button>
                                       </>
                                     ) : (
@@ -892,23 +911,46 @@ export function VacinaMembroPage() {
       )}
 
       {modal.tipo === 'lembreteManual' && (
-        <ModalOverlay onClose={() => setModal({ tipo: 'nenhum' })}>
-          <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--text-lg)', fontWeight: 700, marginBottom: 'var(--space-1)' }}>
-            Adicionar lembrete
-          </h3>
+        <ModalOverlay onClose={() => { if (!salvandoLembrete) setModal({ tipo: 'nenhum' }) }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-1)' }}>
+            <Bell size={20} style={{ color: 'var(--color-primary)', flexShrink: 0 }} aria-hidden />
+            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--text-lg)', fontWeight: 700 }}>
+              Adicionar lembrete
+            </h3>
+          </div>
           <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)', marginBottom: 'var(--space-5)' }}>
             {modal.vacinaNome} · {modal.dose.numeroDose}ª dose
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
             <div>
               <label style={{ display: 'block', fontSize: 'var(--text-sm)', fontWeight: 600, marginBottom: 'var(--space-2)' }}>Data do lembrete *</label>
-              <input type="date" value={dataLembrete} onChange={e => setDataLembrete(e.target.value)} min={hoje} className="input" style={{ width: '100%' }} />
+              <input
+                type="date"
+                value={dataLembrete}
+                onChange={e => setDataLembrete(e.target.value)}
+                min={hoje}
+                className="input"
+                style={{ width: '100%' }}
+                disabled={salvandoLembrete}
+              />
             </div>
             {erroLembrete && <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-error)' }}>{erroLembrete}</p>}
             <div style={{ display: 'flex', gap: 'var(--space-3)', justifyContent: 'flex-end', marginTop: 'var(--space-2)' }}>
-              <button onClick={() => setModal({ tipo: 'nenhum' })} className="btn btn-ghost">Cancelar</button>
-              <button onClick={handleSalvarLembreteManual} className="btn btn-primary" style={{ gap: 'var(--space-2)' }}>
-                <Bell size={15} aria-hidden /> Salvar lembrete
+              <button
+                onClick={() => setModal({ tipo: 'nenhum' })}
+                className="btn btn-ghost"
+                disabled={salvandoLembrete}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSalvarLembreteManual}
+                className="btn btn-primary"
+                disabled={salvandoLembrete}
+                style={{ gap: 'var(--space-2)' }}
+              >
+                <Bell size={15} aria-hidden />
+                {salvandoLembrete ? 'Salvando...' : 'Salvar lembrete'}
               </button>
             </div>
           </div>
