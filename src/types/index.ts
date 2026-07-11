@@ -82,11 +82,6 @@ export interface Vacina {
   idade_minima_dias?: number
   faixa_etaria: FaixaEtaria[]
   doencas_previstas: string[]
-  /**
-   * Alias de `doencas_previstas` — campo usado em algumas views para
-   * descrever contra quais doenças a vacina protege.
-   */
-  protege_contra?: string[]
   obrigatoria: boolean
   ativo: boolean
   fabricante_default?: string
@@ -97,14 +92,6 @@ export interface Vacina {
 }
 
 export type StatusDose = 'aplicada' | 'pendente' | 'atrasada' | 'nao_aplicavel'
-
-/**
- * status_avulsa — exclusivo para registros com vacina_id === 'avulsa':
- *   'pendente'  → data futura, ainda não tomada (criado sem local)
- *   'concluida' → usuário marcou como tomada (local + data real preenchidos)
- * 'atrasada' é calculado em runtime no front: status_avulsa === 'pendente' && data_aplicacao < hoje
- */
-export type StatusAvulsa = 'pendente' | 'concluida'
 
 export interface RegistroVacinal {
   id: string
@@ -119,8 +106,6 @@ export interface RegistroVacinal {
   dose_zero?: boolean
   comprovante_url?: string
   observacoes?: string
-  /** Exclusivo para vacinas avulsas. undefined = vacina de ciclo (não avulsa). */
-  status_avulsa?: StatusAvulsa
   created_at: string
 }
 
@@ -165,10 +150,4 @@ export interface DoseStatus {
   dataAplicacao?: string
   dataRecomendada?: string
   isHistorico?: boolean
-  /** Data prevista/agendada para a dose (pode diferir de dataRecomendada em casos de atraso). */
-  dataPrevista?: string
-  /** Local de aplicação da dose (clínica, UBS, etc.). */
-  localAplicacao?: string
-  /** ID do RegistroVacinal associado a esta dose, quando já aplicada. */
-  registroId?: string
 }

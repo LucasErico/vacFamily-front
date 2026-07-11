@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { ArrowLeft, CheckCircle2, CalendarDays, Clock, Syringe, ClipboardList, AlertTriangle } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, CalendarDays, Clock, Syringe, AlertTriangle } from 'lucide-react'
 import { useMembros, RELACAO_LABEL } from '@/contexts/MembrosContext'
 import { useVacinas, vacinaCompativel } from '@/contexts/VacinasContext'
 import { useLembretes } from '@/contexts/LembretesContext'
@@ -20,7 +20,6 @@ const FAIXAS_POR_CALENDARIO: Record<TipoCalendario, FaixaEtaria[]> = {
 
 /**
  * Determina a faixa etária real do membro com base na data de nascimento.
- * Usada apenas para inferir quais ciclos são "anteriores" ao atual.
  */
 function faixaEtariaReal(dataNascimento: string): FaixaEtaria {
   const nascimento = new Date(dataNascimento)
@@ -37,11 +36,7 @@ function faixaEtariaReal(dataNascimento: string): FaixaEtaria {
 }
 
 /**
- * Retorna as faixas etárias de todos os ciclos que o membro já PASSOU,
- * excluindo as faixas do ciclo atual do membro.
- *
- * Ex: membro adulto com 35 anos → passou por recem_nascido, crianca, adolescente.
- * As vacinas desses ciclos são exibidas em "Ciclos Anteriores".
+ * Retorna as faixas etárias de todos os ciclos que o membro já PASSOU.
  */
 function faixasCiclosAnteriores(
   tipoCalendario: TipoCalendario,
@@ -50,22 +45,16 @@ function faixasCiclosAnteriores(
   const faixaAtual = faixaEtariaReal(dataNascimento)
   const faixasDoCalendarioAtual = FAIXAS_POR_CALENDARIO[tipoCalendario]
 
-  // Ordem etária das faixas lineares (gestante e especial não entram aqui)
   const ORDEM_FAIXAS: FaixaEtaria[] = ['recem_nascido', 'crianca', 'adolescente', 'adulto', 'idoso']
   const idxAtual = ORDEM_FAIXAS.indexOf(faixaAtual)
 
-  // Faixas que o membro já ultrapassou (estão antes da atual na ordem)
   const faixasPassadas = idxAtual > 0 ? ORDEM_FAIXAS.slice(0, idxAtual) : []
 
-  // Remove as faixas que já fazem parte do calendário atual do membro
-  // (ex: adolescente inclui 'adulto' → não queremos adulto como "anterior")
   return faixasPassadas.filter(f => !faixasDoCalendarioAtual.includes(f))
 }
 
 /**
- * Verifica se uma vacina pertence EXCLUSIVAMENTE a ciclos anteriores:
- * - tem interseção com faixas passadas
- * - NÃO é compatível com o calendário atual do membro (vacinaCompativel)
+ * Verifica se uma vacina pertence EXCLUSIVAMENTE a ciclos anteriores.
  */
 function ehVacinaCicloAnterior(
   vacina: Vacina,
@@ -76,21 +65,6 @@ function ehVacinaCicloAnterior(
   const temFaixaAnterior = vacina.faixa_etaria.some(f => faixasAnteriores.includes(f as FaixaEtaria))
   const pertenceAoAtual = vacinaCompativel(vacina, tipoCalendario)
   return temFaixaAnterior && !pertenceAoAtual
-}
-
-/**
- * Vacina avulsa: NÃO pertence ao ciclo atual nem a ciclos anteriores.
- * (vacinas de viagem, indicação médica pontual, etc.)
- */
-function ehVacinaAvulsa(
-  vacina: Vacina,
-  tipoCalendario: TipoCalendario,
-  faixasAnteriores: FaixaEtaria[],
-): boolean {
-  const pertenceAoAtual = vacinaCompativel(vacina, tipoCalendario)
-  const pertenceAoAnterior = Array.isArray(vacina.faixa_etaria) &&
-    vacina.faixa_etaria.some(f => faixasAnteriores.includes(f as FaixaEtaria))
-  return !pertenceAoAtual && !pertenceAoAnterior
 }
 
 // ---------------------------------------------------------------------------
@@ -110,7 +84,6 @@ const CICLO_LABEL: Record<TipoCalendario, string> = {
 // ---------------------------------------------------------------------------
 type Step = 'membro' | 'vacina' | 'detalhes' | 'sucesso'
 type ModoSalvar = 'historico' | 'agendado'
-type AbaVacina = 'ciclo' | 'avulsa'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -159,15 +132,14 @@ export function RegistrarVacinaPage() {
 
   const membroPreSelecionado = (location.state as { membroId?: string } | null)?.membroId ?? ''
 
-  const [step, setStep]                   = useState<Step>(membroPreSelecionado ? 'vacina' : 'membro')
-  const [membroId, setMembroId]           = useState(membroPreSelecionado)
-  const [vacinaId, setVacinaId]           = useState('')
-  const [numeroDose, setNumeroDose]       = useState(1)
-  const [dataAplicacao, setDataAplicacao] = useState('')
+  const [step, setStep]                     = useState<Step>(membroPreSelecionado ? 'vacina' : 'membro')
+  const [membroId, setMembroId]             = useState(membroPreSelecionado)
+  const [vacinaId, setVacinaId]             = useState('')
+  const [numeroDose, setNumeroDose]         = useState(1)
+  const [dataAplicacao, setDataAplicacao]   = useState('')
   const [localAplicacao, setLocalAplicacao] = useState('')
-  const [erro, setErro]                   = useState('')
-  const [modoSalvo, setModoSalvo]         = useState<ModoSalvar>('historico')
-  const [abaVacina, setAbaVacina]         = useState<AbaVacina>('ciclo')
+  const [erro, setErro]                     = useState('')
+  const [modoSalvo, setModoSalvo]           = useState<ModoSalvar>('historico')
 
   const hoje = new Date().toISOString().slice(0, 10)
   const membro = membros.find(m => m.id === membroId)
@@ -178,18 +150,13 @@ export function RegistrarVacinaPage() {
   const stepIndex = STEPS.indexOf(step)
 
   // ---------------------------------------------------------------------------
-  // Listas de vacinas filtradas
+  // Vacinas de ciclos anteriores
   // ---------------------------------------------------------------------------
-  const { vacinasCicloAnterior, vacinasAvulsas } = useMemo(() => {
-    if (!membro) return { vacinasCicloAnterior: [], vacinasAvulsas: [] }
-
+  const vacinasCicloAnterior = useMemo(() => {
+    if (!membro) return []
     const tipo = membro.tipo_calendario
     const faixasAnt = faixasCiclosAnteriores(tipo, membro.data_nascimento)
-
-    const cicloAnterior = vacinas.filter(v => ehVacinaCicloAnterior(v, tipo, faixasAnt))
-    const avulsas       = vacinas.filter(v => ehVacinaAvulsa(v, tipo, faixasAnt))
-
-    return { vacinasCicloAnterior: cicloAnterior, vacinasAvulsas: avulsas }
+    return vacinas.filter(v => ehVacinaCicloAnterior(v, tipo, faixasAnt))
   }, [membro, vacinas])
 
   // ---------------------------------------------------------------------------
@@ -279,7 +246,7 @@ export function RegistrarVacinaPage() {
   function resetar() {
     setStep('membro'); setMembroId(''); setVacinaId('')
     setNumeroDose(1); setDataAplicacao(''); setLocalAplicacao('')
-    setErro(''); setAbaVacina('ciclo')
+    setErro('')
   }
 
   // ---------------------------------------------------------------------------
@@ -378,7 +345,7 @@ export function RegistrarVacinaPage() {
             {membros.map(m => (
               <li key={m.id}>
                 <button
-                  onClick={() => { setMembroId(m.id); setAbaVacina('ciclo'); setStep('vacina') }}
+                  onClick={() => { setMembroId(m.id); setStep('vacina') }}
                   className="card card-hover"
                   style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 'var(--space-4)', padding: 'var(--space-4) var(--space-5)', cursor: 'pointer', textAlign: 'left', minHeight: 48, outline: m.id === membroId ? '2px solid var(--color-primary)' : undefined }}
                 >
@@ -395,73 +362,34 @@ export function RegistrarVacinaPage() {
         </div>
       )}
 
-      {/* ── Step 2: Vacina (com abas) ── */}
+      {/* ── Step 2: Vacina ── */}
       {step === 'vacina' && membro && (
         <div>
           <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)', marginBottom: 'var(--space-4)' }}>
             Qual vacina para <strong>{membro.nome.split(' ')[0]}</strong>?
           </p>
 
-          {/* Abas */}
-          <div role="tablist" style={{ display: 'flex', marginBottom: 'var(--space-4)', borderBottom: '2px solid var(--color-divider)' }}>
-            {(['ciclo', 'avulsa'] as AbaVacina[]).map(aba => (
-              <button
-                key={aba}
-                role="tab"
-                aria-selected={abaVacina === aba}
-                onClick={() => { setAbaVacina(aba); setErro('') }}
-                style={{
-                  padding: 'var(--space-3) var(--space-5)',
-                  fontSize: 'var(--text-sm)',
-                  fontWeight: abaVacina === aba ? 700 : 400,
-                  color: abaVacina === aba ? 'var(--color-primary)' : 'var(--color-text-muted)',
-                  background: 'none', border: 'none',
-                  borderBottom: abaVacina === aba ? '2px solid var(--color-primary)' : '2px solid transparent',
-                  marginBottom: -2, cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', gap: 'var(--space-2)',
-                  transition: 'all 150ms',
-                }}
-              >
-                {aba === 'ciclo' ? <Syringe size={15} aria-hidden /> : <ClipboardList size={15} aria-hidden />}
-                {aba === 'ciclo' ? 'Ciclos Anteriores' : 'Vacina Avulsa'}
-              </button>
-            ))}
-          </div>
+          {/* Vacinas do ciclo atual do membro */}
+          <p style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 'var(--space-3)' }}>
+            Ciclo {CICLO_LABEL[membro.tipo_calendario]}
+          </p>
+          <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-2)', marginBottom: vacinasCicloAnterior.length > 0 ? 'var(--space-6)' : 0 }} role="list">
+            {vacinas
+              .filter(v => vacinaCompativel(v, membro.tipo_calendario))
+              .map(v => <CardVacina key={v.id} v={v} />)
+            }
+          </ul>
 
-          {/* Aba: Ciclos Anteriores */}
-          {abaVacina === 'ciclo' && (
-            vacinasCicloAnterior.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: 'var(--space-10) var(--space-4)', color: 'var(--color-text-muted)' }}>
-                <Syringe size={36} style={{ margin: '0 auto var(--space-3)', opacity: 0.3 }} aria-hidden />
-                <p style={{ fontWeight: 600, color: 'var(--color-text)', marginBottom: 'var(--space-1)' }}>Nenhum ciclo anterior</p>
-                <p style={{ fontSize: 'var(--text-xs)' }}>
-                  {membro.nome.split(' ')[0]} ainda não ultrapassou nenhum ciclo etário anterior.
-                </p>
-              </div>
-            ) : (
+          {/* Ciclos Anteriores (opcional, se existirem) */}
+          {vacinasCicloAnterior.length > 0 && (
+            <>
+              <p style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 'var(--space-3)' }}>
+                Ciclos Anteriores
+              </p>
               <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }} role="list">
                 {vacinasCicloAnterior.map(v => <CardVacina key={v.id} v={v} />)}
               </ul>
-            )
-          )}
-
-          {/* Aba: Vacina Avulsa */}
-          {abaVacina === 'avulsa' && (
-            <div>
-              <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginBottom: 'var(--space-3)', background: 'var(--color-surface-offset)', padding: 'var(--space-3) var(--space-4)', borderRadius: 'var(--radius-md)' }}>
-                Vacinas fora do calendário de {membro.nome.split(' ')[0]} — viagem, indicação médica, etc.
-              </p>
-              {vacinasAvulsas.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: 'var(--space-10) var(--space-4)', color: 'var(--color-text-muted)' }}>
-                  <ClipboardList size={36} style={{ margin: '0 auto var(--space-3)', opacity: 0.3 }} aria-hidden />
-                  <p style={{ fontWeight: 600, color: 'var(--color-text)' }}>Nenhuma vacina avulsa disponível</p>
-                </div>
-              ) : (
-                <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }} role="list">
-                  {vacinasAvulsas.map(v => <CardVacina key={v.id} v={v} />)}
-                </ul>
-              )}
-            </div>
+            </>
           )}
         </div>
       )}
