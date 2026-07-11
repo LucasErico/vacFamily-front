@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import {
   ArrowLeft, CheckCircle2, Trash2, ChevronDown, ListChecks,
-  Bell, BellOff, Plus, Search, Filter, X, Clock, ChevronRight,
+  Bell, BellOff, Plus, Search, Filter, X, Clock,
   BookOpen, Syringe, CalendarCheck, Info,
 } from 'lucide-react'
 import { useMembros, RELACAO_LABEL } from '@/contexts/MembrosContext'
@@ -439,7 +439,6 @@ export function VacinaMembroPage() {
     const isFutura = avulsaData > hoje
 
     if (isFutura) {
-      // Cria lembrete manual para data futura
       adicionarLembrete({
         membro_familiar_id: membroSelecionadoId,
         tipo: 'manual',
@@ -449,9 +448,6 @@ export function VacinaMembroPage() {
         automatico: false,
       })
     } else {
-      // Registra direto no histórico
-      // Como é avulsa (sem ID de vacina padrão), criamos um registro avulso
-      // usando um ID genérico de "vacina avulsa" — o backend aceita observacoes
       registrarDose(
         {
           membro_id: membroSelecionadoId,
@@ -614,7 +610,6 @@ export function VacinaMembroPage() {
             {/* Filtros rápidos */}
             <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap', alignItems: 'center' }}>
               <Filter size={13} style={{ color: 'var(--color-text-faint)' }} aria-hidden />
-              {/* Filtro status */}
               {(['todos', 'pendente', 'atrasada', 'aplicada'] as const).map(s => (
                 <button key={s} onClick={() => setFiltroStatus(s)} style={{ padding: 'var(--space-1) var(--space-3)', borderRadius: 'var(--radius-full)', fontSize: 'var(--text-xs)', fontWeight: 600, border: '1px solid', cursor: 'pointer', transition: 'all var(--transition-interactive)', background: filtroStatus === s ? 'var(--color-primary)' : 'transparent', color: filtroStatus === s ? '#fff' : 'var(--color-text-muted)', borderColor: filtroStatus === s ? 'var(--color-primary)' : 'var(--color-border)' }}>
                   {s === 'todos' ? 'Todos' : s === 'pendente' ? 'Pendentes' : s === 'atrasada' ? 'Atrasadas' : 'Aplicadas'}
