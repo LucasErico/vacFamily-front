@@ -19,13 +19,34 @@ import {
   createContext, useContext, useState, useCallback,
   useEffect, type ReactNode,
 } from 'react'
-import type { Vacina, RegistroVacinal, DoseStatus, StatusDose } from '@/types'
+import type { Vacina, RegistroVacinal, DoseStatus, StatusDose, TipoCalendario, FaixaEtaria } from '@/types'
 import { apiFetch } from '@/services/api'
 import { useAuth } from './AuthContext'
 import { useMembros } from './MembrosContext'
 
 /** Limite (dias) até o qual doses passadas sem registro são 'atrasadas'. ~2 anos. */
 export const IDADE_MAX_RETROATIVA_DIAS = 730
+
+/**
+ * Mapeamento de tipo_calendario do membro → faixas etárias permitidas nas vacinas.
+ * Uma vacina só é exibida ao membro se sua faixa_etaria tiver ao menos
+ * uma interseção com as faixas permitidas para o tipo de calendário.
+ */
+const FAIXAS_POR_CALENDARIO: Record<TipoCalendario, FaixaEtaria[]> = {
+  infantil:    ['recem_nascido', 'crianca', 'todas'],
+  adolescente: ['adolescente', 'adulto', 'todas'],
+  adulto:      ['adulto', 'todas'],
+  gestante:    ['gestante', 'adulto', 'todas'],
+  idoso:       ['idoso', 'adulto', 'todas'],
+  especial:    ['recem_nascido', 'crianca', 'adolescente', 'adulto', 'gestante', 'idoso', 'todas'],
+}
+
+/** Retorna true se a vacina é compatível com o tipo de calendário do membro. */
+export function vacinaCompativel(vacina: Vacina, tipoCalendario: TipoCalendario): boolean {
+  if (!Array.isArray(vacina.faixa_etaria) || vacina.faixa_etaria.length === 0) return true
+  const faixasPermitidas = FAIXAS_POR_CALENDARIO[tipoCalendario] ?? ['todas']
+  return vacina.faixa_etaria.some(f => faixasPermitidas.includes(f))
+}
 
 function calcularIdadeEmDias(dataNascimento: string): number {
   const nasc = new Date(dataNascimento)
@@ -49,13 +70,24 @@ function calcularStatusDose(
   return 'pendente'
 }
 
+/**
+ * Calcula o status de cada dose de uma vacina para um membro.
+ *
+ * @param tipoCalendario - tipo_calendario do membro. Se informado, doses de vacinas
+ *   incompatíveis com o calendário retornam 'nao_aplicavel' automaticamente.
+ */
 export function calcularDosesStatus(
   vacina: Vacina,
   registros: RegistroVacinal[],
   dataNascimento: string,
+  tipoCalendario?: TipoCalendario,
 ): DoseStatus[] {
   const idadeEmDias = calcularIdadeEmDias(dataNascimento)
   const hoje = new Date().toISOString().slice(0, 10)
+
+  // Se o calendário foi informado e a vacina não é compatível, todas as doses
+  // ficam 'nao_aplicavel' — elas serão filtradas antes de exibir ao usuário.
+  const incompativel = tipoCalendario != null && !vacinaCompativel(vacina, tipoCalendario)
 
   // Tenta obter o intervalo padrão entre doses (em dias) via intervalos_por_fabricante
   const intervaloDias = vacina.intervalos_por_fabricante
@@ -64,7 +96,9 @@ export function calcularDosesStatus(
 
   return Array.from({ length: vacina.doses_total }, (_, i) => {
     const numeroDose = i + 1
-    const status = calcularStatusDose(vacina, numeroDose, registros, idadeEmDias)
+    const status: StatusDose = incompativel
+      ? 'nao_aplicavel'
+      : calcularStatusDose(vacina, numeroDose, registros, idadeEmDias)
     const registro = registros.find(
       r => r.vacina_id === vacina.id && r.numero_dose === numeroDose,
     )
