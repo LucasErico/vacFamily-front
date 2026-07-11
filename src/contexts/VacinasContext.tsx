@@ -25,10 +25,21 @@
  *   ao menos uma vez. Usado pelas páginas para distinguir "ainda carregando"
  *   de "carregou e realmente não tem registros" — evitando a exibição
  *   antecipada de vacinas pendentes calculadas apenas com a seed local.
+ *
+ * membrosCarregadosUmaVez: boolean
+ *   Torna-se true após a primeira carga bem-sucedida da API (mesmo que
+ *   nenhum membro exista ainda). Enquanto false, a UI não deve exibir
+ *   nada baseado na seed — a carga ainda não rodou.
+ *
+ * Membro novo após carga inicial:
+ *   É marcado imediatamente em membrosCarregados com lista vazia, pois
+ *   um membro recém-criado definitivamente não tem registros no banco.
+ *   Isso evita que a página exiba doses calculadas da seed enquanto
+ *   espera uma busca que nunca precisaria acontecer.
  */
 import {
   createContext, useContext, useState, useCallback,
-  useEffect, type ReactNode,
+  useEffect, useRef, type ReactNode,
 } from 'react'
 import type { Vacina, RegistroVacinal, DoseStatus, StatusDose } from '@/types'
 import { VACINAS_SEED } from '@/data/vacinasSeed'
@@ -140,10 +151,21 @@ interface VacinasContextValue {
   carregando: boolean
   /** IDs dos membros cujos registros já foram buscados na API ao menos uma vez. */
   membrosCarregados: Set<string>
+  /**
+   * True após a primeira carga da API ter rodado ao menos uma vez.
+   * Enquanto false, nenhuma UI deve exibir dados calculados da seed.
+   */
+  membrosCarregadosUmaVez: boolean
   registrarDose: (dados: Omit<RegistroVacinal, 'id' | 'created_at'>, gerarLembrete?: GerarLembreteReforcoFn) => Promise<RegistroVacinal>
   removerRegistro: (id: string) => Promise<void>
   buscarRegistrosMembro: (membro_id: string) => RegistroVacinal[]
   recarregar: () => Promise<void>
+  /**
+   * Marca um membro recém-criado como "já carregado" com registros vazios.
+   * Deve ser chamado imediatamente após adicionarMembro() no contexto de membros,
+   * ou pela página que cria o membro, para evitar pré-renderização da seed.
+   */
+  marcarMembroNovo: (membroId: string) => void
 }
 
 const VacinasContext = createContext<VacinasContextValue | null>(null)
@@ -154,14 +176,22 @@ export function VacinasProvider({ children }: { children: ReactNode }) {
   const [vacinas] = useState<Vacina[]>(VACINAS_SEED)
   const [registros, setRegistros] = useState<RegistroVacinal[]>([])
   const [carregando, setCarregando] = useState(false)
+
   /**
    * Rastreia quais membro_ids já tiveram seus registros buscados na API.
    * Inicialmente vazio — só é populado após a primeira carga bem-sucedida
    * (ou mesmo após uma carga que retornou lista vazia).
-   * Isso evita que a UI exiba vacinas "pendentes" calculadas com seed antes
-   * de saber o estado real do banco.
    */
   const [membrosCarregados, setMembrosCarregados] = useState<Set<string>>(new Set())
+
+  /**
+   * Torna-se true após a primeira carga da API rodar com sucesso.
+   * Enquanto false, a UI exibe skeleton independentemente de qualquer outra flag.
+   */
+  const [membrosCarregadosUmaVez, setMembrosCarregadosUmaVez] = useState(false)
+
+  // Ref para saber quais ids já foram carregados sem causar re-renders
+  const membrosCarregadosRef = useRef<Set<string>>(new Set())
 
   // FIX: usar string primitiva como dependencia estavel para evitar
   // loop infinito causado por nova referencia de array a cada render.
@@ -182,7 +212,10 @@ export function VacinasProvider({ children }: { children: ReactNode }) {
       )
       setRegistros(resultados.flat())
       // Marca todos os membros como "já carregados" — mesmo os que não têm registros.
-      setMembrosCarregados(new Set(ids))
+      const novoSet = new Set(ids)
+      membrosCarregadosRef.current = novoSet
+      setMembrosCarregados(novoSet)
+      setMembrosCarregadosUmaVez(true)
     } catch { /* mantém estado offline */ } finally {
       setCarregando(false)
     }
@@ -190,6 +223,36 @@ export function VacinasProvider({ children }: { children: ReactNode }) {
   }, [isAuthenticated, membrosIds])
 
   useEffect(() => { recarregar() }, [recarregar])
+
+  /**
+   * Quando novos membros aparecem no MembrosContext após a carga inicial
+   * já ter rodado (ex: membro recém-criado via adicionarMembro), marcamos
+   * esse id imediatamente como carregado com lista vazia.
+   * Isso evita que a VacinaMembroPage exiba doses calculadas da seed
+   * enquanto aguarda uma busca que nunca precisaria acontecer.
+   */
+  useEffect(() => {
+    if (!membrosCarregadosUmaVez) return
+    const ids = membrosIds.split(',').filter(Boolean)
+    const novos = ids.filter(id => !membrosCarregadosRef.current.has(id))
+    if (novos.length === 0) return
+    setMembrosCarregados(prev => {
+      const next = new Set(prev)
+      novos.forEach(id => next.add(id))
+      membrosCarregadosRef.current = next
+      return next
+    })
+  }, [membrosIds, membrosCarregadosUmaVez])
+
+  const marcarMembroNovo = useCallback((membroId: string) => {
+    setMembrosCarregados(prev => {
+      if (prev.has(membroId)) return prev
+      const next = new Set(prev)
+      next.add(membroId)
+      membrosCarregadosRef.current = next
+      return next
+    })
+  }, [])
 
   const registrarDose = useCallback(async (
     dados: Omit<RegistroVacinal, 'id' | 'created_at'>,
@@ -246,8 +309,8 @@ export function VacinasProvider({ children }: { children: ReactNode }) {
 
   return (
     <VacinasContext.Provider value={{
-      vacinas, registros, carregando, membrosCarregados,
-      registrarDose, removerRegistro, buscarRegistrosMembro, recarregar,
+      vacinas, registros, carregando, membrosCarregados, membrosCarregadosUmaVez,
+      registrarDose, removerRegistro, buscarRegistrosMembro, recarregar, marcarMembroNovo,
     }}>
       {children}
     </VacinasContext.Provider>
