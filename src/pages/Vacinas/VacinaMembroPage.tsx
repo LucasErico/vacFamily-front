@@ -104,10 +104,13 @@ export function VacinaMembroPage() {
   useEffect(() => {
     if (
       !confirmarInfantisFlag ||
-      !membro ||
       carregando ||
       vacinas.length === 0
     ) return
+
+    // Narrowing explícito dentro do useEffect para satisfazer o TS
+    const membroAtual = membros.find(m => m.id === membroSelecionadoId)
+    if (!membroAtual) return
 
     const registrosMembro = buscarRegistrosMembro(membroSelecionadoId)
     // Só dispara se ainda não há nenhum registro para não duplicar
@@ -141,7 +144,7 @@ export function VacinaMembroPage() {
     // Limpar o state de navegação para não re-disparar
     navigate(location.pathname, { replace: true, state: null })
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [confirmarInfantisFlag, membro, carregando, vacinas.length])
+  }, [confirmarInfantisFlag, membros, membroSelecionadoId, carregando, vacinas.length])
 
   if (!membro) {
     return (
