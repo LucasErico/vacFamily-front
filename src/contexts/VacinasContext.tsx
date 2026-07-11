@@ -49,7 +49,6 @@ function calcularStatusDose(
   if (registro) return 'aplicada'
 
   // Sem registro: sempre 'pendente' — nunca calcular 'atrasada' retroativamente.
-  // Doses passadas sem registro são omitidas no Calendário e não poluem o histórico.
   return 'pendente'
 }
 
@@ -111,14 +110,19 @@ export function VacinasProvider({ children }: { children: ReactNode }) {
   const [registros, setRegistros] = useState<RegistroVacinal[]>([])
   const [carregando, setCarregando] = useState(false)
 
+  // FIX: usar string primitiva como dependencia estavel para evitar
+  // loop infinito causado por nova referencia de array a cada render.
+  const membrosIds = membros.map(m => m.id).join(',')
+
   // Carrega registros de TODOS os membros do usuário em paralelo
   const recarregar = useCallback(async () => {
-    if (!isAuthenticated || membros.length === 0) return
+    if (!isAuthenticated || !membrosIds) return
     setCarregando(true)
     try {
+      const ids = membrosIds.split(',').filter(Boolean)
       const resultados = await Promise.all(
-        membros.map(m =>
-          apiFetch<{ registros: RegistroVacinal[] }>(`/registros/membro/${m.id}`)
+        ids.map(id =>
+          apiFetch<{ registros: RegistroVacinal[] }>(`/registros/membro/${id}`)
             .then(res => (Array.isArray(res) ? res : (res.registros ?? [])))
             .catch(() => [] as RegistroVacinal[])
         )
@@ -127,7 +131,8 @@ export function VacinasProvider({ children }: { children: ReactNode }) {
     } catch { /* mantém estado offline */ } finally {
       setCarregando(false)
     }
-  }, [isAuthenticated, membros])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, membrosIds])
 
   useEffect(() => { recarregar() }, [recarregar])
 
