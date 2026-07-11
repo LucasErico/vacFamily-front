@@ -1,6 +1,6 @@
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { ArrowLeft, Edit2, Trash2, Calendar, User, ClipboardList, Syringe } from 'lucide-react'
-import { useMembros, PARENTESCO_LABEL } from '@/contexts/MembrosContext'
+import { useMembros, RELACAO_LABEL } from '@/contexts/MembrosContext'
 import { Avatar } from '@/components/ui/Avatar'
 import { calcularIdade, formatarData } from '@/utils/idade'
 import { useState } from 'react'
@@ -41,13 +41,13 @@ export function MembroDetailPage() {
       {/* Perfil */}
       <div className="card" style={{ marginBottom: 'var(--space-4)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)', marginBottom: 'var(--space-5)' }}>
-          <Avatar nome={membro.nome} tamanho={64} fotoUrl={membro.fotoUrl} />
+          <Avatar nome={membro.nome} tamanho={64} fotoUrl={membro.foto_url} />
           <div>
             <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--text-lg)', fontWeight: 700, color: 'var(--color-text)' }}>
               {membro.nome}
             </h2>
             <span className="badge badge-info" style={{ marginTop: 'var(--space-1)' }}>
-              {PARENTESCO_LABEL[membro.parentesco]}
+              {RELACAO_LABEL[membro.relacao]}
             </span>
           </div>
         </div>
@@ -60,7 +60,7 @@ export function MembroDetailPage() {
             <div>
               <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>Data de nascimento</p>
               <p style={{ fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--color-text)' }}>
-                {formatarData(membro.dataNascimento)} · {calcularIdade(membro.dataNascimento)}
+                {formatarData(membro.data_nascimento)} · {calcularIdade(membro.data_nascimento)}
               </p>
             </div>
           </div>
@@ -69,7 +69,7 @@ export function MembroDetailPage() {
             <div>
               <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>Parentesco</p>
               <p style={{ fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--color-text)' }}>
-                {PARENTESCO_LABEL[membro.parentesco]}
+                {RELACAO_LABEL[membro.relacao]}
               </p>
             </div>
           </div>

@@ -2,9 +2,11 @@ import { useState, type FormEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
 import { useMembros, RELACAO_LABEL } from '@/contexts/MembrosContext'
-import type { Relacao, Sexo, TipoCalendario } from '@/types'
+import type { Relacao, TipoCalendario } from '@/types'
 
 const RELACOES = Object.entries(RELACAO_LABEL) as [Relacao, string][]
+
+type Sexo = 'M' | 'F' | 'outro'
 
 const SEXO_LABEL: Record<Sexo, string> = {
   M:     'Masculino',
@@ -22,7 +24,7 @@ const CALENDARIO_LABEL: Record<TipoCalendario, string> = {
 }
 
 // Inferir calendário a partir da data de nascimento
-function inferirCalendario(dataNasc: string, sexo: Sexo): TipoCalendario {
+function inferirCalendario(dataNasc: string): TipoCalendario {
   if (!dataNasc) return 'adulto'
   const hoje = new Date()
   const nasc = new Date(dataNasc)
@@ -63,7 +65,7 @@ export function MembroFormPage() {
   function handleDataNascChange(val: string) {
     setDataNascimento(val)
     setErros(prev => ({ ...prev, dataNascimento: '' }))
-    if (val) setTipoCalendario(inferirCalendario(val, sexo))
+    if (val) setTipoCalendario(inferirCalendario(val))
   }
 
   function validar() {

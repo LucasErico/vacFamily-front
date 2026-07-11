@@ -25,8 +25,8 @@ function formatarData(iso: string) {
   return `${dia}/${mes}/${ano}`
 }
 
-function isAtrasado(dataLembrete: string) {
-  return new Date(dataLembrete) < new Date(new Date().toISOString().slice(0, 10))
+function isAtrasado(data_lembrete: string) {
+  return new Date(data_lembrete) < new Date(new Date().toISOString().slice(0, 10))
 }
 
 function toDateKey(iso: string) {
@@ -59,7 +59,7 @@ export function LembretesPage() {
   const eventosPorDia = useMemo(() => {
     const mapa: Record<string, Lembrete[]> = {}
     lembretes.forEach(l => {
-      const key = toDateKey(l.dataLembrete)
+      const key = toDateKey(l.data_lembrete)
       if (!mapa[key]) mapa[key] = []
       mapa[key].push(l)
     })
@@ -94,7 +94,7 @@ export function LembretesPage() {
   // --- Lista de lembretes ---
   const filtrados = lembretes
     .filter(l => filtro === 'todos' ? true : l.status === filtro)
-    .sort((a, b) => a.dataLembrete.localeCompare(b.dataLembrete))
+    .sort((a, b) => a.data_lembrete.localeCompare(b.data_lembrete))
 
   const automaticos = filtrados.filter(l => l.automatico)
   const manuais     = filtrados.filter(l => !l.automatico)
@@ -114,10 +114,10 @@ export function LembretesPage() {
       return
     }
     adicionarLembrete({
-      membroId: fMembroId,
-      vacinaId: fVacinaId,
-      numeroDose: fNumeroDose,
-      dataLembrete: fData,
+      membro_id: fMembroId,
+      vacina_id: fVacinaId,
+      numero_dose: fNumeroDose,
+      data_lembrete: fData,
       status: 'pendente',
       automatico: false,
     })
@@ -126,7 +126,7 @@ export function LembretesPage() {
   }
 
   function renderLembrete(l: Lembrete) {
-    const atrasado = l.status === 'pendente' && isAtrasado(l.dataLembrete)
+    const atrasado = l.status === 'pendente' && isAtrasado(l.data_lembrete)
     return (
       <li
         key={l.id}
@@ -141,7 +141,7 @@ export function LembretesPage() {
             fontSize: 'var(--text-xs)', fontWeight: 700, whiteSpace: 'nowrap',
             color: atrasado ? 'var(--color-error)' : l.status === 'enviado' ? 'var(--color-success)' : 'var(--color-primary)',
           }}>
-            {formatarData(l.dataLembrete)}
+            {formatarData(l.data_lembrete)}
           </p>
           {atrasado && (
             <p style={{ fontSize: 10, color: 'var(--color-error)', fontWeight: 600, whiteSpace: 'nowrap' }}>Atrasado</p>
@@ -150,10 +150,10 @@ export function LembretesPage() {
 
         <div style={{ flex: 1, minWidth: 0 }}>
           <p style={{ fontWeight: 600, fontSize: 'var(--text-sm)', color: 'var(--color-text)' }}>
-            {nomeVacina(l.vacinaId)}
+            {nomeVacina(l.vacina_id)}
           </p>
           <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
-            {nomeMembro(l.membroId)} · {l.numeroDose}ª dose
+            {nomeMembro(l.membro_id)} · {l.numero_dose}ª dose
             {l.automatico && (
               <span style={{ marginLeft: 'var(--space-2)', color: 'var(--color-primary)', fontWeight: 500 }}>Automático</span>
             )}
@@ -258,7 +258,7 @@ export function LembretesPage() {
             const isHoje = key === hojeKey
             const isSelecionado = key === diaSelecionado
             const temPendente = eventosPorDia[key]?.some(l => l.status === 'pendente')
-            const temAtrasado = eventosPorDia[key]?.some(l => l.status === 'pendente' && isAtrasado(l.dataLembrete))
+            const temAtrasado = eventosPorDia[key]?.some(l => l.status === 'pendente' && isAtrasado(l.data_lembrete))
 
             let bgDia = 'transparent'
             let colorDia = 'var(--color-text)'
@@ -329,7 +329,7 @@ export function LembretesPage() {
             </p>
             <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }} role="list">
               {eventosDiaSelecionado.map(l => {
-                const atrasado = l.status === 'pendente' && isAtrasado(l.dataLembrete)
+                const atrasado = l.status === 'pendente' && isAtrasado(l.data_lembrete)
                 return (
                   <li
                     key={l.id}
@@ -347,10 +347,10 @@ export function LembretesPage() {
                     />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--color-text)' }}>
-                        {nomeVacina(l.vacinaId)}
+                        {nomeVacina(l.vacina_id)}
                       </p>
                       <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
-                        {nomeMembro(l.membroId)} · {l.numeroDose}ª dose
+                        {nomeMembro(l.membro_id)} · {l.numero_dose}ª dose
                       </p>
                     </div>
                     <span
