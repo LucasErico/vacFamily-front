@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import {
   ArrowLeft, CheckCircle2, Trash2, ChevronDown, ListChecks,
-  Bell, BellOff, Search, Syringe, X,
+  Bell, Search, Syringe, X,
   CalendarCheck, Clock,
 } from 'lucide-react'
 import { useMembros, RELACAO_LABEL } from '@/contexts/MembrosContext'
