@@ -20,19 +20,13 @@ export function VacinasPage() {
   return (
     <div style={{ maxWidth: 640, margin: '0 auto', paddingBottom: 'var(--space-8)' }}>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-6)' }}>
-        <div>
-          <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--text-lg)', fontWeight: 700, color: 'var(--color-text)' }}>
-            Vacinas
-          </h2>
-          <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)', marginTop: 'var(--space-1)' }}>
-            Selecione um membro para gerenciar as doses
-          </p>
-        </div>
-        <Link to="/vacinas/registrar" className="btn btn-primary" style={{ gap: 'var(--space-2)' }}>
-          <Plus size={18} aria-hidden />
-          <span>Registrar</span>
-        </Link>
+      <div style={{ marginBottom: 'var(--space-6)' }}>
+        <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--text-lg)', fontWeight: 700, color: 'var(--color-text)' }}>
+          Vacinas
+        </h2>
+        <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)', marginTop: 'var(--space-1)' }}>
+          Selecione um membro para gerenciar as doses
+        </p>
       </div>
 
       {membros.length === 0 ? (
@@ -51,8 +45,6 @@ export function VacinasPage() {
       ) : (
         <ul style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)', listStyle: 'none', padding: 0 }} role="list">
           {membros.map(membro => {
-            // Enquanto vacinas ou registros ainda carregam, exibe indicador neutro.
-            // Se o membro não tem registros, não inferimos pendência: fica "Sem registros".
             const resumo: { label: string; cor: string } = !carregando && vacinas.length > 0
               ? (() => {
                   const registrosMembro = buscarRegistrosMembro(membro.id)
