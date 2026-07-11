@@ -44,9 +44,6 @@ const CICLOS_HISTORICO: CicloInfo[] = [
 // ---------------------------------------------------------------------------
 // Tipos
 // ---------------------------------------------------------------------------
-type Aba = 'ciclo' | 'avulsas'
-type StatusFiltro = 'todos' | 'aplicada' | 'pendente' | 'atrasada'
-
 type EntradaTimeline =
   | { tipo: 'aplicada'; data: string; vacinaNome: string; numeroDose: number; local?: string; faixas: string[]; avulsa?: boolean }
   | { tipo: 'pendente'; data: string; vacinaNome: string; numeroDose: number; faixas: string[]; avulsa?: boolean }
@@ -188,27 +185,6 @@ function CicloDropdown({
 }
 
 // ---------------------------------------------------------------------------
-// Helper de estilo dos botões de status
-// ---------------------------------------------------------------------------
-function styleBtnStatus(_s: string, ativo: boolean, cor?: string): React.CSSProperties {
-  return {
-    fontSize: 'var(--text-xs)',
-    fontWeight: ativo ? 700 : 400,
-    padding: 'var(--space-2) var(--space-3)',
-    minHeight: 36,
-    borderRadius: 'var(--radius-full)',
-    border: ativo
-      ? `1.5px solid ${cor ?? 'var(--color-primary)'}`
-      : '1.5px solid var(--color-border)',
-    background: ativo ? (cor ? `oklch(from ${cor} l c h / 0.1)` : 'var(--color-primary-highlight)') : 'var(--color-surface)',
-    color: ativo ? (cor ?? 'var(--color-primary)') : 'var(--color-text-muted)',
-    cursor: 'pointer',
-    flexShrink: 0,
-    transition: 'all 150ms',
-  }
-}
-
-// ---------------------------------------------------------------------------
 // Componente principal
 // ---------------------------------------------------------------------------
 export function HistoricoPage() {
@@ -225,10 +201,8 @@ export function HistoricoPage() {
     membroIdParam && membros.find(m => m.id === membroIdParam) ? membroIdParam : (membros[0]?.id ?? '')
   )
 
-  const [abaAtiva, setAbaAtiva]         = useState<Aba>('ciclo')
-  const [filtroStatus, setFiltroStatus] = useState<StatusFiltro>('todos')
-  const [filtroCiclo, setFiltroCiclo]   = useState<CicloId | 'todos'>('todos')
-  const [busca, setBusca]               = useState('')
+  const [filtroCiclo, setFiltroCiclo] = useState<CicloId | 'todos'>('todos')
+  const [busca, setBusca]             = useState('')
 
   const membro = membros.find(m => m.id === membroId)
 
@@ -289,15 +263,10 @@ export function HistoricoPage() {
     () => timeline.filter(e => !e.avulsa),
     [timeline]
   )
-  const timelineAvulsas = useMemo(
-    () => timeline.filter(e => e.avulsa),
-    [timeline]
-  )
 
   function aplicarFiltros(entradas: EntradaTimeline[]) {
     return entradas.filter(e => {
-      if (filtroStatus !== 'todos' && e.tipo !== filtroStatus) return false
-      if (filtroCiclo !== 'todos' && abaAtiva === 'ciclo') {
+      if (filtroCiclo !== 'todos') {
         const cicloEntrada = getCicloDeEntrada(e)
         if (cicloEntrada !== filtroCiclo) return false
       }
@@ -311,17 +280,13 @@ export function HistoricoPage() {
     })
   }
 
-  const cicloFiltrado    = useMemo(() => aplicarFiltros(timelineCiclo),   [timelineCiclo, filtroStatus, filtroCiclo, busca])
-  const avulsasFiltradas = useMemo(() => aplicarFiltros(timelineAvulsas), [timelineAvulsas, filtroStatus, busca])
+  const cicloFiltrado = useMemo(() => aplicarFiltros(timelineCiclo), [timelineCiclo, filtroCiclo, busca])
 
-  const entradaAtivaFiltrada = abaAtiva === 'ciclo' ? cicloFiltrado : avulsasFiltradas
-
-  const aplicadas = entradaAtivaFiltrada.filter(e => e.tipo === 'aplicada')
-  const agendadas = entradaAtivaFiltrada.filter(e => e.tipo === 'pendente')
-  const atrasadas = entradaAtivaFiltrada.filter(e => e.tipo === 'atrasada')
+  const aplicadas = cicloFiltrado.filter(e => e.tipo === 'aplicada')
+  const agendadas = cicloFiltrado.filter(e => e.tipo === 'pendente')
+  const atrasadas = cicloFiltrado.filter(e => e.tipo === 'atrasada')
 
   const aplicadasPorCiclo = useMemo(() => {
-    if (abaAtiva !== 'ciclo') return []
     const mapa = new Map<string, typeof aplicadas>()
     for (const e of aplicadas) {
       const key = getCicloDeEntrada(e) ?? 'outros'
@@ -360,7 +325,7 @@ export function HistoricoPage() {
       })
     }
     return grupos
-  }, [aplicadas, abaAtiva])
+  }, [aplicadas])
 
   if (membros.length === 0) {
     return (
@@ -383,9 +348,6 @@ export function HistoricoPage() {
         </h2>
         <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)', marginTop: 'var(--space-1)' }}>
           {timelineCiclo.filter(e => e.tipo === 'aplicada').length} dose{timelineCiclo.filter(e => e.tipo === 'aplicada').length !== 1 ? 's' : ''} registrada{timelineCiclo.filter(e => e.tipo === 'aplicada').length !== 1 ? 's' : ''} no calendário
-          {timelineAvulsas.filter(e => e.tipo === 'aplicada').length > 0 && (
-            <> · {timelineAvulsas.filter(e => e.tipo === 'aplicada').length} avulsa{timelineAvulsas.filter(e => e.tipo === 'aplicada').length !== 1 ? 's' : ''}</>
-          )}
         </p>
       </div>
 
@@ -417,63 +379,6 @@ export function HistoricoPage() {
         ))}
       </div>
 
-      <div
-        role="tablist"
-        aria-label="Tipo de vacina"
-        style={{
-          display: 'flex',
-          gap: 0,
-          marginBottom: 'var(--space-5)',
-          borderBottom: '2px solid var(--color-divider)',
-        }}
-      >
-        {([
-          { id: 'ciclo' as Aba,   label: 'Vacinas de Ciclo', icon: <CalendarCheck size={15} aria-hidden /> },
-          { id: 'avulsas' as Aba, label: 'Vacinas Avulsas',  icon: <ClipboardList  size={15} aria-hidden /> },
-        ]).map(aba => (
-          <button
-            key={aba.id}
-            role="tab"
-            aria-selected={abaAtiva === aba.id}
-            onClick={() => { setAbaAtiva(aba.id); setFiltroStatus('todos'); setFiltroCiclo('todos'); setBusca('') }}
-            style={{
-              padding: 'var(--space-3) var(--space-5)',
-              fontSize: 'var(--text-sm)',
-              fontWeight: abaAtiva === aba.id ? 700 : 400,
-              color: abaAtiva === aba.id ? 'var(--color-primary)' : 'var(--color-text-muted)',
-              background: 'none',
-              border: 'none',
-              borderBottom: abaAtiva === aba.id ? '2px solid var(--color-primary)' : '2px solid transparent',
-              marginBottom: -2,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 'var(--space-2)',
-              transition: 'all 150ms',
-            }}
-          >
-            {aba.icon}
-            {aba.label}
-            {(() => {
-              const total = (aba.id === 'ciclo' ? timelineCiclo : timelineAvulsas).length
-              if (total === 0) return null
-              return (
-                <span style={{
-                  fontSize: 'var(--text-xs)', fontWeight: 700,
-                  minWidth: 18, height: 18, borderRadius: 'var(--radius-full)',
-                  background: abaAtiva === aba.id ? 'var(--color-primary-highlight)' : 'var(--color-surface-offset)',
-                  color: abaAtiva === aba.id ? 'var(--color-primary)' : 'var(--color-text-muted)',
-                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                  paddingInline: 'var(--space-1)',
-                }}>
-                  {total}
-                </span>
-              )
-            })()}
-          </button>
-        ))}
-      </div>
-
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)', marginBottom: 'var(--space-5)', alignItems: 'center' }}>
         <div style={{ flex: '1 1 180px', position: 'relative', minWidth: 160 }}>
           <Search size={14} style={{ position: 'absolute', left: 'var(--space-3)', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-faint)', pointerEvents: 'none' }} aria-hidden />
@@ -488,27 +393,25 @@ export function HistoricoPage() {
           />
         </div>
 
-        <button onClick={() => setFiltroStatus('todos')} style={styleBtnStatus('todos', filtroStatus === 'todos')}>
-          Todos
-        </button>
-        <button onClick={() => setFiltroStatus('aplicada')} style={styleBtnStatus('aplicada', filtroStatus === 'aplicada', 'var(--color-success)')}>
-          Aplicadas
-        </button>
-        <button onClick={() => setFiltroStatus('pendente')} style={styleBtnStatus('pendente', filtroStatus === 'pendente', 'var(--color-primary)')}>
-          Agendadas
-        </button>
-        <button onClick={() => setFiltroStatus('atrasada')} style={styleBtnStatus('atrasada', filtroStatus === 'atrasada', 'var(--color-error)')}>
-          Atrasadas
-        </button>
+        <CicloDropdown value={filtroCiclo} onChange={v => setFiltroCiclo(v)} />
 
-        {abaAtiva === 'ciclo' && (
-          <CicloDropdown value={filtroCiclo} onChange={v => setFiltroCiclo(v)} />
-        )}
-
-        {(filtroStatus !== 'todos' || filtroCiclo !== 'todos' || busca) && (
+        {(filtroCiclo !== 'todos' || busca) && (
           <button
-            onClick={() => { setFiltroStatus('todos'); setFiltroCiclo('todos'); setBusca('') }}
-            style={{ ...styleBtnStatus('limpar', false), color: 'var(--color-error)', borderColor: 'var(--color-error-highlight)', display: 'flex', alignItems: 'center', gap: 'var(--space-1)' }}
+            onClick={() => { setFiltroCiclo('todos'); setBusca('') }}
+            style={{
+              fontSize: 'var(--text-xs)',
+              fontWeight: 400,
+              padding: 'var(--space-2) var(--space-3)',
+              minHeight: 36,
+              borderRadius: 'var(--radius-full)',
+              border: '1.5px solid var(--color-error-highlight)',
+              background: 'var(--color-surface)',
+              color: 'var(--color-error)',
+              cursor: 'pointer',
+              flexShrink: 0,
+              transition: 'all 150ms',
+              display: 'flex', alignItems: 'center', gap: 'var(--space-1)',
+            }}
             aria-label="Limpar todos os filtros"
           >
             <X size={12} aria-hidden /> Limpar
@@ -516,121 +419,78 @@ export function HistoricoPage() {
         )}
       </div>
 
-      {entradaAtivaFiltrada.length === 0 ? (
+      {cicloFiltrado.length === 0 ? (
         <div style={{ textAlign: 'center', padding: 'var(--space-12) var(--space-8)', color: 'var(--color-text-muted)' }}>
           <Syringe size={40} style={{ margin: '0 auto var(--space-3)', opacity: 0.3 }} aria-hidden />
           <p style={{ fontWeight: 600, marginBottom: 'var(--space-2)', color: 'var(--color-text)' }}>
-            {(abaAtiva === 'ciclo' ? timelineCiclo : timelineAvulsas).length === 0
-              ? (abaAtiva === 'ciclo' ? 'Nenhuma vacina de ciclo registrada' : 'Nenhuma vacina avulsa registrada')
+            {timelineCiclo.length === 0
+              ? 'Nenhuma vacina de ciclo registrada'
               : 'Nenhum resultado para os filtros'}
           </p>
           <p style={{ fontSize: 'var(--text-xs)', maxWidth: 280, margin: '0 auto' }}>
-            {(abaAtiva === 'ciclo' ? timelineCiclo : timelineAvulsas).length === 0
+            {timelineCiclo.length === 0
               ? `Registre vacinas para ${membro?.nome?.split(' ')[0]} na página de Vacinas.`
               : 'Tente ajustar os filtros ou a busca.'}
           </p>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
-          {abaAtiva === 'avulsas' && (
-            <>
-              {atrasadas.length > 0 && (
-                <section aria-label="Avulsas atrasadas">
-                  <SectionDivider label="Atrasadas" cor="var(--color-error)" />
-                  <ListaEntradas entradas={atrasadas} />
-                </section>
-              )}
-              {agendadas.length > 0 && (
-                <section aria-label="Avulsas agendadas">
-                  <SectionDivider label="Agendadas" cor="var(--color-primary)" />
-                  <ListaEntradas entradas={agendadas} />
-                </section>
-              )}
-              {aplicadas.length > 0 && (
-                <section aria-label="Avulsas aplicadas">
-                  <SectionDivider label="Aplicadas" cor="var(--color-success)" />
-                  <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }} role="list">
-                    {aplicadas.map((e, i) => (
-                      <li key={i} style={{ display: 'flex', gap: 'var(--space-4)', alignItems: 'flex-start' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 4 }}>
-                          <CheckCircle2 size={18} style={{ color: 'var(--color-success)', flexShrink: 0 }} aria-hidden />
-                          {i < aplicadas.length - 1 && <div style={{ flex: 1, width: 2, background: 'var(--color-divider)', marginTop: 4, minHeight: 20 }} aria-hidden />}
-                        </div>
-                        <div className="card" style={{ flex: 1, padding: 'var(--space-4) var(--space-5)', border: '1px solid var(--color-success-highlight)' }}>
-                          <p style={{ fontWeight: 600, fontSize: 'var(--text-sm)', color: 'var(--color-text)' }}>{e.vacinaNome} — {e.numeroDose}ª dose</p>
-                          <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginTop: 'var(--space-1)' }}>
-                            {formatarData(e.data)}
-                            {e.tipo === 'aplicada' && (e as { local?: string }).local ? ` · ${(e as { local?: string }).local}` : ''}
-                          </p>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-              )}
-            </>
+          {atrasadas.length > 0 && (
+            <section aria-label="Doses atrasadas">
+              <SectionDivider label="Atrasadas" cor="var(--color-error)" />
+              <ListaEntradas entradas={atrasadas} />
+            </section>
           )}
-
-          {abaAtiva === 'ciclo' && (
-            <>
-              {atrasadas.length > 0 && (
-                <section aria-label="Doses atrasadas">
-                  <SectionDivider label="Atrasadas" cor="var(--color-error)" />
-                  <ListaEntradas entradas={atrasadas} />
-                </section>
-              )}
-              {agendadas.length > 0 && (
-                <section aria-label="Doses agendadas">
-                  <SectionDivider label="Agendadas" cor="var(--color-primary)" />
-                  <ListaEntradas entradas={agendadas} />
-                </section>
-              )}
-              {aplicadasPorCiclo.length > 0 && (
-                <section aria-label="Histórico de doses aplicadas por ciclo">
-                  <SectionDivider label="Histórico Aplicado" cor="var(--color-success)" />
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-                    {aplicadasPorCiclo.map(grupo => (
-                      <div
-                        key={grupo.id}
-                        style={{ borderRadius: 'var(--radius-lg)', border: `1.5px solid ${grupo.corBorda}`, overflow: 'hidden' }}
-                      >
-                        <div style={{ background: grupo.corBg, padding: 'var(--space-3) var(--space-5)', borderBottom: `1px solid ${grupo.corBorda}`, display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-                          <span style={{ width: 10, height: 10, borderRadius: '50%', background: grupo.cor, flexShrink: 0 }} aria-hidden />
-                          <p style={{ fontWeight: 700, fontSize: 'var(--text-sm)', color: grupo.cor, flex: 1 }}>{grupo.label}</p>
-                          <span style={{ fontSize: 'var(--text-xs)', color: grupo.cor, opacity: 0.8 }}>
-                            {grupo.entradas.length} dose{grupo.entradas.length !== 1 ? 's' : ''}
-                          </span>
-                        </div>
-                        <ul style={{ listStyle: 'none', padding: 0, margin: 0 }} role="list">
-                          {grupo.entradas.map((e, i) => (
-                            <li
-                              key={i}
-                              style={{
-                                display: 'flex', gap: 'var(--space-4)', alignItems: 'center',
-                                padding: 'var(--space-4) var(--space-5)',
-                                borderBottom: i < grupo.entradas.length - 1 ? '1px solid var(--color-divider)' : 'none',
-                                background: 'var(--color-surface)',
-                              }}
-                            >
-                              <CheckCircle2 size={16} style={{ color: 'var(--color-success)', flexShrink: 0 }} aria-hidden />
-                              <div style={{ flex: 1, minWidth: 0 }}>
-                                <p style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--color-text)' }}>
-                                  {e.vacinaNome} — {e.numeroDose}ª dose
-                                </p>
-                                <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginTop: 'var(--space-1)' }}>
-                                  {formatarData(e.data)}
-                                  {e.tipo === 'aplicada' && (e as { local?: string }).local ? ` · ${(e as { local?: string }).local}` : ''}
-                                </p>
-                              </div>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    ))}
+          {agendadas.length > 0 && (
+            <section aria-label="Doses agendadas">
+              <SectionDivider label="Agendadas" cor="var(--color-primary)" />
+              <ListaEntradas entradas={agendadas} />
+            </section>
+          )}
+          {aplicadasPorCiclo.length > 0 && (
+            <section aria-label="Histórico de doses aplicadas por ciclo">
+              <SectionDivider label="Histórico Aplicado" cor="var(--color-success)" />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+                {aplicadasPorCiclo.map(grupo => (
+                  <div
+                    key={grupo.id}
+                    style={{ borderRadius: 'var(--radius-lg)', border: `1.5px solid ${grupo.corBorda}`, overflow: 'hidden' }}
+                  >
+                    <div style={{ background: grupo.corBg, padding: 'var(--space-3) var(--space-5)', borderBottom: `1px solid ${grupo.corBorda}`, display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+                      <span style={{ width: 10, height: 10, borderRadius: '50%', background: grupo.cor, flexShrink: 0 }} aria-hidden />
+                      <p style={{ fontWeight: 700, fontSize: 'var(--text-sm)', color: grupo.cor, flex: 1 }}>{grupo.label}</p>
+                      <span style={{ fontSize: 'var(--text-xs)', color: grupo.cor, opacity: 0.8 }}>
+                        {grupo.entradas.length} dose{grupo.entradas.length !== 1 ? 's' : ''}
+                      </span>
+                    </div>
+                    <ul style={{ listStyle: 'none', padding: 0, margin: 0 }} role="list">
+                      {grupo.entradas.map((e, i) => (
+                        <li
+                          key={i}
+                          style={{
+                            display: 'flex', gap: 'var(--space-4)', alignItems: 'center',
+                            padding: 'var(--space-4) var(--space-5)',
+                            borderBottom: i < grupo.entradas.length - 1 ? '1px solid var(--color-divider)' : 'none',
+                            background: 'var(--color-surface)',
+                          }}
+                        >
+                          <CheckCircle2 size={16} style={{ color: 'var(--color-success)', flexShrink: 0 }} aria-hidden />
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <p style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--color-text)' }}>
+                              {e.vacinaNome} — {e.numeroDose}ª dose
+                            </p>
+                            <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginTop: 'var(--space-1)' }}>
+                              {formatarData(e.data)}
+                              {e.tipo === 'aplicada' && (e as { local?: string }).local ? ` · ${(e as { local?: string }).local}` : ''}
+                            </p>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
-                </section>
-              )}
-            </>
+                ))}
+              </div>
+            </section>
           )}
         </div>
       )}
