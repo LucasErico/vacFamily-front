@@ -36,38 +36,38 @@ export function HistoricoPage() {
     if (!membro) return []
 
     const registrosMembro = buscarRegistrosMembro(membroId)
-    const lembretesMembro = lembretes.filter(l => l.membroId === membroId)
+    const lembretesMembro = lembretes.filter(l => l.membro_id === membroId)
     const entradas: EntradaTimeline[] = []
 
     // Doses aplicadas (histórico real)
     for (const reg of registrosMembro) {
-      const vacina = vacinas.find(v => v.id === reg.vacinaId)
+      const vacina = vacinas.find(v => v.id === reg.vacina_id)
       if (!vacina) continue
       entradas.push({
         tipo: 'aplicada',
-        data: reg.dataAplicacao,
+        data: reg.data_aplicacao,
         vacinaNome: vacina.nome,
-        numeroDose: reg.numeroDose,
-        local: reg.localAplicacao,
+        numeroDose: reg.numero_dose,
+        local: reg.local_aplicacao,
       })
     }
 
     // Doses agendadas / pendentes via lembretes
     for (const lem of lembretesMembro) {
       if (lem.status !== 'pendente') continue
-      const vacina = vacinas.find(v => v.id === lem.vacinaId)
+      const vacina = vacinas.find(v => v.id === lem.vacina_id)
       if (!vacina) continue
 
       // Não duplicar doses já aplicadas
-      const jaAplicada = registrosMembro.some(r => r.vacinaId === lem.vacinaId && r.numeroDose === lem.numeroDose)
+      const jaAplicada = registrosMembro.some(r => r.vacina_id === lem.vacina_id && r.numero_dose === lem.numero_dose)
       if (jaAplicada) continue
 
-      const atrasada = lem.dataLembrete < hoje
+      const atrasada = lem.data_lembrete < hoje
       entradas.push({
         tipo: atrasada ? 'atrasada' : 'pendente',
-        data: lem.dataLembrete,
+        data: lem.data_lembrete,
         vacinaNome: vacina.nome,
-        numeroDose: lem.numeroDose,
+        numeroDose: lem.numero_dose,
       })
     }
 
