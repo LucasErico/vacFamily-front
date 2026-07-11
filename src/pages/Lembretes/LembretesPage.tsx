@@ -5,13 +5,13 @@ import { useMembros } from '@/contexts/MembrosContext'
 import { useVacinas } from '@/contexts/VacinasContext'
 import type { Lembrete } from '@/types'
 
-type Filtro = 'todos' | 'pendente' | 'enviado' | 'cancelado'
+type Filtro = 'todos' | 'pendente' | 'concluido' | 'ignorado'
 
 const FILTROS: { valor: Filtro; label: string }[] = [
-  { valor: 'todos',     label: 'Todos' },
-  { valor: 'pendente',  label: 'Pendentes' },
-  { valor: 'enviado',   label: 'Concluídos' },
-  { valor: 'cancelado', label: 'Cancelados' },
+  { valor: 'todos',      label: 'Todos' },
+  { valor: 'pendente',   label: 'Pendentes' },
+  { valor: 'concluido',  label: 'Concluídos' },
+  { valor: 'ignorado',   label: 'Ignorados' },
 ]
 
 const DIAS_SEMANA = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
@@ -25,8 +25,16 @@ function formatarData(iso: string) {
   return `${dia}/${mes}/${ano}`
 }
 
-function isAtrasado(data_lembrete: string) {
-  return new Date(data_lembrete) < new Date(new Date().toISOString().slice(0, 10))
+function obterData(l: Lembrete) {
+  return l.data_prevista ?? l.data_lembrete ?? ''
+}
+
+function obterMembroId(l: Lembrete) {
+  return l.membro_familiar_id ?? l.membro_id ?? ''
+}
+
+function isAtrasado(data: string) {
+  return new Date(data) < new Date(new Date().toISOString().slice(0, 10))
 }
 
 function toDateKey(iso: string) {
@@ -51,15 +59,13 @@ export function LembretesPage() {
   const [fData, setFData] = useState('')
   const [fErro, setFErro] = useState('')
 
-  // --- Calendário ---
   const diasNoMes = new Date(anoAtual, mesAtual + 1, 0).getDate()
   const primeiroDiaSemana = new Date(anoAtual, mesAtual, 1).getDay()
 
-  // Mapeia data (YYYY-MM-DD) → lembretes daquele dia
   const eventosPorDia = useMemo(() => {
     const mapa: Record<string, Lembrete[]> = {}
     lembretes.forEach(l => {
-      const key = toDateKey(l.data_lembrete)
+      const key = toDateKey(obterData(l))
       if (!mapa[key]) mapa[key] = []
       mapa[key].push(l)
     })
@@ -91,21 +97,19 @@ export function LembretesPage() {
     }
   }
 
-  // --- Lista de lembretes ---
   const filtrados = lembretes
     .filter(l => filtro === 'todos' ? true : l.status === filtro)
-    .sort((a, b) => a.data_lembrete.localeCompare(b.data_lembrete))
+    .sort((a, b) => obterData(a).localeCompare(obterData(b)))
 
   const automaticos = filtrados.filter(l => l.automatico)
-  const manuais     = filtrados.filter(l => !l.automatico)
-
+  const manuais = filtrados.filter(l => !l.automatico)
   const eventosDiaSelecionado = diaSelecionado ? (eventosPorDia[diaSelecionado] ?? []) : []
 
   function nomeMembro(id: string) {
     return membros.find(m => m.id === id)?.nome ?? 'Membro'
   }
-  function nomeVacina(id: string) {
-    return vacinas.find(v => v.id === id)?.nome ?? 'Vacina'
+  function nomeVacina(id?: string) {
+    return id ? (vacinas.find(v => v.id === id)?.nome ?? 'Vacina') : 'Vacina'
   }
 
   function handleSalvarManual() {
@@ -113,35 +117,41 @@ export function LembretesPage() {
       setFErro('Preencha todos os campos.')
       return
     }
+
     adicionarLembrete({
-      membro_id: fMembroId,
+      membro_familiar_id: fMembroId,
       vacina_id: fVacinaId,
-      numero_dose: fNumeroDose,
-      data_lembrete: fData,
-      status: 'pendente',
+      tipo: 'manual',
+      titulo: `Lembrete manual · ${fNumeroDose}ª dose`,
+      descricao: undefined,
+      data_prevista: fData,
       automatico: false,
     })
+
     setModalAberto(false)
     setFMembroId(''); setFVacinaId(''); setFNumeroDose(1); setFData(''); setFErro('')
   }
 
   function renderLembrete(l: Lembrete) {
-    const atrasado = l.status === 'pendente' && isAtrasado(l.data_lembrete)
+    const data = obterData(l)
+    const membroId = obterMembroId(l)
+    const atrasado = l.status === 'pendente' && isAtrasado(data)
+
     return (
       <li
         key={l.id}
         style={{
           display: 'flex', alignItems: 'flex-start', gap: 'var(--space-3)',
           padding: 'var(--space-4) var(--space-5)',
-          opacity: l.status === 'cancelado' ? 0.45 : 1,
+          opacity: l.status === 'ignorado' ? 0.45 : 1,
         }}
       >
         <div style={{ flexShrink: 0, minWidth: 64, textAlign: 'center', paddingTop: 2 }}>
           <p style={{
             fontSize: 'var(--text-xs)', fontWeight: 700, whiteSpace: 'nowrap',
-            color: atrasado ? 'var(--color-error)' : l.status === 'enviado' ? 'var(--color-success)' : 'var(--color-primary)',
+            color: atrasado ? 'var(--color-error)' : l.status === 'concluido' ? 'var(--color-success)' : 'var(--color-primary)',
           }}>
-            {formatarData(l.data_lembrete)}
+            {formatarData(data)}
           </p>
           {atrasado && (
             <p style={{ fontSize: 10, color: 'var(--color-error)', fontWeight: 600, whiteSpace: 'nowrap' }}>Atrasado</p>
@@ -150,10 +160,11 @@ export function LembretesPage() {
 
         <div style={{ flex: 1, minWidth: 0 }}>
           <p style={{ fontWeight: 600, fontSize: 'var(--text-sm)', color: 'var(--color-text)' }}>
-            {nomeVacina(l.vacina_id)}
+            {l.titulo || nomeVacina(l.vacina_id)}
           </p>
           <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
-            {nomeMembro(l.membro_id)} · {l.numero_dose}ª dose
+            {nomeMembro(membroId)}
+            {l.vacina_id ? ` · ${nomeVacina(l.vacina_id)}` : ''}
             {l.automatico && (
               <span style={{ marginLeft: 'var(--space-2)', color: 'var(--color-primary)', fontWeight: 500 }}>Automático</span>
             )}
@@ -163,16 +174,16 @@ export function LembretesPage() {
         {l.status === 'pendente' && (
           <div style={{ display: 'flex', gap: 'var(--space-2)', flexShrink: 0 }}>
             <button
-              onClick={() => marcarStatus(l.id, 'enviado')}
+              onClick={() => marcarStatus(l.id, 'concluido')}
               style={{ color: 'var(--color-success)', padding: 'var(--space-2)', minHeight: 44, minWidth: 44, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
               aria-label="Marcar como concluído"
             >
               <CheckCheck size={17} aria-hidden />
             </button>
             <button
-              onClick={() => marcarStatus(l.id, 'cancelado')}
+              onClick={() => marcarStatus(l.id, 'ignorado')}
               style={{ color: 'var(--color-text-faint)', padding: 'var(--space-2)', minHeight: 44, minWidth: 44, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-              aria-label="Cancelar lembrete"
+              aria-label="Ignorar lembrete"
             >
               <Trash2 size={16} aria-hidden />
             </button>
@@ -195,8 +206,6 @@ export function LembretesPage() {
 
   return (
     <div style={{ maxWidth: 640, margin: '0 auto', paddingBottom: 'var(--space-8)' }}>
-
-      {/* Cabeçalho */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-6)' }}>
         <div>
           <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--text-lg)', fontWeight: 700, color: 'var(--color-text)' }}>
@@ -212,30 +221,19 @@ export function LembretesPage() {
         </button>
       </div>
 
-      {/* Calendário */}
       <div className="card" style={{ marginBottom: 'var(--space-5)', padding: 'var(--space-4)' }}>
-        {/* Navegação do mês */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-4)' }}>
-          <button
-            onClick={mesAnterior}
-            className="theme-toggle"
-            aria-label="Mês anterior"
-          >
+          <button onClick={mesAnterior} className="theme-toggle" aria-label="Mês anterior">
             <ChevronLeft size={18} aria-hidden />
           </button>
           <p style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 'var(--text-base)', color: 'var(--color-text)' }}>
             {MESES[mesAtual]} {anoAtual}
           </p>
-          <button
-            onClick={proximoMes}
-            className="theme-toggle"
-            aria-label="Próximo mês"
-          >
+          <button onClick={proximoMes} className="theme-toggle" aria-label="Próximo mês">
             <ChevronRight size={18} aria-hidden />
           </button>
         </div>
 
-        {/* Cabeçalho dias da semana */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 2, marginBottom: 'var(--space-2)' }}>
           {DIAS_SEMANA.map(d => (
             <div key={d} style={{ textAlign: 'center', fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--color-text-muted)', padding: 'var(--space-1) 0' }}>
@@ -244,9 +242,7 @@ export function LembretesPage() {
           ))}
         </div>
 
-        {/* Grid de dias */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 2 }}>
-          {/* Células vazias para alinhar o primeiro dia */}
           {Array.from({ length: primeiroDiaSemana }).map((_, i) => (
             <div key={`vazio-${i}`} />
           ))}
@@ -258,7 +254,7 @@ export function LembretesPage() {
             const isHoje = key === hojeKey
             const isSelecionado = key === diaSelecionado
             const temPendente = eventosPorDia[key]?.some(l => l.status === 'pendente')
-            const temAtrasado = eventosPorDia[key]?.some(l => l.status === 'pendente' && isAtrasado(l.data_lembrete))
+            const temAtrasado = eventosPorDia[key]?.some(l => l.status === 'pendente' && isAtrasado(obterData(l)))
 
             let bgDia = 'transparent'
             let colorDia = 'var(--color-text)'
@@ -275,7 +271,7 @@ export function LembretesPage() {
             const dotColor = temAtrasado
               ? 'var(--color-error)'
               : temPendente
-              ? 'var(--color-accent)'
+              ? 'var(--color-primary)'
               : 'var(--color-success)'
 
             return (
@@ -301,7 +297,6 @@ export function LembretesPage() {
                   minHeight: 40,
                   fontSize: 'var(--text-xs)',
                   fontWeight: isHoje || isSelecionado ? 700 : 400,
-                  transition: 'background var(--transition), color var(--transition)',
                 }}
               >
                 {dia}
@@ -321,7 +316,6 @@ export function LembretesPage() {
           })}
         </div>
 
-        {/* Eventos do dia selecionado */}
         {diaSelecionado && eventosDiaSelecionado.length > 0 && (
           <div style={{ marginTop: 'var(--space-4)', borderTop: '1px solid var(--color-divider)', paddingTop: 'var(--space-4)' }}>
             <p style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 'var(--space-3)' }}>
@@ -329,7 +323,7 @@ export function LembretesPage() {
             </p>
             <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }} role="list">
               {eventosDiaSelecionado.map(l => {
-                const atrasado = l.status === 'pendente' && isAtrasado(l.data_lembrete)
+                const atrasado = l.status === 'pendente' && isAtrasado(obterData(l))
                 return (
                   <li
                     key={l.id}
@@ -343,24 +337,24 @@ export function LembretesPage() {
                     <CalendarDays
                       size={15}
                       aria-hidden
-                      style={{ color: atrasado ? 'var(--color-error)' : l.status === 'enviado' ? 'var(--color-success)' : 'var(--color-primary)', flexShrink: 0 }}
+                      style={{ color: atrasado ? 'var(--color-error)' : l.status === 'concluido' ? 'var(--color-success)' : 'var(--color-primary)', flexShrink: 0 }}
                     />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--color-text)' }}>
-                        {nomeVacina(l.vacina_id)}
+                        {l.titulo || nomeVacina(l.vacina_id)}
                       </p>
                       <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
-                        {nomeMembro(l.membro_id)} · {l.numero_dose}ª dose
+                        {nomeMembro(obterMembroId(l))}
                       </p>
                     </div>
                     <span
                       className={`badge ${
                         atrasado ? 'badge-error' :
-                        l.status === 'enviado' ? 'badge-success' :
-                        l.status === 'cancelado' ? 'badge-neutral' : 'badge-accent'
+                        l.status === 'concluido' ? 'badge-success' :
+                        l.status === 'ignorado' ? 'badge-neutral' : 'badge-accent'
                       }`}
                     >
-                      {atrasado ? 'Atrasado' : l.status === 'enviado' ? 'Concluído' : l.status === 'cancelado' ? 'Cancelado' : 'Pendente'}
+                      {atrasado ? 'Atrasado' : l.status === 'concluido' ? 'Concluído' : l.status === 'ignorado' ? 'Ignorado' : 'Pendente'}
                     </span>
                   </li>
                 )
@@ -370,12 +364,7 @@ export function LembretesPage() {
         )}
       </div>
 
-      {/* Filtros */}
-      <div
-        style={{ display: 'flex', gap: 'var(--space-2)', marginBottom: 'var(--space-5)', overflowX: 'auto', paddingBottom: 2 }}
-        role="group"
-        aria-label="Filtrar lembretes"
-      >
+      <div style={{ display: 'flex', gap: 'var(--space-2)', marginBottom: 'var(--space-5)', overflowX: 'auto', paddingBottom: 2 }} role="group" aria-label="Filtrar lembretes">
         {FILTROS.map(f => (
           <button
             key={f.valor}
@@ -389,7 +378,6 @@ export function LembretesPage() {
         ))}
       </div>
 
-      {/* Lista vazia */}
       {filtrados.length === 0 && (
         <div style={{ textAlign: 'center', padding: 'var(--space-16) var(--space-8)', color: 'var(--color-text-muted)' }}>
           <Bell size={48} style={{ margin: '0 auto var(--space-4)', color: 'var(--color-text-faint)' }} aria-hidden />
@@ -409,7 +397,6 @@ export function LembretesPage() {
         </div>
       )}
 
-      {/* Listas agrupadas */}
       {filtrados.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
           {automaticos.length > 0 && (
@@ -421,10 +408,10 @@ export function LembretesPage() {
               </div>
               <ul style={{ listStyle: 'none', padding: 0 }} role="list">
                 {automaticos.map((l, i) => (
-                  <>
+                  <div key={l.id}>
                     {i > 0 && <hr className="divider" style={{ margin: 0 }} />}
                     {renderLembrete(l)}
-                  </>
+                  </div>
                 ))}
               </ul>
             </div>
@@ -439,10 +426,10 @@ export function LembretesPage() {
               </div>
               <ul style={{ listStyle: 'none', padding: 0 }} role="list">
                 {manuais.map((l, i) => (
-                  <>
+                  <div key={l.id}>
                     {i > 0 && <hr className="divider" style={{ margin: 0 }} />}
                     {renderLembrete(l)}
-                  </>
+                  </div>
                 ))}
               </ul>
             </div>
@@ -450,7 +437,6 @@ export function LembretesPage() {
         </div>
       )}
 
-      {/* Modal novo lembrete */}
       {modalAberto && (
         <div
           style={{
@@ -463,14 +449,7 @@ export function LembretesPage() {
           aria-label="Novo lembrete"
           onClick={e => { if (e.target === e.currentTarget) setModalAberto(false) }}
         >
-          <div
-            className="card"
-            style={{
-              width: '100%', maxWidth: 480,
-              padding: 'var(--space-6)',
-              display: 'flex', flexDirection: 'column', gap: 'var(--space-4)',
-            }}
-          >
+          <div className="card" style={{ width: '100%', maxWidth: 480, padding: 'var(--space-6)', display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
             <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--text-base)', fontWeight: 700, color: 'var(--color-text)' }}>
               Novo lembrete
             </h3>

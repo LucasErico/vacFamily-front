@@ -1,24 +1,15 @@
-/**
- * LembretesContext — CRUD real via API backend
- * Endpoints: GET|POST /lembretes  |  PATCH /lembretes/:id  |  DELETE /lembretes/:id
- *
- * Respostas da API têm envelope:
- *   GET /lembretes       → { status, lembretes: [] }
- *   POST /lembretes      → { status, lembrete: {} }
- *   PATCH /lembretes/:id → { status, lembrete: {} }
- */
 import {
   createContext, useContext, useState, useCallback,
   useEffect, type ReactNode,
 } from 'react'
-import type { Lembrete, StatusLembrete } from '@/types'
+import type { Lembrete, StatusLembrete, CriarLembretePayload } from '@/types'
 import { apiFetch } from '@/services/api'
 import { useAuth } from './AuthContext'
 
 interface LembretesContextValue {
   lembretes: Lembrete[]
   carregando: boolean
-  adicionarLembrete: (dados: Omit<Lembrete, 'id' | 'created_at'>) => Promise<Lembrete>
+  adicionarLembrete: (dados: CriarLembretePayload | Omit<Lembrete, 'id' | 'created_at'>) => Promise<Lembrete>
   marcarStatus: (id: string, status: StatusLembrete) => Promise<void>
   removerLembrete: (id: string) => Promise<void>
   buscarLembretesMembro: (membro_id: string) => Lembrete[]
@@ -27,6 +18,20 @@ interface LembretesContextValue {
 }
 
 const LembretesContext = createContext<LembretesContextValue | null>(null)
+
+function normalizarLembrete(l: Lembrete): Lembrete {
+  return {
+    ...l,
+    membro_id: l.membro_id ?? l.membro_familiar_id,
+    data_lembrete: l.data_lembrete ?? l.data_prevista,
+  }
+}
+
+const LABEL_TIPO: Record<string, string> = {
+  campanha: 'Campanha de vacinação',
+  reforco: 'Reforço vacinal',
+  manual: 'Lembrete manual',
+}
 
 export function LembretesProvider({ children }: { children: ReactNode }) {
   const { isAuthenticated } = useAuth()
@@ -38,20 +43,43 @@ export function LembretesProvider({ children }: { children: ReactNode }) {
     setCarregando(true)
     try {
       const res = await apiFetch<{ lembretes: Lembrete[] }>('/lembretes')
-      setLembretes(Array.isArray(res) ? res : (res.lembretes ?? []))
-    } catch { /* mantém estado */ } finally {
+      const lista = Array.isArray(res) ? res : (res.lembretes ?? [])
+      setLembretes(lista.map(normalizarLembrete))
+    } catch {
+      // mantém estado
+    } finally {
       setCarregando(false)
     }
   }, [isAuthenticated])
 
   useEffect(() => { recarregar() }, [recarregar])
 
-  const adicionarLembrete = useCallback(async (dados: Omit<Lembrete, 'id' | 'created_at'>) => {
+  const adicionarLembrete = useCallback(async (dados: CriarLembretePayload | Omit<Lembrete, 'id' | 'created_at'>) => {
+    const membro_familiar_id = 'membro_familiar_id' in dados
+      ? dados.membro_familiar_id
+      : ('membro_id' in dados ? dados.membro_id : undefined)
+
+    const data_prevista = 'data_prevista' in dados
+      ? dados.data_prevista
+      : ('data_lembrete' in dados ? dados.data_lembrete : '')
+
+    const payload: CriarLembretePayload = {
+      membro_familiar_id,
+      vacina_id: dados.vacina_id,
+      tipo: 'tipo' in dados && dados.tipo ? dados.tipo : 'manual',
+      titulo: 'titulo' in dados && dados.titulo
+        ? dados.titulo
+        : LABEL_TIPO['manual'],
+      descricao: 'descricao' in dados ? dados.descricao : undefined,
+      data_prevista,
+      automatico: dados.automatico ?? false,
+    }
+
     const res = await apiFetch<{ lembrete: Lembrete } | Lembrete>('/lembretes', {
       method: 'POST',
-      body: dados,
+      body: payload,
     })
-    const novo = 'lembrete' in res ? res.lembrete : res
+    const novo = normalizarLembrete('lembrete' in res ? res.lembrete : res)
     setLembretes(prev => [...prev, novo])
     return novo
   }, [])
@@ -61,7 +89,7 @@ export function LembretesProvider({ children }: { children: ReactNode }) {
       method: 'PATCH',
       body: { status },
     })
-    const atualizado = 'lembrete' in res ? res.lembrete : res
+    const atualizado = normalizarLembrete('lembrete' in res ? res.lembrete : res)
     setLembretes(prev => prev.map(l => l.id === id ? atualizado : l))
   }, [])
 
@@ -71,7 +99,7 @@ export function LembretesProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const buscarLembretesMembro = useCallback(
-    (membro_id: string) => lembretes.filter(l => l.membro_id === membro_id),
+    (membro_id: string) => lembretes.filter(l => (l.membro_id ?? l.membro_familiar_id) === membro_id),
     [lembretes],
   )
 

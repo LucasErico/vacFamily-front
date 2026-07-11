@@ -2,7 +2,8 @@ export interface Usuario {
   id: string
   nome: string
   email: string
-  criadoEm: string
+  criadoEm?: string
+  created_at?: string
 }
 
 export type Relacao =
@@ -83,24 +84,13 @@ export interface Vacina {
 
 export type StatusDose = 'aplicada' | 'pendente' | 'atrasada' | 'nao_aplicavel'
 
-/**
- * Registro vacinal — espelho da tabela `registro_vacinal` no Supabase.
- *
- * Campos opcionais: podem estar ausentes em registros antigos ou em
- * payloads de criação (Omit<RegistroVacinal, 'id' | 'created_at'>).
- *
- * membro_familiar_id: alias que o back retorna via join do Supabase;
- * normalizado para membro_id no contexto, mas mantido aqui para
- * compatibilidade durante a transição.
- */
 export interface RegistroVacinal {
   id: string
   membro_id: string
-  /** Alias retornado pelo back via join Supabase — use membro_id no front */
   membro_familiar_id?: string
   vacina_id: string
   numero_dose: number
-  data_aplicacao: string       // YYYY-MM-DD
+  data_aplicacao: string
   local_aplicacao?: string
   fabricante?: string
   lote?: string
@@ -110,17 +100,37 @@ export interface RegistroVacinal {
   created_at: string
 }
 
-export type StatusLembrete = 'pendente' | 'enviado' | 'cancelado'
+export type TipoLembrete = 'campanha' | 'reforco' | 'manual'
+export type StatusLembrete = 'pendente' | 'concluido' | 'ignorado'
 
 export interface Lembrete {
   id: string
-  membro_id: string
-  vacina_id: string
-  numero_dose: number
-  data_lembrete: string
+  usuario_id?: string
+  membro_familiar_id?: string
+  vacina_id?: string
+  tipo: TipoLembrete
+  titulo: string
+  descricao?: string
+  data_prevista: string
   status: StatusLembrete
   automatico: boolean
   created_at: string
+  updated_at?: string
+
+  // Aliases de compatibilidade temporária no front
+  membro_id?: string
+  data_lembrete?: string
+  numero_dose?: number
+}
+
+export interface CriarLembretePayload {
+  membro_familiar_id?: string
+  vacina_id?: string
+  tipo: TipoLembrete
+  titulo: string
+  descricao?: string
+  data_prevista: string
+  automatico?: boolean
 }
 
 export interface DoseStatus {
@@ -130,6 +140,5 @@ export interface DoseStatus {
   status: StatusDose
   dataAplicacao?: string
   dataRecomendada?: string
-  /** true quando dose aplicada com data_aplicacao <= hoje → exibe em Histórico */
   isHistorico?: boolean
 }
