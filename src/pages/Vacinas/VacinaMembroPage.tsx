@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { ArrowLeft, Plus, CheckCircle2, Trash2, CalendarDays, ChevronDown } from 'lucide-react'
+import { ArrowLeft, Plus, CheckCircle2, Trash2, ChevronDown } from 'lucide-react'
 import { useMembros, RELACAO_LABEL } from '@/contexts/MembrosContext'
 import { useVacinas, calcularDosesStatus } from '@/contexts/VacinasContext'
 import { useLembretes } from '@/contexts/LembretesContext'
