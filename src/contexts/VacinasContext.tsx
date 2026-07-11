@@ -19,6 +19,12 @@
  *   Uma dose pendente só é exibida como 'atrasada' se o membro tiver
  *   menos de IDADE_MAX_RETROATIVA_DIAS de vida. Para membros mais velhos,
  *   doses do passado sem registro são exibidas apenas como 'pendente'.
+ *
+ * membrosCarregados: Set<string>
+ *   Conjunto de membro_ids cujos registros já foram buscados na API
+ *   ao menos uma vez. Usado pelas páginas para distinguir "ainda carregando"
+ *   de "carregou e realmente não tem registros" — evitando a exibição
+ *   antecipada de vacinas pendentes calculadas apenas com a seed local.
  */
 import {
   createContext, useContext, useState, useCallback,
@@ -132,6 +138,8 @@ interface VacinasContextValue {
   vacinas: Vacina[]
   registros: RegistroVacinal[]
   carregando: boolean
+  /** IDs dos membros cujos registros já foram buscados na API ao menos uma vez. */
+  membrosCarregados: Set<string>
   registrarDose: (dados: Omit<RegistroVacinal, 'id' | 'created_at'>, gerarLembrete?: GerarLembreteReforcoFn) => Promise<RegistroVacinal>
   removerRegistro: (id: string) => Promise<void>
   buscarRegistrosMembro: (membro_id: string) => RegistroVacinal[]
@@ -146,6 +154,14 @@ export function VacinasProvider({ children }: { children: ReactNode }) {
   const [vacinas] = useState<Vacina[]>(VACINAS_SEED)
   const [registros, setRegistros] = useState<RegistroVacinal[]>([])
   const [carregando, setCarregando] = useState(false)
+  /**
+   * Rastreia quais membro_ids já tiveram seus registros buscados na API.
+   * Inicialmente vazio — só é populado após a primeira carga bem-sucedida
+   * (ou mesmo após uma carga que retornou lista vazia).
+   * Isso evita que a UI exiba vacinas "pendentes" calculadas com seed antes
+   * de saber o estado real do banco.
+   */
+  const [membrosCarregados, setMembrosCarregados] = useState<Set<string>>(new Set())
 
   // FIX: usar string primitiva como dependencia estavel para evitar
   // loop infinito causado por nova referencia de array a cada render.
@@ -165,6 +181,8 @@ export function VacinasProvider({ children }: { children: ReactNode }) {
         )
       )
       setRegistros(resultados.flat())
+      // Marca todos os membros como "já carregados" — mesmo os que não têm registros.
+      setMembrosCarregados(new Set(ids))
     } catch { /* mantém estado offline */ } finally {
       setCarregando(false)
     }
@@ -228,7 +246,7 @@ export function VacinasProvider({ children }: { children: ReactNode }) {
 
   return (
     <VacinasContext.Provider value={{
-      vacinas, registros, carregando,
+      vacinas, registros, carregando, membrosCarregados,
       registrarDose, removerRegistro, buscarRegistrosMembro, recarregar,
     }}>
       {children}
