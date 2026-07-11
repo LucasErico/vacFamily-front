@@ -59,24 +59,28 @@ export function HistoricoPage() {
       if (!vacina) continue
 
       // Resolve aliases: prefere data_lembrete, cai em data_prevista
-      const dataLembrete: string | undefined = lem.data_lembrete ?? lem.data_prevista
-      const numeroDose: number | undefined = lem.numero_dose
+      const dataLembrete = lem.data_lembrete ?? lem.data_prevista
+      const numeroDose = lem.numero_dose
 
       // Só processa se tiver os dados mínimos
       if (!dataLembrete || numeroDose === undefined) continue
 
+      // Garantia de tipo: após o guard acima, ambos são definidos
+      const dataStr: string = dataLembrete
+      const doseNum: number = numeroDose
+
       // Não duplicar doses já aplicadas
       const jaAplicada = registrosMembro.some(
-        r => r.vacina_id === lem.vacina_id && r.numero_dose === numeroDose
+        r => r.vacina_id === lem.vacina_id && r.numero_dose === doseNum
       )
       if (jaAplicada) continue
 
-      const atrasada = dataLembrete < hoje
+      const atrasada = dataStr < hoje
       entradas.push({
         tipo: atrasada ? 'atrasada' : 'pendente',
-        data: dataLembrete,
+        data: dataStr,
         vacinaNome: vacina.nome,
-        numeroDose,
+        numeroDose: doseNum,
       })
     }
 

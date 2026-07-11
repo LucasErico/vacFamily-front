@@ -108,7 +108,8 @@ export function DashboardPage() {
 
   const proximosLembretes = useMemo(() =>
     [...lembretesPendentes]
-      .sort((a, b) => a.data_lembrete.localeCompare(b.data_lembrete))
+      .filter(lem => !!(lem.data_lembrete ?? lem.data_prevista))
+      .sort((a, b) => (a.data_lembrete ?? a.data_prevista ?? '').localeCompare(b.data_lembrete ?? b.data_prevista ?? ''))
       .slice(0, 4)
   , [lembretesPendentes])
 
@@ -229,7 +230,8 @@ export function DashboardPage() {
             {proximosLembretes.map(lem => {
               const vacina = vacinas.find(v => v.id === lem.vacina_id)
               const membro = membros.find(m => m.id === lem.membro_id)
-              const dias = diasAte(lem.data_lembrete)
+              const dataRef = lem.data_lembrete ?? lem.data_prevista ?? ''
+              const dias = dataRef ? diasAte(dataRef) : 0
               const urgente = dias <= 7 && dias >= 0
               const atrasado = dias < 0
               return (
@@ -248,7 +250,7 @@ export function DashboardPage() {
                       {vacina?.nome ?? 'Vacina'} — dose {lem.numero_dose}
                     </p>
                     <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
-                      {membro?.nome ?? '—'} · {formatarData(lem.data_lembrete)}
+                      {membro?.nome ?? '—'} · {dataRef ? formatarData(dataRef) : '—'}
                     </p>
                   </div>
                   <span className={`badge ${atrasado ? 'badge-error' : urgente ? 'badge-warning' : 'badge-neutral'}`}>
