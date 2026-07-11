@@ -36,6 +36,17 @@ function lembreteVacinal(
   }
 }
 
+/** Obtém o intervalo em dias para a próxima dose de uma vacina.
+ *  Usa o primeiro fabricante disponível em intervalos_por_fabricante,
+ *  ou 30 dias como fallback seguro. */
+function getIntervaloDias(vacina: import('@/types').Vacina): number {
+  if (vacina.intervalos_por_fabricante) {
+    const valores = Object.values(vacina.intervalos_por_fabricante)
+    if (valores.length > 0) return valores[0]
+  }
+  return 30
+}
+
 export function RegistrarVacinaPage() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -69,8 +80,9 @@ export function RegistrarVacinaPage() {
     if (dataFutura) {
       if (!vacina) return
       const dataBase = new Date(dataAplicacao)
-      for (let d = numeroDose; d <= vacina.doses; d++) {
-        const offset = (d - numeroDose) * (vacina.intervaloDias ?? 0)
+      const intervaloDias = getIntervaloDias(vacina)
+      for (let d = numeroDose; d <= vacina.doses_total; d++) {
+        const offset = (d - numeroDose) * intervaloDias
         const dataPrevista = new Date(dataBase.getTime() + offset * 86400000)
           .toISOString().slice(0, 10)
         adicionarLembrete(lembreteVacinal(vacinaId, membroId, d, dataPrevista))
@@ -116,7 +128,7 @@ export function RegistrarVacinaPage() {
         <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)', maxWidth: 320, margin: '0 auto var(--space-8)' }}>
           {modoSalvo === 'agendado'
             ? `Os lembretes das doses de ${vacina?.nome} para ${membro?.nome} foram criados. Você pode acompanhar na Agenda.`
-            : `A dose ${numeroDose} de ${vacina?.nome} foi registrada para ${membro?.nome}.${vacina && numeroDose < vacina.doses ? ' Um lembrete para a próxima dose foi criado automaticamente.' : ''}`
+            : `A dose ${numeroDose} de ${vacina?.nome} foi registrada para ${membro?.nome}.${vacina && numeroDose < vacina.doses_total ? ' Um lembrete para a próxima dose foi criado automaticamente.' : ''}`
           }
         </p>
         <div style={{ display: 'flex', gap: 'var(--space-3)', justifyContent: 'center' }}>
@@ -189,7 +201,7 @@ export function RegistrarVacinaPage() {
                 >
                   <p style={{ fontWeight: 600, fontSize: 'var(--text-sm)', color: 'var(--color-text)' }}>{v.nome}</p>
                   <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
-                    {v.doses === 1 ? 'Dose única' : `${v.doses} doses`} · {v.doencasProtege.slice(0, 2).join(', ')}
+                    {v.doses_total === 1 ? 'Dose única' : `${v.doses_total} doses`} · {v.doencas_previstas.slice(0, 2).join(', ')}
                   </p>
                 </button>
               </li>
@@ -207,13 +219,13 @@ export function RegistrarVacinaPage() {
             <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>para {membro?.nome}</p>
           </div>
 
-          {vacina.doses > 1 && (
+          {vacina.doses_total > 1 && (
             <div>
               <label style={{ display: 'block', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginBottom: 'var(--space-2)', fontWeight: 500 }}>
                 Número da dose
               </label>
               <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
-                {Array.from({ length: vacina.doses }, (_, i) => i + 1).map(n => (
+                {Array.from({ length: vacina.doses_total }, (_, i) => i + 1).map(n => (
                   <button key={n} onClick={() => setNumeroDose(n)} className={numeroDose === n ? 'btn btn-primary' : 'btn btn-ghost'} style={{ minWidth: 48, minHeight: 48 }}>{n}ª</button>
                 ))}
               </div>
@@ -244,7 +256,7 @@ export function RegistrarVacinaPage() {
               <div>
                 <p style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--color-primary)' }}>Vacina será agendada</p>
                 <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginTop: 'var(--space-1)' }}>
-                  Como a data ainda não chegou, {vacina.doses > 1 ? `lembretes para as ${vacina.doses - numeroDose + 1} doses restantes serão criados` : 'um lembrete será criado'} automaticamente na Agenda.
+                  Como a data ainda não chegou, {vacina.doses_total > 1 ? `lembretes para as ${vacina.doses_total - numeroDose + 1} doses restantes serão criados` : 'um lembrete será criado'} automaticamente na Agenda.
                 </p>
               </div>
             </div>
