@@ -59,7 +59,11 @@ export function VacinaMembroPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { membros } = useMembros()
-  const { vacinas, registros, carregando, membrosCarregados, registrarDose, removerRegistro, buscarRegistrosMembro } = useVacinas()
+  const {
+    vacinas, registros, carregando,
+    membrosCarregados, membrosCarregadosUmaVez,
+    registrarDose, removerRegistro, buscarRegistrosMembro,
+  } = useVacinas()
   const { adicionarLembrete, lembretes, removerLembrete } = useLembretes()
 
   const hoje = new Date().toISOString().slice(0, 10)
@@ -87,21 +91,28 @@ export function VacinaMembroPage() {
 
   /**
    * A única fonte de verdade é a API.
-   * Exibe skeleton enquanto carregando OU enquanto este membro
-   * específico ainda não teve seus registros buscados na API.
+   *
+   * aguardandoAPI = true quando qualquer uma das condições abaixo for verdadeira:
+   *   1. carregando       — requisição em andamento
+   *   2. !membrosCarregadosUmaVez — a primeira carga da API ainda não rodou;
+   *      não há como saber se membrosCarregados está vazio por falta de membros
+   *      ou por falta de carga. Exibe skeleton até a carga inicial completar.
+   *   3. !jaCarregado     — carga já rodou, mas este membro específico
+   *      ainda não foi marcado (ex: membro recém-criado antes do marcarMembroNovo)
+   *
    * Nunca pré-renderiza nada a partir da seed local.
    */
   const jaCarregado = membrosCarregados.has(membroSelecionadoId)
-  const aguardandoAPI = carregando || !jaCarregado
+  const aguardandoAPI = carregando || !membrosCarregadosUmaVez || !jaCarregado
 
   const registrosMembro = buscarRegistrosMembro(membroSelecionadoId)
 
   /**
    * Só computa vacinas aplicáveis após confirmação da API para este membro.
-   * Se jaCarregado === false, retorna [] — nenhuma dose é exibida,
+   * Se aguardandoAPI === true, retorna [] — nenhuma dose é exibida,
    * independentemente do que a seed calcularia.
    */
-  const vacinasAplicaveis = jaCarregado
+  const vacinasAplicaveis = !aguardandoAPI
     ? vacinas.filter(v => {
         const doses = calcularDosesStatus(v, registrosMembro, membro.data_nascimento)
         const dosesVisiveis = doses.filter(d => d.status !== 'nao_aplicavel')
