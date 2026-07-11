@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { ArrowLeft, Plus, CheckCircle2, Trash2, ChevronDown } from 'lucide-react'
 import { useMembros, RELACAO_LABEL } from '@/contexts/MembrosContext'
-import { useVacinas, calcularDosesStatus } from '@/contexts/VacinasContext'
+import { useVacinas, calcularDosesStatus, isAtrasada } from '@/contexts/VacinasContext'
 import { useLembretes } from '@/contexts/LembretesContext'
 import { Avatar } from '@/components/ui/Avatar'
 import { VacinaStatusBadge } from '@/components/ui/VacinaStatusBadge'
@@ -68,13 +68,11 @@ export function VacinaMembroPage() {
 
   const registrosMembro = buscarRegistrosMembro(membroSelecionadoId)
 
-  // FIX: exclui vacinas onde TODAS as doses já estão 'aplicada'.
-  // Antes, vacinas 100% concluídas continuavam aparecendo como pendentes.
+  // Exclui vacinas onde TODAS as doses já estão 'aplicada'.
   const vacinasAplicaveis = vacinas.filter(v => {
     const doses = calcularDosesStatus(v, registrosMembro, membro.data_nascimento)
     const dosesVisiveis = doses.filter(d => d.status !== 'nao_aplicavel')
     if (dosesVisiveis.length === 0) return false
-    // Só mostra vacinas que têm ao menos 1 dose pendente (não aplicada)
     return dosesVisiveis.some(d => d.status !== 'aplicada')
   })
 
@@ -97,7 +95,6 @@ export function VacinaMembroPage() {
       }
     )
 
-    // Remover lembrete pendente dessa dose, se existir
     const lembreteExistente = lembretes.find(
       l =>
         l.membro_id === membroSelecionadoId &&
@@ -115,12 +112,6 @@ export function VacinaMembroPage() {
     if (modal.tipo !== 'apagarDose') return
     removerRegistro(modal.registroId)
     setModal({ tipo: 'nenhum' })
-  }
-
-  // FIX: dose só é "atrasada" se for pendente (sem registro no banco).
-  // Doses com registro existente nunca são atrasadas — são 'aplicada'.
-  function isAtrasada(dose: DoseStatus) {
-    return dose.status === 'pendente' && !!dose.dataRecomendada && dose.dataRecomendada < hoje
   }
 
   return (
@@ -207,7 +198,13 @@ export function VacinaMembroPage() {
                       </p>
                     </div>
                     <div style={{ display: 'flex', gap: 'var(--space-1)', flexShrink: 0 }}>
-                      {doses.map(d => <VacinaStatusBadge key={d.numeroDose} status={isAtrasada(d) ? 'atrasada' : d.status} mostrarLabel={false} />)}
+                      {doses.map(d => (
+                        <VacinaStatusBadge
+                          key={d.numeroDose}
+                          status={isAtrasada(d, membro.data_nascimento, hoje) ? 'atrasada' : d.status}
+                          mostrarLabel={false}
+                        />
+                      ))}
                     </div>
                     <ChevronDown size={16} style={{ color: 'var(--color-text-faint)', flexShrink: 0, transform: aberto ? 'rotate(180deg)' : 'none', transition: 'transform 150ms' }} aria-hidden />
                   </button>
@@ -217,7 +214,7 @@ export function VacinaMembroPage() {
                       <hr className="divider" style={{ margin: 0 }} />
                       <ul style={{ listStyle: 'none', padding: 'var(--space-2) 0' }} role="list">
                         {doses.map(dose => {
-                          const atrasada = isAtrasada(dose)
+                          const atrasada = isAtrasada(dose, membro.data_nascimento, hoje)
                           const statusEfetivo: typeof dose.status = atrasada ? 'atrasada' : dose.status
                           const registro = registros.find(
                             r =>
