@@ -6,7 +6,7 @@ import { useVacinas, calcularDosesStatus } from '@/contexts/VacinasContext'
 import { useLembretes } from '@/contexts/LembretesContext'
 import { Avatar } from '@/components/ui/Avatar'
 import { VacinaStatusBadge } from '@/components/ui/VacinaStatusBadge'
-import type { DoseStatus } from '@/types'
+import type { DoseStatus, CriarLembretePayload } from '@/types'
 
 function formatarData(iso: string) {
   const [ano, mes, dia] = iso.split('-')
@@ -18,6 +18,23 @@ type ModalState =
   | { tipo: 'marcarTomada'; dose: DoseStatus; vacinaNome: string }
   | { tipo: 'apagarDose'; dose: DoseStatus; vacinaNome: string; registroId: string }
   | { tipo: 'lembreteVinculado' }
+
+/** Monta um CriarLembretePayload para doses vacinais automáticas */
+function lembreteVacinal(
+  vacinaId: string,
+  membroFamiliarId: string,
+  numeroDose: number,
+  dataPrevista: string,
+): CriarLembretePayload {
+  return {
+    vacina_id: vacinaId,
+    membro_familiar_id: membroFamiliarId,
+    tipo: 'reforco',
+    titulo: `Dose ${numeroDose} — lembrete automático`,
+    data_prevista: dataPrevista,
+    automatico: true,
+  }
+}
 
 export function VacinaMembroPage() {
   const { id } = useParams<{ id: string }>()
@@ -68,15 +85,8 @@ export function VacinaMembroPage() {
         data_aplicacao: dataConfirm,
         local_aplicacao: localConfirm,
       },
-      (mId, vId, nDose, dataLembrete) => {
-        adicionarLembrete({
-          membro_id: mId,
-          vacina_id: vId,
-          numero_dose: nDose,
-          data_lembrete: dataLembrete,
-          status: 'pendente',
-          automatico: true,
-        })
+      (mId, vId, nDose, dataProxima) => {
+        adicionarLembrete(lembreteVacinal(vId, mId, nDose, dataProxima))
       }
     )
 

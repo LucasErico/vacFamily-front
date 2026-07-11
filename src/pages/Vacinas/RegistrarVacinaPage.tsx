@@ -4,6 +4,7 @@ import { ArrowLeft, CheckCircle2, CalendarDays, Clock } from 'lucide-react'
 import { useMembros, RELACAO_LABEL } from '@/contexts/MembrosContext'
 import { useVacinas } from '@/contexts/VacinasContext'
 import { useLembretes } from '@/contexts/LembretesContext'
+import type { CriarLembretePayload } from '@/types'
 
 type Step = 'membro' | 'vacina' | 'detalhes' | 'sucesso'
 type ModoSalvar = 'historico' | 'agendado'
@@ -16,6 +17,23 @@ const ERROS_SIMPLES: Record<string, string> = {
   camposObrigatorios: 'Por favor, preencha todos os campos marcados com *.',
   dataObrigatoria: 'Por favor, informe a data da vacina. Exemplo: 15/08/2026.',
   localObrigatorio: 'Por favor, informe onde a vacina foi ou será aplicada. Exemplo: UBS Centro.',
+}
+
+/** Monta um CriarLembretePayload para doses vacinais automáticas */
+function lembreteVacinal(
+  vacinaId: string,
+  membroFamiliarId: string,
+  numeroDose: number,
+  dataPrevista: string,
+): CriarLembretePayload {
+  return {
+    vacina_id: vacinaId,
+    membro_familiar_id: membroFamiliarId,
+    tipo: 'reforco',
+    titulo: `Dose ${numeroDose} — lembrete automático`,
+    data_prevista: dataPrevista,
+    automatico: true,
+  }
 }
 
 export function RegistrarVacinaPage() {
@@ -53,16 +71,9 @@ export function RegistrarVacinaPage() {
       const dataBase = new Date(dataAplicacao)
       for (let d = numeroDose; d <= vacina.doses; d++) {
         const offset = (d - numeroDose) * (vacina.intervaloDias ?? 0)
-        const dataLembrete = new Date(dataBase.getTime() + offset * 86400000)
+        const dataPrevista = new Date(dataBase.getTime() + offset * 86400000)
           .toISOString().slice(0, 10)
-        adicionarLembrete({
-          membro_id: membroId,
-          vacina_id: vacinaId,
-          numero_dose: d,
-          data_lembrete: dataLembrete,
-          status: 'pendente',
-          automatico: true,
-        })
+        adicionarLembrete(lembreteVacinal(vacinaId, membroId, d, dataPrevista))
       }
     } else {
       if (!localAplicacao.trim()) { setErro(ERROS_SIMPLES.localObrigatorio); return }
@@ -74,15 +85,8 @@ export function RegistrarVacinaPage() {
           data_aplicacao: dataAplicacao,
           local_aplicacao: localAplicacao,
         },
-        (mId, vId, nDose, dataLembrete) => {
-          adicionarLembrete({
-            membro_id: mId,
-            vacina_id: vId,
-            numero_dose: nDose,
-            data_lembrete: dataLembrete,
-            status: 'pendente',
-            automatico: true,
-          })
+        (mId, vId, nDose, dataProxima) => {
+          adicionarLembrete(lembreteVacinal(vId, mId, nDose, dataProxima))
         }
       )
     }
