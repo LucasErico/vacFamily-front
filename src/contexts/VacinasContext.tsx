@@ -1,57 +1,30 @@
 /**
- * VacinasContext — vacinas locais (seed) + registros vacinais via API
+ * VacinasContext
  *
- * Registros são carregados por membro sob demanda:
- *   GET /registros/membro/:membroId  → { status, registros: [] }
- *   POST /registros/membro/:membroId → { status, registro: {} }
- *   DELETE /registros/:id
+ * Fontes de dado:
+ *   GET /vacinas                     → lista de vacinas do banco (tabela pública)
+ *   GET /registros/membro/:membroId  → registros vacinais do membro
+ *   POST /registros/membro/:membroId → registrar dose
+ *   DELETE /registros/:id            → remover registro
  *
- * A lista de vacinas continua local (seed) — dado público imutável.
+ * Regras de status:
+ *   - dose com registro (data passada)  → 'aplicada'  → Histórico
+ *   - dose sem registro                 → 'pendente'
+ *   - dose fora da faixa etária        → 'nao_aplicavel'
  *
- * Regras de negócio de status:
- *   - dose com registro (data passada)  → 'aplicada'  → vai para Histórico
- *   - dose sem registro, data futura    → 'pendente'  → vai para Calendário
- *   - dose sem registro, data passada   → 'pendente'  → NÃO é 'atrasada' automática
- *     (evita poluição retroativa; 'atrasada' só deve existir com registro explícito)
- *   - dose ainda fora da faixa etária   → 'nao_aplicavel'
- *
- * ATENÇÃO — isAtrasada (em VacinaMembroPage):
- *   Uma dose pendente só é exibida como 'atrasada' se o membro tiver
- *   menos de IDADE_MAX_RETROATIVA_DIAS de vida. Para membros mais velhos,
- *   doses do passado sem registro são exibidas apenas como 'pendente'.
- *
- * membrosCarregados: Set<string>
- *   Conjunto de membro_ids cujos registros já foram buscados na API
- *   ao menos uma vez. Usado pelas páginas para distinguir "ainda carregando"
- *   de "carregou e realmente não tem registros" — evitando a exibição
- *   antecipada de vacinas pendentes calculadas apenas com a seed local.
- *
- * membrosCarregadosUmaVez: boolean
- *   Torna-se true após a primeira carga bem-sucedida da API (mesmo que
- *   nenhum membro exista ainda). Enquanto false, a UI não deve exibir
- *   nada baseado na seed — a carga ainda não rodou.
- *
- * Membro novo após carga inicial:
- *   É marcado imediatamente em membrosCarregados com lista vazia, pois
- *   um membro recém-criado definitivamente não tem registros no banco.
- *   Isso evita que a página exiba doses calculadas da seed enquanto
- *   espera uma busca que nunca precisaria acontecer.
+ * isAtrasada (VacinaMembroPage):
+ *   Dose pendente com dataRecomendada passada + membro com < IDADE_MAX_RETROATIVA_DIAS.
  */
 import {
   createContext, useContext, useState, useCallback,
-  useEffect, useRef, type ReactNode,
+  useEffect, type ReactNode,
 } from 'react'
 import type { Vacina, RegistroVacinal, DoseStatus, StatusDose } from '@/types'
-import { VACINAS_SEED } from '@/data/vacinasSeed'
 import { apiFetch } from '@/services/api'
 import { useAuth } from './AuthContext'
 import { useMembros } from './MembrosContext'
 
-/**
- * Limite de idade (em dias) até o qual doses passadas sem registro
- * são consideradas 'atrasadas'. Acima disso → apenas 'pendente'.
- * 730 dias ≈ 2 anos — cobre o calendário pediátrico completo.
- */
+/** Limite (dias) até o qual doses passadas sem registro são 'atrasadas'. ~2 anos. */
 export const IDADE_MAX_RETROATIVA_DIAS = 730
 
 function calcularIdadeEmDias(dataNascimento: string): number {
@@ -66,18 +39,13 @@ function calcularStatusDose(
   registros: RegistroVacinal[],
   idadeEmDias: number,
 ): StatusDose {
-  const idadeMin = vacina.idadeRecomendadaDias ?? 0
-
-  // Fora da faixa etária com margem de 30 dias
+  const idadeMin = vacina.idade_minima_dias ?? 0
   if (idadeEmDias < idadeMin - 30) return 'nao_aplicavel'
 
-  // Se há registro para esta dose → aplicada (vai para Histórico)
   const registro = registros.find(
     r => r.vacina_id === vacina.id && r.numero_dose === numeroDose,
   )
   if (registro) return 'aplicada'
-
-  // Sem registro: sempre 'pendente' — nunca calcular 'atrasada' retroativamente.
   return 'pendente'
 }
 
@@ -89,19 +57,23 @@ export function calcularDosesStatus(
   const idadeEmDias = calcularIdadeEmDias(dataNascimento)
   const hoje = new Date().toISOString().slice(0, 10)
 
-  return Array.from({ length: vacina.doses }, (_, i) => {
+  // Tenta obter o intervalo padrão entre doses (em dias) via intervalos_por_fabricante
+  const intervaloDias = vacina.intervalos_por_fabricante
+    ? (Object.values(vacina.intervalos_por_fabricante)[0] ?? 30)
+    : 30
+
+  return Array.from({ length: vacina.doses_total }, (_, i) => {
     const numeroDose = i + 1
     const status = calcularStatusDose(vacina, numeroDose, registros, idadeEmDias)
     const registro = registros.find(
       r => r.vacina_id === vacina.id && r.numero_dose === numeroDose,
     )
-    const idadeMin = vacina.idadeRecomendadaDias ?? 0
-    const dataRecomendadaDias = idadeMin + i * (vacina.intervaloDias ?? 0)
+    const idadeMin = vacina.idade_minima_dias ?? 0
+    const dataRecomendadaDias = idadeMin + i * intervaloDias
     const dataRecomendada = new Date(
       new Date(dataNascimento).getTime() + dataRecomendadaDias * 86400000,
     ).toISOString().slice(0, 10)
 
-    // Dose aplicada com data passada → Histórico; futura → Calendário
     const isHistorico = status === 'aplicada' && (registro?.data_aplicacao ?? '') <= hoje
 
     return {
@@ -117,17 +89,11 @@ export function calcularDosesStatus(
 }
 
 /**
- * Determina se uma dose pendente deve ser exibida como "atrasada".
- *
- * Regra: só marca como atrasada se:
- *  1. A dose está pendente (sem registro no banco)
- *  2. A dataRecomendada já passou (hoje > dataRecomendada)
- *  3. O membro tem menos de IDADE_MAX_RETROATIVA_DIAS de vida
- *
- * Motivo do critério 3: membros adultos/adolescentes cadastrados pela
- * primeira vez não têm histórico no sistema — não é correto acusá-los
- * de "atrasados" em vacinas que deveriam ter tomado décadas atrás.
- * O sistema só rastreia atrasos reais dentro da janela pediátrica.
+ * Determina se uma dose pendente deve ser exibida como 'atrasada'.
+ * Só marca como atrasada se:
+ *  1. status === 'pendente'
+ *  2. dataRecomendada já passou
+ *  3. membro tem < IDADE_MAX_RETROATIVA_DIAS
  */
 export function isAtrasada(
   dose: DoseStatus,
@@ -137,8 +103,7 @@ export function isAtrasada(
   if (dose.status !== 'pendente') return false
   if (!dose.dataRecomendada) return false
   if (dose.dataRecomendada >= hoje) return false
-  const idadeEmDias = calcularIdadeEmDias(dataNascimento)
-  return idadeEmDias <= IDADE_MAX_RETROATIVA_DIAS
+  return calcularIdadeEmDias(dataNascimento) <= IDADE_MAX_RETROATIVA_DIAS
 }
 
 type GerarLembreteReforcoFn = (
@@ -149,23 +114,10 @@ interface VacinasContextValue {
   vacinas: Vacina[]
   registros: RegistroVacinal[]
   carregando: boolean
-  /** IDs dos membros cujos registros já foram buscados na API ao menos uma vez. */
-  membrosCarregados: Set<string>
-  /**
-   * True após a primeira carga da API ter rodado ao menos uma vez.
-   * Enquanto false, nenhuma UI deve exibir dados calculados da seed.
-   */
-  membrosCarregadosUmaVez: boolean
   registrarDose: (dados: Omit<RegistroVacinal, 'id' | 'created_at'>, gerarLembrete?: GerarLembreteReforcoFn) => Promise<RegistroVacinal>
   removerRegistro: (id: string) => Promise<void>
   buscarRegistrosMembro: (membro_id: string) => RegistroVacinal[]
   recarregar: () => Promise<void>
-  /**
-   * Marca um membro recém-criado como "já carregado" com registros vazios.
-   * Deve ser chamado imediatamente após adicionarMembro() no contexto de membros,
-   * ou pela página que cria o membro, para evitar pré-renderização da seed.
-   */
-  marcarMembroNovo: (membroId: string) => void
 }
 
 const VacinasContext = createContext<VacinasContextValue | null>(null)
@@ -173,31 +125,22 @@ const VacinasContext = createContext<VacinasContextValue | null>(null)
 export function VacinasProvider({ children }: { children: ReactNode }) {
   const { isAuthenticated } = useAuth()
   const { membros } = useMembros()
-  const [vacinas] = useState<Vacina[]>(VACINAS_SEED)
+
+  const [vacinas, setVacinas] = useState<Vacina[]>([])
   const [registros, setRegistros] = useState<RegistroVacinal[]>([])
   const [carregando, setCarregando] = useState(false)
 
-  /**
-   * Rastreia quais membro_ids já tiveram seus registros buscados na API.
-   * Inicialmente vazio — só é populado após a primeira carga bem-sucedida
-   * (ou mesmo após uma carga que retornou lista vazia).
-   */
-  const [membrosCarregados, setMembrosCarregados] = useState<Set<string>>(new Set())
-
-  /**
-   * Torna-se true após a primeira carga da API rodar com sucesso.
-   * Enquanto false, a UI exibe skeleton independentemente de qualquer outra flag.
-   */
-  const [membrosCarregadosUmaVez, setMembrosCarregadosUmaVez] = useState(false)
-
-  // Ref para saber quais ids já foram carregados sem causar re-renders
-  const membrosCarregadosRef = useRef<Set<string>>(new Set())
-
-  // FIX: usar string primitiva como dependencia estavel para evitar
-  // loop infinito causado por nova referencia de array a cada render.
+  // String estável para evitar loop infinito no useEffect
   const membrosIds = membros.map(m => m.id).join(',')
 
-  // Carrega registros de TODOS os membros do usuário em paralelo
+  // Carrega vacinas do banco (público, sem auth)
+  useEffect(() => {
+    apiFetch<{ vacinas: Vacina[] }>('/vacinas')
+      .then(res => setVacinas(Array.isArray(res) ? res : (res.vacinas ?? [])))
+      .catch(() => { /* mantém lista vazia */ })
+  }, [])
+
+  // Carrega registros de todos os membros em paralelo
   const recarregar = useCallback(async () => {
     if (!isAuthenticated || !membrosIds) return
     setCarregando(true)
@@ -211,48 +154,12 @@ export function VacinasProvider({ children }: { children: ReactNode }) {
         )
       )
       setRegistros(resultados.flat())
-      // Marca todos os membros como "já carregados" — mesmo os que não têm registros.
-      const novoSet = new Set(ids)
-      membrosCarregadosRef.current = novoSet
-      setMembrosCarregados(novoSet)
-      setMembrosCarregadosUmaVez(true)
     } catch { /* mantém estado offline */ } finally {
       setCarregando(false)
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, membrosIds])
 
   useEffect(() => { recarregar() }, [recarregar])
-
-  /**
-   * Quando novos membros aparecem no MembrosContext após a carga inicial
-   * já ter rodado (ex: membro recém-criado via adicionarMembro), marcamos
-   * esse id imediatamente como carregado com lista vazia.
-   * Isso evita que a VacinaMembroPage exiba doses calculadas da seed
-   * enquanto aguarda uma busca que nunca precisaria acontecer.
-   */
-  useEffect(() => {
-    if (!membrosCarregadosUmaVez) return
-    const ids = membrosIds.split(',').filter(Boolean)
-    const novos = ids.filter(id => !membrosCarregadosRef.current.has(id))
-    if (novos.length === 0) return
-    setMembrosCarregados(prev => {
-      const next = new Set(prev)
-      novos.forEach(id => next.add(id))
-      membrosCarregadosRef.current = next
-      return next
-    })
-  }, [membrosIds, membrosCarregadosUmaVez])
-
-  const marcarMembroNovo = useCallback((membroId: string) => {
-    setMembrosCarregados(prev => {
-      if (prev.has(membroId)) return prev
-      const next = new Set(prev)
-      next.add(membroId)
-      membrosCarregadosRef.current = next
-      return next
-    })
-  }, [])
 
   const registrarDose = useCallback(async (
     dados: Omit<RegistroVacinal, 'id' | 'created_at'>,
@@ -284,9 +191,12 @@ export function VacinasProvider({ children }: { children: ReactNode }) {
 
     if (gerarLembrete) {
       const vacina = vacinas.find(v => v.id === dados.vacina_id)
-      if (vacina && dados.numero_dose < vacina.doses && vacina.intervaloDias) {
+      if (vacina && dados.numero_dose < vacina.doses_total) {
+        const intervaloDias = vacina.intervalos_por_fabricante
+          ? (Object.values(vacina.intervalos_por_fabricante)[0] ?? 30)
+          : 30
         const proximaData = new Date(
-          new Date(dados.data_aplicacao).getTime() + vacina.intervaloDias * 86400000,
+          new Date(dados.data_aplicacao).getTime() + intervaloDias * 86400000,
         ).toISOString().slice(0, 10)
         gerarLembrete(dados.membro_id, dados.vacina_id, dados.numero_dose + 1, proximaData)
       }
@@ -299,7 +209,6 @@ export function VacinasProvider({ children }: { children: ReactNode }) {
     setRegistros(prev => prev.filter(r => r.id !== id))
   }, [])
 
-  // CRÍTICO: o back retorna membro_familiar_id, não membro_id.
   const buscarRegistrosMembro = useCallback(
     (membro_id: string) => registros.filter(
       r => r.membro_id === membro_id || r.membro_familiar_id === membro_id,
@@ -309,8 +218,8 @@ export function VacinasProvider({ children }: { children: ReactNode }) {
 
   return (
     <VacinasContext.Provider value={{
-      vacinas, registros, carregando, membrosCarregados, membrosCarregadosUmaVez,
-      registrarDose, removerRegistro, buscarRegistrosMembro, recarregar, marcarMembroNovo,
+      vacinas, registros, carregando,
+      registrarDose, removerRegistro, buscarRegistrosMembro, recarregar,
     }}>
       {children}
     </VacinasContext.Provider>
