@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import {
   ArrowLeft, CheckCircle2, Trash2, ChevronDown, ListChecks,
@@ -139,7 +140,7 @@ function VacinaSkeletonRow() {
 }
 
 // ---------------------------------------------------------------------------
-// Dropdown de Ciclo
+// Dropdown de Ciclo (portal para scroll independente)
 // ---------------------------------------------------------------------------
 function CicloDropdown({
   value,
@@ -149,87 +150,115 @@ function CicloDropdown({
   onChange: (v: CicloId | 'todos') => void
 }) {
   const [aberto, setAberto] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
+  const btnRef = useRef<HTMLButtonElement>(null)
+  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null)
 
   useEffect(() => {
     function handler(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setAberto(false)
+      const target = e.target as Node
+      const popupEl = document.getElementById('ciclo-dropdown-popup')
+      if (
+        btnRef.current && !btnRef.current.contains(target) &&
+        (!popupEl || !popupEl.contains(target))
+      ) setAberto(false)
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
+  function abrirDropdown() {
+    if (!btnRef.current) return
+    const rect = btnRef.current.getBoundingClientRect()
+    setPos({ top: rect.bottom + 8, left: rect.left, width: Math.max(rect.width, 200) })
+    setAberto(v => !v)
+  }
+
   const cicloAtual = value === 'todos' ? null : CICLOS.find(c => c.id === value)
   const label = cicloAtual ? cicloAtual.label : 'Todos os ciclos'
 
-  return (
-    <div ref={ref} style={{ position: 'relative', flexShrink: 0 }}>
+  const popup = aberto && pos && createPortal(
+    <div
+      id="ciclo-dropdown-popup"
+      role="listbox"
+      aria-label="Filtrar por ciclo"
+      style={{
+        position: 'fixed',
+        top: pos.top,
+        left: pos.left,
+        minWidth: pos.width,
+        zIndex: 9999,
+        background: 'var(--color-surface)',
+        border: '1px solid var(--color-border)',
+        borderRadius: 'var(--radius-lg)',
+        boxShadow: 'var(--shadow-md)',
+        overflow: 'hidden',
+        padding: 'var(--space-1) 0',
+      }}
+    >
       <button
-        onClick={() => setAberto(v => !v)}
+        role="option" aria-selected={value === 'todos'}
+        onClick={() => { onChange('todos'); setAberto(false) }}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 'var(--space-3)',
+          width: '100%', padding: 'var(--space-3) var(--space-4)',
+          background: value === 'todos' ? 'var(--color-surface-offset)' : 'none',
+          border: 'none', cursor: 'pointer', textAlign: 'left',
+          fontSize: 'var(--text-sm)', color: 'var(--color-text)',
+          fontWeight: value === 'todos' ? 600 : 400,
+        }}
+      >
+        <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--color-border)', flexShrink: 0 }} aria-hidden />
+        Todos os ciclos
+      </button>
+      {CICLOS.map(c => (
+        <button
+          key={c.id} role="option" aria-selected={value === c.id}
+          onClick={() => { onChange(c.id); setAberto(false) }}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 'var(--space-3)',
+            width: '100%', padding: 'var(--space-3) var(--space-4)',
+            background: value === c.id ? c.corBg : 'none',
+            border: 'none', cursor: 'pointer', textAlign: 'left',
+            fontSize: 'var(--text-sm)',
+            color: value === c.id ? c.cor : 'var(--color-text)',
+            fontWeight: value === c.id ? 600 : 400,
+          }}
+        >
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: c.cor, flexShrink: 0 }} aria-hidden />
+          {c.label}
+        </button>
+      ))}
+    </div>,
+    document.body,
+  )
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        onClick={abrirDropdown}
         className="btn btn-ghost"
         style={{
+          width: '100%', justifyContent: 'space-between',
           minHeight: 40, gap: 'var(--space-2)', fontSize: 'var(--text-sm)',
           border: cicloAtual ? `1.5px solid ${cicloAtual.cor}` : '1.5px solid var(--color-border)',
           color: cicloAtual ? cicloAtual.cor : 'var(--color-text-muted)',
           background: cicloAtual ? cicloAtual.corBg : 'var(--color-surface)',
-          borderRadius: 'var(--radius-full)', paddingInline: 'var(--space-4)',
+          borderRadius: 'var(--radius-md)', paddingInline: 'var(--space-4)',
         }}
         aria-haspopup="listbox"
         aria-expanded={aberto}
       >
-        {cicloAtual && (
-          <span style={{ width: 8, height: 8, borderRadius: '50%', background: cicloAtual.cor, flexShrink: 0 }} aria-hidden />
-        )}
-        {label}
-        <ChevronDown size={13} style={{ transform: aberto ? 'rotate(180deg)' : 'none', transition: 'transform 150ms' }} aria-hidden />
+        <span style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+          {cicloAtual && (
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: cicloAtual.cor, flexShrink: 0 }} aria-hidden />
+          )}
+          {label}
+        </span>
+        <ChevronDown size={13} style={{ transform: aberto ? 'rotate(180deg)' : 'none', transition: 'transform 150ms', flexShrink: 0 }} aria-hidden />
       </button>
-
-      {aberto && (
-        <div
-          role="listbox" aria-label="Filtrar por ciclo"
-          style={{
-            position: 'absolute', top: 'calc(100% + var(--space-2))', right: 0, zIndex: 40,
-            background: 'var(--color-surface)', border: '1px solid var(--color-border)',
-            borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-md)',
-            minWidth: 200, overflow: 'hidden', padding: 'var(--space-1) 0',
-          }}
-        >
-          <button
-            role="option" aria-selected={value === 'todos'}
-            onClick={() => { onChange('todos'); setAberto(false) }}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 'var(--space-3)',
-              width: '100%', padding: 'var(--space-3) var(--space-4)',
-              background: value === 'todos' ? 'var(--color-surface-offset)' : 'none',
-              border: 'none', cursor: 'pointer', textAlign: 'left',
-              fontSize: 'var(--text-sm)', color: 'var(--color-text)',
-              fontWeight: value === 'todos' ? 600 : 400,
-            }}
-          >
-            <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--color-border)', flexShrink: 0 }} aria-hidden />
-            Todos os ciclos
-          </button>
-          {CICLOS.map(c => (
-            <button
-              key={c.id} role="option" aria-selected={value === c.id}
-              onClick={() => { onChange(c.id); setAberto(false) }}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 'var(--space-3)',
-                width: '100%', padding: 'var(--space-3) var(--space-4)',
-                background: value === c.id ? c.corBg : 'none',
-                border: 'none', cursor: 'pointer', textAlign: 'left',
-                fontSize: 'var(--text-sm)',
-                color: value === c.id ? c.cor : 'var(--color-text)',
-                fontWeight: value === c.id ? 600 : 400,
-              }}
-            >
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: c.cor, flexShrink: 0 }} aria-hidden />
-              {c.label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
+      {popup}
+    </>
   )
 }
 
@@ -307,13 +336,12 @@ export function VacinaMembroPage() {
   // --- modais ---
   const [modal, setModal] = useState<ModalState>({ tipo: 'nenhum' })
 
-  // modal marcar tomada (ciclo)
+  // modal marcar tomada (dose individual)
   const [dataConfirm, setDataConfirm] = useState(hoje)
   const [localConfirm, setLocalConfirm] = useState('')
   const [erroConfirm, setErroConfirm] = useState('')
 
-  // modal confirmar ciclo
-  const [dataCiclo, setDataCiclo] = useState(hoje)
+  // modal confirmar ciclo (só coleta local; data vem de cada dose.dataRecomendada)
   const [localCiclo, setLocalCiclo] = useState('')
   const [erroCiclo, setErroCiclo] = useState('')
   const [confirmandoCiclo, setConfirmandoCiclo] = useState(false)
@@ -376,22 +404,23 @@ export function VacinaMembroPage() {
 
   // ---------------------------------------------------------------------------
   // Agrupamento por ciclo
+  // Mostra TODOS os ciclos (sem restrição de idade), filtrando apenas
+  // doses com status !== 'nao_aplicavel'. O botão "Confirmar todas" é
+  // controlado separadamente (só para ciclos já encerrados).
   // ---------------------------------------------------------------------------
   const vacinasPorCiclo = useMemo(() => {
     if (aguardandoAPI) return []
-    return CICLOS
-      .filter(ciclo => ciclo.id === 'pre_natal' || idadeMembro >= ciclo.idadeMinAnos)
-      .map(ciclo => {
-        const vacinasDoCiclo = vacinas.filter(v =>
-          v.faixa_etaria.some(f => ciclo.faixas.includes(f))
-        )
-        const vacinasComDoses = vacinasDoCiclo.map(v => {
-          const doses = calcularDosesStatus(v, registrosMembro, membroDefinido.data_nascimento)
-            .filter(d => d.status !== 'nao_aplicavel')
-          return { vacina: v, doses }
-        }).filter(item => item.doses.length > 0)
-        return { ciclo, vacinas: vacinasComDoses }
-      }).filter(g => g.vacinas.length > 0)
+    return CICLOS.map(ciclo => {
+      const vacinasDoCiclo = vacinas.filter(v =>
+        v.faixa_etaria.some(f => ciclo.faixas.includes(f))
+      )
+      const vacinasComDoses = vacinasDoCiclo.map(v => {
+        const doses = calcularDosesStatus(v, registrosMembro, membroDefinido.data_nascimento)
+          .filter(d => d.status !== 'nao_aplicavel')
+        return { vacina: v, doses }
+      }).filter(item => item.doses.length > 0)
+      return { ciclo, vacinas: vacinasComDoses }
+    }).filter(g => g.vacinas.length > 0)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [aguardandoAPI, vacinas, registros, membroSelecionadoId, idadeMembro])
 
@@ -442,9 +471,9 @@ export function VacinaMembroPage() {
     setModal({ tipo: 'nenhum' })
   }
 
+  // Confirmar ciclo inteiro: usa dose.dataRecomendada como data de aplicação
+  // para cada dose, garantindo a data histórica correta.
   async function handleConfirmarCiclo() {
-    if (!dataCiclo) { setErroCiclo('Informe a data de aplicação.'); return }
-    if (dataCiclo > hoje) { setErroCiclo('A data não pode ser futura.'); return }
     if (!localCiclo.trim()) { setErroCiclo('Informe o local de aplicação.'); return }
     if (modal.tipo !== 'confirmarCiclo') return
 
@@ -454,8 +483,18 @@ export function VacinaMembroPage() {
         const doses = calcularDosesStatus(vacina, registrosMembro, membroDefinido.data_nascimento)
         for (const dose of doses) {
           if (dose.status !== 'aplicada' && dose.status !== 'nao_aplicavel') {
+            // Usa a data prevista da dose; faz fallback para hoje se não houver
+            const dataAplicacao = dose.dataRecomendada && dose.dataRecomendada <= hoje
+              ? dose.dataRecomendada
+              : hoje
             registrarDose(
-              { membro_id: membroSelecionadoId, vacina_id: vacina.id, numero_dose: dose.numeroDose, data_aplicacao: dataCiclo, local_aplicacao: localCiclo.trim() },
+              {
+                membro_id: membroSelecionadoId,
+                vacina_id: vacina.id,
+                numero_dose: dose.numeroDose,
+                data_aplicacao: dataAplicacao,
+                local_aplicacao: localCiclo.trim(),
+              },
               () => {}
             )
           }
@@ -464,7 +503,7 @@ export function VacinaMembroPage() {
     } finally {
       setConfirmandoCiclo(false)
       setModal({ tipo: 'nenhum' })
-      setDataCiclo(hoje); setLocalCiclo(''); setErroCiclo('')
+      setLocalCiclo(''); setErroCiclo('')
     }
   }
 
@@ -588,8 +627,8 @@ export function VacinaMembroPage() {
         </h3>
       </div>
 
-      {/* Filtros */}
-      <div style={{ display: 'flex', gap: 'var(--space-2)', marginBottom: 'var(--space-4)', flexWrap: 'wrap', alignItems: 'center' }}>
+      {/* Filtros — linha 1: busca + status */}
+      <div style={{ display: 'flex', gap: 'var(--space-2)', marginBottom: 'var(--space-2)', flexWrap: 'wrap', alignItems: 'center' }}>
         <div style={{ position: 'relative', flex: 1, minWidth: 200 }}>
           <Search size={15} style={{ position: 'absolute', left: 'var(--space-3)', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-faint)', pointerEvents: 'none' }} aria-hidden />
           <input
@@ -616,6 +655,10 @@ export function VacinaMembroPage() {
             )
           })}
         </div>
+      </div>
+
+      {/* Filtros — linha 2: dropdown de ciclo (largura total) */}
+      <div style={{ marginBottom: 'var(--space-4)' }}>
         <CicloDropdown value={filtroCiclo} onChange={setFiltroCiclo} />
       </div>
 
@@ -635,6 +678,8 @@ export function VacinaMembroPage() {
             const expandido = ciclosExpandidos.has(ciclo.id)
             const todasDoses = vacinasCiclo.flatMap(({ doses }) => doses)
             const pendentes = todasDoses.filter(d => d.status === 'pendente' || isAtrasada(d, membroDefinido.data_nascimento, hoje)).length
+            // Botão "Confirmar todas" só para ciclos já encerrados (membro ultrapassou idadeMaxAnos)
+            const cicloJaEncerrado = idadeMembro >= ciclo.idadeMaxAnos
 
             return (
               <section key={ciclo.id} aria-label={ciclo.label}>
@@ -669,11 +714,11 @@ export function VacinaMembroPage() {
                     <ChevronDown size={14} style={{ marginLeft: 'auto', color: 'var(--color-text-faint)', transform: expandido ? 'rotate(180deg)' : 'none', transition: 'transform 150ms' }} aria-hidden />
                   </button>
 
-                  {/* Confirmar todas */}
-                  {pendentes > 0 && (
+                  {/* Confirmar todas — só para ciclos já encerrados com doses pendentes */}
+                  {cicloJaEncerrado && pendentes > 0 && (
                     <button
                       onClick={() => {
-                        setDataCiclo(hoje); setLocalCiclo(''); setErroCiclo('')
+                        setLocalCiclo(''); setErroCiclo('')
                         setModal({ tipo: 'confirmarCiclo', ciclo, vacinas: vacinasCiclo.map(({ vacina }) => vacina) })
                       }}
                       className="btn btn-ghost"
@@ -884,14 +929,19 @@ export function VacinaMembroPage() {
           <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--text-lg)', fontWeight: 700, marginBottom: 'var(--space-1)' }}>
             Confirmar ciclo — {modal.ciclo.label}
           </h3>
-          <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)', marginBottom: 'var(--space-5)' }}>
-            Todas as doses pendentes deste ciclo serão marcadas como tomadas com a mesma data e local.
+          <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)', marginBottom: 'var(--space-2)' }}>
+            As doses pendentes serão registradas com a data prevista de cada uma
+            e o local informado abaixo.
           </p>
+          <div style={{
+            background: 'var(--color-surface-offset)', borderRadius: 'var(--radius-md)',
+            padding: 'var(--space-3) var(--space-4)', marginBottom: 'var(--space-5)',
+            fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)',
+          }}>
+            Cada dose será registrada com a data prevista no calendário vacinal,
+            refletindo o histórico real.
+          </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-            <div>
-              <label style={{ display: 'block', fontSize: 'var(--text-sm)', fontWeight: 600, marginBottom: 'var(--space-2)' }}>Data de aplicação *</label>
-              <input type="date" value={dataCiclo} onChange={e => setDataCiclo(e.target.value)} max={hoje} className="input" style={{ width: '100%' }} />
-            </div>
             <div>
               <label style={{ display: 'block', fontSize: 'var(--text-sm)', fontWeight: 600, marginBottom: 'var(--space-2)' }}>Local de aplicação *</label>
               <input value={localCiclo} onChange={e => setLocalCiclo(e.target.value)} placeholder="Ex: UBS Centro..." className="input" style={{ width: '100%' }} />
