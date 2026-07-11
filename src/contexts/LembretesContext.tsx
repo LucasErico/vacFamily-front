@@ -1,48 +1,79 @@
-import { createContext, useContext, useState, useCallback, type ReactNode } from 'react'
+/**
+ * LembretesContext — CRUD real via API backend
+ * Endpoints: GET|POST /lembretes  |  PATCH /lembretes/:id/status  |  DELETE /lembretes/:id
+ */
+import {
+  createContext, useContext, useState, useCallback,
+  useEffect, type ReactNode,
+} from 'react'
 import type { Lembrete, StatusLembrete } from '@/types'
-
-function gerarId() {
-  return `lem_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
-}
+import { apiFetch } from '@/services/api'
+import { useAuth } from './AuthContext'
 
 interface LembretesContextValue {
   lembretes: Lembrete[]
-  adicionarLembrete: (dados: Omit<Lembrete, 'id' | 'criadoEm'>) => Lembrete
-  marcarStatus: (id: string, status: StatusLembrete) => void
-  removerLembrete: (id: string) => void
+  carregando: boolean
+  adicionarLembrete: (dados: Omit<Lembrete, 'id' | 'criadoEm'>) => Promise<Lembrete>
+  marcarStatus: (id: string, status: StatusLembrete) => Promise<void>
+  removerLembrete: (id: string) => Promise<void>
   buscarLembretesMembro: (membroId: string) => Lembrete[]
   lembretesPendentes: Lembrete[]
+  recarregar: () => Promise<void>
 }
 
 const LembretesContext = createContext<LembretesContextValue | null>(null)
 
 export function LembretesProvider({ children }: { children: ReactNode }) {
+  const { isAuthenticated } = useAuth()
   const [lembretes, setLembretes] = useState<Lembrete[]>([])
+  const [carregando, setCarregando] = useState(false)
 
-  const adicionarLembrete = useCallback((dados: Omit<Lembrete, 'id' | 'criadoEm'>) => {
-    const novo: Lembrete = { ...dados, id: gerarId(), criadoEm: new Date().toISOString() }
+  const recarregar = useCallback(async () => {
+    if (!isAuthenticated) return
+    setCarregando(true)
+    try {
+      const data = await apiFetch<Lembrete[]>('/lembretes')
+      setLembretes(data)
+    } catch { /* mantém estado */ } finally {
+      setCarregando(false)
+    }
+  }, [isAuthenticated])
+
+  useEffect(() => { recarregar() }, [recarregar])
+
+  const adicionarLembrete = useCallback(async (dados: Omit<Lembrete, 'id' | 'criadoEm'>) => {
+    const novo = await apiFetch<Lembrete>('/lembretes', {
+      method: 'POST',
+      body: dados,
+    })
     setLembretes(prev => [...prev, novo])
     return novo
   }, [])
 
-  const marcarStatus = useCallback((id: string, status: StatusLembrete) => {
-    setLembretes(prev => prev.map(l => l.id === id ? { ...l, status } : l))
+  const marcarStatus = useCallback(async (id: string, status: StatusLembrete) => {
+    const atualizado = await apiFetch<Lembrete>(`/lembretes/${id}/status`, {
+      method: 'PATCH',
+      body: { status },
+    })
+    setLembretes(prev => prev.map(l => l.id === id ? atualizado : l))
   }, [])
 
-  const removerLembrete = useCallback((id: string) => {
+  const removerLembrete = useCallback(async (id: string) => {
+    await apiFetch(`/lembretes/${id}`, { method: 'DELETE' })
     setLembretes(prev => prev.filter(l => l.id !== id))
   }, [])
 
-  const buscarLembretesMembro = useCallback((membroId: string) => {
-    return lembretes.filter(l => l.membroId === membroId)
-  }, [lembretes])
+  const buscarLembretesMembro = useCallback(
+    (membroId: string) => lembretes.filter(l => l.membroId === membroId),
+    [lembretes],
+  )
 
   const lembretesPendentes = lembretes.filter(l => l.status === 'pendente')
 
   return (
     <LembretesContext.Provider value={{
-      lembretes, adicionarLembrete, marcarStatus, removerLembrete,
-      buscarLembretesMembro, lembretesPendentes,
+      lembretes, carregando, adicionarLembrete, marcarStatus,
+      removerLembrete, buscarLembretesMembro, lembretesPendentes, recarregar,
     }}>
       {children}
     </LembretesContext.Provider>

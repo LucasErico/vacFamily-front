@@ -12,12 +12,12 @@ export function LoginPage() {
   const location = useLocation()
   const from = (location.state as { from?: { pathname: string } })?.from?.pathname ?? '/'
 
-  const [email, setEmail] = useState('')
-  const [senha, setSenha] = useState('')
-  const [mostrarSenha, setMostrarSenha] = useState(false)
-  const [erro, setErro] = useState('')
-  const [carregando, setCarregando] = useState(false)
-  const [painelAberto, setPainelAberto] = useState(false)
+  const [email, setEmail]                   = useState('')
+  const [senha, setSenha]                   = useState('')
+  const [mostrarSenha, setMostrarSenha]     = useState(false)
+  const [erro, setErro]                     = useState('')
+  const [carregando, setCarregando]         = useState(false)
+  const [painelAberto, setPainelAberto]     = useState(false)
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -38,7 +38,6 @@ export function LoginPage() {
       minHeight: '100dvh', display: 'flex', alignItems: 'center',
       justifyContent: 'center', padding: 'var(--space-4)', background: 'var(--color-bg)',
     }}>
-      {/* Controles de tema e acessibilidade */}
       <div style={{
         position: 'fixed', top: 'var(--space-3)', right: 'var(--space-3)',
         display: 'flex', alignItems: 'center', gap: 'var(--space-1)', zIndex: 10,
@@ -57,7 +56,6 @@ export function LoginPage() {
       {painelAberto && <AccessibilityPanel onClose={() => setPainelAberto(false)} />}
 
       <div style={{ width: '100%', maxWidth: '420px' }}>
-        {/* Logo */}
         <div style={{ textAlign: 'center', marginBottom: 'var(--space-8)' }}>
           <div style={{
             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
@@ -74,7 +72,6 @@ export function LoginPage() {
           </p>
         </div>
 
-        {/* Card */}
         <div className="card">
           <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--text-lg)', fontWeight: 700, marginBottom: 'var(--space-6)', color: 'var(--color-text)' }}>
             Entrar
@@ -86,7 +83,7 @@ export function LoginPage() {
                 E-mail
               </label>
               <input id="email" type="email" autoComplete="email" value={email}
-                onChange={e => setEmail(e.target.value)} placeholder="demo@vacfamily.com"
+                onChange={e => setEmail(e.target.value)} placeholder="seu@email.com"
                 className={`input-field${erro ? ' error' : ''}`}
                 aria-describedby={erro ? 'erro-login' : undefined} />
             </div>
@@ -102,7 +99,7 @@ export function LoginPage() {
                   autoComplete="current-password"
                   value={senha}
                   onChange={e => setSenha(e.target.value)}
-                  placeholder="demo1234"
+                  placeholder="Sua senha"
                   className={`input-field${erro ? ' error' : ''}`}
                   style={{ paddingRight: 'var(--space-12)' }}
                   aria-describedby={erro ? 'erro-login' : undefined}
@@ -117,12 +114,9 @@ export function LoginPage() {
                   {mostrarSenha ? <EyeOff size={18} aria-hidden /> : <Eye size={18} aria-hidden />}
                 </button>
               </div>
-              {/* Link abaixo do campo de senha */}
               <div style={{ textAlign: 'right', marginTop: 'var(--space-2)' }}>
-                <Link
-                  to="/esqueci-senha"
-                  style={{ fontSize: 'var(--text-xs)', color: 'var(--color-primary)', fontWeight: 600 }}
-                >
+                <Link to="/esqueci-senha"
+                  style={{ fontSize: 'var(--text-xs)', color: 'var(--color-primary)', fontWeight: 600 }}>
                   Esqueci minha senha
                 </Link>
               </div>
@@ -136,7 +130,8 @@ export function LoginPage() {
               }}>{erro}</p>
             )}
 
-            <button type="submit" disabled={carregando} className="btn btn-primary" style={{ width: '100%', marginTop: 'var(--space-2)' }}>
+            <button type="submit" disabled={carregando} className="btn btn-primary"
+              style={{ width: '100%', marginTop: 'var(--space-2)' }}>
               {carregando ? 'Entrando…' : 'Entrar'}
             </button>
           </form>
@@ -144,14 +139,6 @@ export function LoginPage() {
           <p style={{ marginTop: 'var(--space-5)', textAlign: 'center', fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)' }}>
             Não tem conta?{' '}
             <Link to="/cadastro" style={{ color: 'var(--color-primary)', fontWeight: 600 }}>Criar conta</Link>
-          </p>
-
-          <p style={{
-            marginTop: 'var(--space-4)', padding: 'var(--space-3)',
-            background: 'var(--color-surface-offset)', borderRadius: 'var(--radius-md)',
-            fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', textAlign: 'center',
-          }}>
-            Demo: <strong style={{ color: 'var(--color-text)' }}>demo@vacfamily.com</strong> / <strong style={{ color: 'var(--color-text)' }}>demo1234</strong>
           </p>
         </div>
       </div>

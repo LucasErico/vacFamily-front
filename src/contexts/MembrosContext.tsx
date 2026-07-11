@@ -1,85 +1,84 @@
-import { createContext, useContext, useState, useCallback, type ReactNode } from 'react'
+/**
+ * MembrosContext — CRUD real via API backend
+ * Endpoints: GET|POST /membros  |  GET|PUT|DELETE /membros/:id
+ */
+import {
+  createContext, useContext, useState, useCallback,
+  useEffect, type ReactNode,
+} from 'react'
 import type { MembroFamiliar, Parentesco } from '@/types'
+import { apiFetch } from '@/services/api'
 import { useAuth } from './AuthContext'
-
-function gerarId() {
-  return `mbr_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
-}
-
-const MEMBROS_INICIAIS: MembroFamiliar[] = [
-  {
-    id: 'mbr_demo_001',
-    usuarioId: 'usr_demo_001',
-    nome: 'Ana Silva',
-    dataNascimento: '1985-03-15',
-    parentesco: 'titular',
-    criadoEm: new Date().toISOString(),
-  },
-  {
-    id: 'mbr_demo_002',
-    usuarioId: 'usr_demo_001',
-    nome: 'Carlos Silva',
-    dataNascimento: '1983-07-22',
-    parentesco: 'conjuge',
-    criadoEm: new Date().toISOString(),
-  },
-  {
-    id: 'mbr_demo_003',
-    usuarioId: 'usr_demo_001',
-    nome: 'Pedro Silva',
-    dataNascimento: '2018-11-05',
-    parentesco: 'filho',
-    criadoEm: new Date().toISOString(),
-  },
-  {
-    id: 'mbr_demo_004',
-    usuarioId: 'usr_demo_001',
-    nome: 'Luísa Silva',
-    dataNascimento: '2021-04-18',
-    parentesco: 'filha',
-    criadoEm: new Date().toISOString(),
-  },
-]
 
 interface MembrosContextValue {
   membros: MembroFamiliar[]
-  adicionarMembro: (dados: Omit<MembroFamiliar, 'id' | 'usuarioId' | 'criadoEm'>) => MembroFamiliar
-  atualizarMembro: (id: string, dados: Partial<Omit<MembroFamiliar, 'id' | 'usuarioId' | 'criadoEm'>>) => void
-  removerMembro: (id: string) => void
+  carregando: boolean
+  adicionarMembro: (dados: Omit<MembroFamiliar, 'id' | 'usuarioId' | 'criadoEm'>) => Promise<MembroFamiliar>
+  atualizarMembro: (id: string, dados: Partial<Omit<MembroFamiliar, 'id' | 'usuarioId' | 'criadoEm'>>) => Promise<void>
+  removerMembro: (id: string) => Promise<void>
   buscarMembro: (id: string) => MembroFamiliar | undefined
+  recarregar: () => Promise<void>
 }
 
 const MembrosContext = createContext<MembrosContextValue | null>(null)
 
 export function MembrosProvider({ children }: { children: ReactNode }) {
-  const { usuario } = useAuth()
-  const [membros, setMembros] = useState<MembroFamiliar[]>(MEMBROS_INICIAIS)
+  const { isAuthenticated } = useAuth()
+  const [membros, setMembros] = useState<MembroFamiliar[]>([])
+  const [carregando, setCarregando] = useState(false)
 
-  const adicionarMembro = useCallback((dados: Omit<MembroFamiliar, 'id' | 'usuarioId' | 'criadoEm'>) => {
-    const novo: MembroFamiliar = {
-      ...dados,
-      id: gerarId(),
-      usuarioId: usuario?.id ?? '',
-      criadoEm: new Date().toISOString(),
+  const recarregar = useCallback(async () => {
+    if (!isAuthenticated) return
+    setCarregando(true)
+    try {
+      const data = await apiFetch<MembroFamiliar[]>('/membros')
+      setMembros(data)
+    } catch {
+      // mantém estado atual em caso de erro de rede
+    } finally {
+      setCarregando(false)
     }
+  }, [isAuthenticated])
+
+  useEffect(() => { recarregar() }, [recarregar])
+
+  const adicionarMembro = useCallback(async (
+    dados: Omit<MembroFamiliar, 'id' | 'usuarioId' | 'criadoEm'>,
+  ) => {
+    const novo = await apiFetch<MembroFamiliar>('/membros', {
+      method: 'POST',
+      body: dados,
+    })
     setMembros(prev => [...prev, novo])
     return novo
-  }, [usuario])
-
-  const atualizarMembro = useCallback((id: string, dados: Partial<Omit<MembroFamiliar, 'id' | 'usuarioId' | 'criadoEm'>>) => {
-    setMembros(prev => prev.map(m => m.id === id ? { ...m, ...dados } : m))
   }, [])
 
-  const removerMembro = useCallback((id: string) => {
+  const atualizarMembro = useCallback(async (
+    id: string,
+    dados: Partial<Omit<MembroFamiliar, 'id' | 'usuarioId' | 'criadoEm'>>,
+  ) => {
+    const atualizado = await apiFetch<MembroFamiliar>(`/membros/${id}`, {
+      method: 'PUT',
+      body: dados,
+    })
+    setMembros(prev => prev.map(m => m.id === id ? atualizado : m))
+  }, [])
+
+  const removerMembro = useCallback(async (id: string) => {
+    await apiFetch(`/membros/${id}`, { method: 'DELETE' })
     setMembros(prev => prev.filter(m => m.id !== id))
   }, [])
 
-  const buscarMembro = useCallback((id: string) => {
-    return membros.find(m => m.id === id)
-  }, [membros])
+  const buscarMembro = useCallback(
+    (id: string) => membros.find(m => m.id === id),
+    [membros],
+  )
 
   return (
-    <MembrosContext.Provider value={{ membros, adicionarMembro, atualizarMembro, removerMembro, buscarMembro }}>
+    <MembrosContext.Provider value={{
+      membros, carregando, adicionarMembro, atualizarMembro,
+      removerMembro, buscarMembro, recarregar,
+    }}>
       {children}
     </MembrosContext.Provider>
   )

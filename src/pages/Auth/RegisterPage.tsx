@@ -1,35 +1,19 @@
 /**
  * RegisterPage — /cadastro
  *
- * Funcionalidades:
- *  - Medidor de força de senha (5 níveis) com sugestões inline
- *  - Confirmação de senha
- *  - Show/hide em ambos os campos de senha
- *  - Checkbox "Modo Teste" que pula a verificação de e-mail
- *  - Ao cadastrar sem modo teste → navega para /verificar-email
- *  - Ao cadastrar com modo teste → entra direto no app
- *
- * TODO (back-end):
+ * Integrado com o backend real:
  *  POST /auth/register  { nome, email, senha }
- *  Retorna: { requiresVerification: boolean, userId: string }
- *  - Se requiresVerification true → navegar para /verificar-email com state.email
- *  - Se false (modo teste/admin) → chamar login real e navegar para /
- *
- * Segurança:
- *  - O FRONT nunca criptografa a senha. Ela trafega em texto sobre HTTPS.
- *  - O BACK recebe a senha em texto e aplica bcrypt (custo ≥ 12) antes de salvar.
- *  - O banco NUNCA armazena a senha em texto puro — apenas o hash bcrypt.
- *  - O e-mail também deve ser normalizado (lower + trim) no back antes de salvar.
+ *  - requiresVerification true  → navega para /verificar-email
+ *  - requiresVerification false → já logado, navega para /
  */
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
-import { registrarSnapshotUsuario } from '@/services/adminStorage'
-import { Syringe, Eye, EyeOff, FlaskConical } from 'lucide-react'
+import { Syringe, Eye, EyeOff } from 'lucide-react'
 
 // ── Lógica de força de senha ─────────────────────────────────
 interface ForcaSenha {
-  nivel: 0 | 1 | 2 | 3 | 4  // 0=muito fraca … 4=muito forte
+  nivel: 0 | 1 | 2 | 3 | 4
   label: string
   cor: string
   sugestoes: string[]
@@ -45,38 +29,36 @@ const NIVEIS = [
 
 function avaliarSenha(senha: string): ForcaSenha {
   const sugestoes: string[] = []
-  if (senha.length < 8)         sugestoes.push('Mínimo 8 caracteres')
-  if (senha.length < 12)        sugestoes.push('Ideal: 12 ou mais caracteres')
-  if (!/[A-Z]/.test(senha))    sugestoes.push('Adicione uma letra maiúscula')
-  if (!/[a-z]/.test(senha))    sugestoes.push('Adicione uma letra minúscula')
-  if (!/[0-9]/.test(senha))    sugestoes.push('Adicione um número')
-  if (!/[^A-Za-z0-9]/.test(senha)) sugestoes.push('Adicione um símbolo (!@#$%...)')
+  if (senha.length < 8)              sugestoes.push('Mínimo 8 caracteres')
+  if (senha.length < 12)             sugestoes.push('Ideal: 12 ou mais caracteres')
+  if (!/[A-Z]/.test(senha))         sugestoes.push('Adicione uma letra maiúscula')
+  if (!/[a-z]/.test(senha))         sugestoes.push('Adicione uma letra minúscula')
+  if (!/[0-9]/.test(senha))         sugestoes.push('Adicione um número')
+  if (!/[^A-Za-z0-9]/.test(senha))  sugestoes.push('Adicione um símbolo (!@#$%...)')
 
   let pontos = 0
-  if (senha.length >= 8)            pontos++
-  if (senha.length >= 12)           pontos++
-  if (/[A-Z]/.test(senha) && /[a-z]/.test(senha)) pontos++
-  if (/[0-9]/.test(senha))          pontos++
-  if (/[^A-Za-z0-9]/.test(senha))  pontos++
+  if (senha.length >= 8)                            pontos++
+  if (senha.length >= 12)                           pontos++
+  if (/[A-Z]/.test(senha) && /[a-z]/.test(senha))  pontos++
+  if (/[0-9]/.test(senha))                          pontos++
+  if (/[^A-Za-z0-9]/.test(senha))                  pontos++
 
   const nivel = Math.min(pontos, 4) as 0 | 1 | 2 | 3 | 4
   return { nivel, label: NIVEIS[nivel].label, cor: NIVEIS[nivel].cor, sugestoes }
 }
 
-// ── Componente principal ─────────────────────────────────────
 export function RegisterPage() {
-  const { login } = useAuth()
+  const { register } = useAuth()
   const navigate = useNavigate()
 
-  const [nome, setNome] = useState('')
-  const [email, setEmail] = useState('')
-  const [senha, setSenha] = useState('')
-  const [confirmar, setConfirmar] = useState('')
-  const [mostrarSenha, setMostrarSenha] = useState(false)
+  const [nome, setNome]                     = useState('')
+  const [email, setEmail]                   = useState('')
+  const [senha, setSenha]                   = useState('')
+  const [confirmar, setConfirmar]           = useState('')
+  const [mostrarSenha, setMostrarSenha]     = useState(false)
   const [mostrarConfirmar, setMostrarConfirmar] = useState(false)
-  const [modoTeste, setModoTeste] = useState(false)
-  const [erro, setErro] = useState('')
-  const [carregando, setCarregando] = useState(false)
+  const [erro, setErro]                     = useState('')
+  const [carregando, setCarregando]         = useState(false)
 
   const forca = senha ? avaliarSenha(senha) : null
   const senhasDiferem = confirmar && senha !== confirmar
@@ -88,42 +70,22 @@ export function RegisterPage() {
     }
     if (senha.length < 8) { setErro('A senha deve ter ao menos 8 caracteres.'); return }
     if (senha !== confirmar) { setErro('As senhas não coincidem.'); return }
-    if (forca && forca.nivel < 1) { setErro('Sua senha é muito fraca. Adicione mais caracteres ou variedade.'); return }
+    if (forca && forca.nivel < 1) { setErro('Sua senha é muito fraca.'); return }
 
     setErro('')
     setCarregando(true)
+    const result = await register(nome.trim(), email.trim().toLowerCase(), senha)
+    setCarregando(false)
 
-    // TODO (back-end): substituir por chamada real
-    // const { data, error } = await api.post('/auth/register', { nome, email, senha })
-    // if (error) { setErro(error.message); setCarregando(false); return }
-    // const { requiresVerification, userId } = data
-    //
-    // Mock atual:
-    const mockRequiresVerification = !modoTeste
-
-    // Registra snapshot para painel admin (usando dados reais quando back integrado)
-    registrarSnapshotUsuario({
-      id: `usr_${Date.now()}`,
-      nome: nome.trim(),
-      email: email.trim().toLowerCase(),
-      criadoEm: new Date().toISOString(),
-      membros: 0,
-    })
-
-    if (mockRequiresVerification) {
-      setCarregando(false)
-      // Navega para verificação passando o email como state
-      navigate('/verificar-email', { state: { email: email.trim().toLowerCase() } })
+    if (!result.ok) {
+      setErro(result.erro ?? 'Erro ao criar conta. Tente novamente.')
       return
     }
 
-    // Modo teste: entra direto
-    const result = await login('demo@vacfamily.com', 'demo1234')
-    setCarregando(false)
-    if (result.ok) {
-      navigate('/', { replace: true })
+    if (result.requiresVerification) {
+      navigate('/verificar-email', { state: { email: email.trim().toLowerCase() } })
     } else {
-      setErro(result.erro ?? 'Erro ao criar conta. Tente novamente.')
+      navigate('/', { replace: true })
     }
   }
 
@@ -156,7 +118,6 @@ export function RegisterPage() {
           </h2>
 
           <form onSubmit={handleSubmit} noValidate style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-
             {/* Nome */}
             <div>
               <label htmlFor="nome" style={labelStyle}>Nome completo</label>
@@ -195,11 +156,10 @@ export function RegisterPage() {
                 </button>
               </div>
 
-              {/* Barra de força */}
               {senha && forca && (
                 <div style={{ marginTop: 'var(--space-2)' }}>
                   <div style={{ display: 'flex', gap: 3, marginBottom: 'var(--space-1)' }}>
-                    {[0, 1, 2, 3, 4].map(i => (
+                    {[0,1,2,3,4].map(i => (
                       <div key={i} style={{
                         flex: 1, height: 4, borderRadius: 2,
                         background: i <= forca.nivel ? forca.cor : 'var(--color-border)',
@@ -210,22 +170,13 @@ export function RegisterPage() {
                   <p style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: forca.cor }}>
                     {forca.label}
                   </p>
-                  {/* Sugestões */}
                   {forca.sugestoes.length > 0 && (
-                    <ul
-                      id="forca-senha-desc"
-                      aria-live="polite"
-                      style={{
-                        marginTop: 'var(--space-2)',
-                        display: 'flex', flexDirection: 'column', gap: 'var(--space-1)',
-                        listStyle: 'none', padding: 0,
-                      }}
-                    >
+                    <ul id="forca-senha-desc" aria-live="polite" style={{
+                      marginTop: 'var(--space-2)', display: 'flex', flexDirection: 'column',
+                      gap: 'var(--space-1)', listStyle: 'none', padding: 0,
+                    }}>
                       {forca.sugestoes.slice(0, 3).map(s => (
-                        <li key={s} style={{
-                          fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)',
-                          display: 'flex', alignItems: 'center', gap: 4,
-                        }}>
+                        <li key={s} style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
                           <span style={{ color: forca!.cor, fontWeight: 700, fontSize: 10 }}>●</span>
                           {s}
                         </li>
@@ -264,36 +215,6 @@ export function RegisterPage() {
               )}
             </div>
 
-            {/* Modo teste */}
-            <label style={{
-              display: 'flex', alignItems: 'flex-start', gap: 'var(--space-3)',
-              padding: 'var(--space-3) var(--space-4)',
-              background: modoTeste ? 'var(--color-warning-highlight)' : 'var(--color-surface-offset)',
-              borderRadius: 'var(--radius-md)',
-              border: `1.5px solid ${modoTeste ? 'var(--color-warning)' : 'var(--color-border)'}`,
-              cursor: 'pointer',
-              transition: 'all 200ms ease',
-            }}>
-              <input
-                type="checkbox"
-                checked={modoTeste}
-                onChange={e => setModoTeste(e.target.checked)}
-                style={{ marginTop: 2, flexShrink: 0, accentColor: 'var(--color-warning)', width: 16, height: 16 }}
-              />
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginBottom: 2 }}>
-                  <FlaskConical size={14} style={{ color: 'var(--color-warning)' }} aria-hidden />
-                  <span style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--color-text)' }}>
-                    Modo Teste
-                  </span>
-                </div>
-                <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', lineHeight: 1.5 }}>
-                  Pula a confirmação de e-mail. Use apenas para contas de desenvolvimento.
-                </p>
-              </div>
-            </label>
-
-            {/* Erro geral */}
             {erro && (
               <p role="alert" style={{
                 fontSize: 'var(--text-sm)', color: 'var(--color-error)',
@@ -308,7 +229,7 @@ export function RegisterPage() {
               className="btn btn-primary"
               style={{ width: '100%', marginTop: 'var(--space-2)' }}
             >
-              {carregando ? 'Criando conta…' : modoTeste ? 'Criar conta (Modo Teste)' : 'Criar conta'}
+              {carregando ? 'Criando conta…' : 'Criar conta'}
             </button>
           </form>
 
