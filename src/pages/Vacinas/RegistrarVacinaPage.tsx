@@ -4,14 +4,13 @@ import { ArrowLeft, CheckCircle2, CalendarDays, Clock, Syringe, ClipboardList, A
 import { useMembros, RELACAO_LABEL } from '@/contexts/MembrosContext'
 import { useVacinas } from '@/contexts/VacinasContext'
 import { useLembretes } from '@/contexts/LembretesContext'
-import type { CriarLembretePayload, TipoCalendario, FaixaEtaria } from '@/types'
+import type { CriarLembretePayload, TipoCalendario, FaixaEtaria, RegistroVacinal } from '@/types'
 
 // ---------------------------------------------------------------------------
 // Ordem e mapeamento dos ciclos
 // ---------------------------------------------------------------------------
 const ORDEM_CICLOS: TipoCalendario[] = ['infantil', 'adolescente', 'adulto', 'idoso', 'gestante', 'especial']
 
-/** Faixas que definem cada ciclo (para filtrar vacinas) */
 const FAIXAS_DO_CICLO: Record<TipoCalendario, FaixaEtaria[]> = {
   infantil:    ['recem_nascido', 'crianca'],
   adolescente: ['adolescente'],
@@ -30,19 +29,12 @@ const CICLO_LABEL: Record<TipoCalendario, string> = {
   especial:    'Especial',
 }
 
-/**
- * Retorna todos os ciclos ANTERIORES ao ciclo do membro (acumulado).
- * Ex: adulto → [infantil, adolescente]
- */
 function ciclosAnteriores(tipoCalendario: TipoCalendario): TipoCalendario[] {
   const idx = ORDEM_CICLOS.indexOf(tipoCalendario)
   if (idx <= 0) return []
   return ORDEM_CICLOS.slice(0, idx)
 }
 
-/**
- * Faixas etárias de todos os ciclos anteriores ao do membro.
- */
 function faixasDoCiclosAnteriores(tipoCalendario: TipoCalendario): FaixaEtaria[] {
   const anteriores = ciclosAnteriores(tipoCalendario)
   const faixas = new Set<FaixaEtaria>()
@@ -63,7 +55,6 @@ function vibrarSucesso() {
   if ('vibrate' in navigator) navigator.vibrate([80, 60, 80])
 }
 
-/** Monta um CriarLembretePayload para doses vacinais automáticas */
 function lembreteVacinal(
   vacinaId: string,
   membroFamiliarId: string,
@@ -86,6 +77,11 @@ function getIntervaloDias(vacina: import('@/types').Vacina): number {
     if (valores.length > 0) return valores[0]
   }
   return 30
+}
+
+/** Verifica se um registro pertence ao membro, considerando ambos os campos de ID */
+function registroDoMembro(r: RegistroVacinal, membroId: string): boolean {
+  return r.membro_id === membroId || r.membro_familiar_id === membroId
 }
 
 // ---------------------------------------------------------------------------
@@ -134,7 +130,6 @@ export function RegistrarVacinaPage() {
       !v.faixa_etaria.some(f => faixasAtuais.includes(f as FaixaEtaria))
     )
 
-    // Avulsas: todas as vacinas EXCETO as do ciclo atual do membro
     const avulsas = vacinas.filter(v =>
       !Array.isArray(v.faixa_etaria) ||
       v.faixa_etaria.length === 0 ||
@@ -147,45 +142,36 @@ export function RegistrarVacinaPage() {
   // ---------------------------------------------------------------------------
   // Validação de sequência de doses
   // ---------------------------------------------------------------------------
+  function registrosMembro(): RegistroVacinal[] {
+    return todosRegistros.filter(r => registroDoMembro(r, membroId))
+  }
+
   function validarSequenciaDose(vacinaIdAlvo: string, dose: number): string | null {
-    if (dose <= 1) return null // dose 1 sempre permitida
-
-    const registrosMembro = todosRegistros.filter(
-      r => r.membro_id === membroId || (r as Record<string, unknown>).membro_familiar_id === membroId
-    )
-
+    if (dose <= 1) return null
     const doseAnterior = dose - 1
-    const registroDoseAnterior = registrosMembro.find(
+    const temDoseAnterior = registrosMembro().some(
       r => r.vacina_id === vacinaIdAlvo && r.numero_dose === doseAnterior
     )
-
-    if (!registroDoseAnterior) {
+    if (!temDoseAnterior) {
       return `Dose ${doseAnterior} não encontrada no histórico. Registre a dose ${doseAnterior} antes de prosseguir.`
     }
-
     return null
   }
 
   function validarDataComDoseAnterior(vacinaIdAlvo: string, dose: number, data: string): string | null {
     if (dose <= 1) return null
-
-    const registrosMembro = todosRegistros.filter(
-      r => r.membro_id === membroId || (r as Record<string, unknown>).membro_familiar_id === membroId
-    )
-
-    const registroDoseAnterior = registrosMembro.find(
+    const anterior = registrosMembro().find(
       r => r.vacina_id === vacinaIdAlvo && r.numero_dose === dose - 1
     )
-
-    if (registroDoseAnterior && data <= registroDoseAnterior.data_aplicacao) {
-      return `A data da dose ${dose} não pode ser anterior ou igual à data da dose ${dose - 1} (${registroDoseAnterior.data_aplicacao.split('-').reverse().join('/')}).`
+    if (anterior && data <= anterior.data_aplicacao) {
+      const dataFormatada = anterior.data_aplicacao.split('-').reverse().join('/')
+      return `A data da dose ${dose} não pode ser anterior ou igual à data da dose ${dose - 1} (${dataFormatada}).`
     }
-
     return null
   }
 
   // ---------------------------------------------------------------------------
-  // Ao selecionar vacina — detecta qual é a próxima dose válida
+  // Ao selecionar vacina — detecta próxima dose válida
   // ---------------------------------------------------------------------------
   function selecionarVacina(id: string) {
     setVacinaId(id)
@@ -198,11 +184,7 @@ export function RegistrarVacinaPage() {
       return
     }
 
-    // Determina a próxima dose que falta
-    const registrosMembro = todosRegistros.filter(
-      r => r.membro_id === membroId || (r as Record<string, unknown>).membro_familiar_id === membroId
-    )
-    const dosesJaAplicadas = registrosMembro
+    const dosesJaAplicadas = registrosMembro()
       .filter(r => r.vacina_id === id)
       .map(r => r.numero_dose)
 
@@ -220,11 +202,9 @@ export function RegistrarVacinaPage() {
     if (!dataAplicacao) { setErro('Por favor, informe a data da vacina.'); return }
     if (!membroId || !vacinaId) { setErro('Dados incompletos. Volte e selecione o membro e a vacina.'); return }
 
-    // Validação de sequência
     const erroSequencia = validarSequenciaDose(vacinaId, numeroDose)
     if (erroSequencia) { setErro(erroSequencia); return }
 
-    // Validação de data relativa à dose anterior
     const erroData = validarDataComDoseAnterior(vacinaId, numeroDose, dataAplicacao)
     if (erroData) { setErro(erroData); return }
 
@@ -335,7 +315,7 @@ export function RegistrarVacinaPage() {
                   <div style={{ flex: 1 }}>
                     <p style={{ fontWeight: 600, fontSize: 'var(--text-sm)', color: 'var(--color-text)' }}>{m.nome}</p>
                     <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
-                      {RELACAO_LABEL[m.relacao]} · Ciclo {CICLO_LABEL[(m.tipo_calendario as TipoCalendario) ?? 'adulto']}
+                      {RELACAO_LABEL[m.relacao]} · Ciclo {CICLO_LABEL[m.tipo_calendario ?? 'adulto']}
                     </p>
                   </div>
                 </button>
@@ -392,12 +372,8 @@ export function RegistrarVacinaPage() {
               ) : (
                 <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }} role="list">
                   {vacinasCicloAnterior.map(v => {
-                    const registrosMembro = todosRegistros.filter(
-                      r => r.membro_id === membroId || (r as Record<string, unknown>).membro_familiar_id === membroId
-                    )
-                    const dosesAplicadas = registrosMembro.filter(r => r.vacina_id === v.id).length
+                    const dosesAplicadas = registrosMembro().filter(r => r.vacina_id === v.id).length
                     const completa = dosesAplicadas >= v.doses_total
-
                     return (
                       <li key={v.id}>
                         <button
@@ -447,12 +423,8 @@ export function RegistrarVacinaPage() {
               ) : (
                 <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }} role="list">
                   {vacinasAvulsas.map(v => {
-                    const registrosMembro = todosRegistros.filter(
-                      r => r.membro_id === membroId || (r as Record<string, unknown>).membro_familiar_id === membroId
-                    )
-                    const dosesAplicadas = registrosMembro.filter(r => r.vacina_id === v.id).length
+                    const dosesAplicadas = registrosMembro().filter(r => r.vacina_id === v.id).length
                     const completa = dosesAplicadas >= v.doses_total
-
                     return (
                       <li key={v.id}>
                         <button
@@ -518,7 +490,7 @@ export function RegistrarVacinaPage() {
                       disabled={bloqueada}
                       className={numeroDose === n ? 'btn btn-primary' : 'btn btn-ghost'}
                       style={{ minWidth: 48, minHeight: 48, opacity: bloqueada ? 0.4 : 1, cursor: bloqueada ? 'not-allowed' : 'pointer' }}
-                      title={bloqueada ? erroN ?? '' : ''}
+                      title={bloqueada ? (erroN ?? '') : ''}
                       aria-disabled={bloqueada}
                     >
                       {n}ª
