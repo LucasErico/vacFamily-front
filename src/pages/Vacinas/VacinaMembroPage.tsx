@@ -54,6 +54,7 @@ function VacinaSkeletonRow() {
   )
 }
 
+// Faixas etárias que representam o calendário infantil
 const FAIXAS_INFANTIS: FaixaEtaria[] = ['recem_nascido', 'crianca']
 
 function isVacinaInfantil(faixaEtaria: FaixaEtaria[]): boolean {
@@ -210,7 +211,6 @@ export function VacinaMembroPage() {
   }
 
   async function handleConfirmarTodas() {
-    if (!membro) return
     if (!dataConfirmarTodas) { setErroConfirmarTodas('Informe a data de aplicação.'); return }
     if (dataConfirmarTodas > hoje) { setErroConfirmarTodas('A data não pode ser futura.'); return }
     if (!localConfirmarTodas.trim()) { setErroConfirmarTodas('Informe o local de aplicação.'); return }
