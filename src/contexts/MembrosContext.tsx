@@ -1,6 +1,11 @@
 /**
  * MembrosContext — CRUD real via API backend
  * Endpoints: GET|POST /membros  |  GET|PUT|DELETE /membros/:id
+ *
+ * Respostas da API têm envelope:
+ *   GET /membros        → { status, membros: [] }
+ *   POST /membros       → { status, membro: {} }
+ *   PUT /membros/:id    → { status, membro: {} }
  */
 import {
   createContext, useContext, useState, useCallback,
@@ -31,8 +36,8 @@ export function MembrosProvider({ children }: { children: ReactNode }) {
     if (!isAuthenticated) return
     setCarregando(true)
     try {
-      const data = await apiFetch<MembroFamiliar[]>('/membros')
-      setMembros(data)
+      const res = await apiFetch<{ membros: MembroFamiliar[] }>('/membros')
+      setMembros(Array.isArray(res) ? res : (res.membros ?? []))
     } catch {
       // mantém estado atual em caso de erro de rede
     } finally {
@@ -45,10 +50,11 @@ export function MembrosProvider({ children }: { children: ReactNode }) {
   const adicionarMembro = useCallback(async (
     dados: Omit<MembroFamiliar, 'id' | 'usuarioId' | 'criadoEm'>,
   ) => {
-    const novo = await apiFetch<MembroFamiliar>('/membros', {
+    const res = await apiFetch<{ membro: MembroFamiliar } | MembroFamiliar>('/membros', {
       method: 'POST',
       body: dados,
     })
+    const novo = 'membro' in res ? res.membro : res
     setMembros(prev => [...prev, novo])
     return novo
   }, [])
@@ -57,10 +63,11 @@ export function MembrosProvider({ children }: { children: ReactNode }) {
     id: string,
     dados: Partial<Omit<MembroFamiliar, 'id' | 'usuarioId' | 'criadoEm'>>,
   ) => {
-    const atualizado = await apiFetch<MembroFamiliar>(`/membros/${id}`, {
+    const res = await apiFetch<{ membro: MembroFamiliar } | MembroFamiliar>(`/membros/${id}`, {
       method: 'PUT',
       body: dados,
     })
+    const atualizado = 'membro' in res ? res.membro : res
     setMembros(prev => prev.map(m => m.id === id ? atualizado : m))
   }, [])
 

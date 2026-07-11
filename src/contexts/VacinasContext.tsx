@@ -1,7 +1,12 @@
 /**
  * VacinasContext — vacinas locais (seed) + registros vacinais via API
- * Endpoints: GET|POST /registros  |  DELETE /registros/:id
- * A lista de vacinas continua local (seed) pois é dado público imutável.
+ *
+ * Registros são carregados por membro sob demanda:
+ *   GET /registros/membro/:membroId  → { status, registros: [] }
+ *   POST /registros/membro/:membroId → { status, registro: {} }
+ *   DELETE /registros/:id
+ *
+ * A lista de vacinas continua local (seed) — dado público imutável.
  */
 import {
   createContext, useContext, useState, useCallback,
@@ -11,6 +16,7 @@ import type { Vacina, RegistroVacinal, DoseStatus, StatusDose } from '@/types'
 import { VACINAS_SEED } from '@/data/vacinasSeed'
 import { apiFetch } from '@/services/api'
 import { useAuth } from './AuthContext'
+import { useMembros } from './MembrosContext'
 
 function calcularIdadeEmDias(dataNascimento: string): number {
   const nasc = new Date(dataNascimento)
@@ -70,20 +76,28 @@ const VacinasContext = createContext<VacinasContextValue | null>(null)
 
 export function VacinasProvider({ children }: { children: ReactNode }) {
   const { isAuthenticated } = useAuth()
+  const { membros } = useMembros()
   const [vacinas] = useState<Vacina[]>(VACINAS_SEED)
   const [registros, setRegistros] = useState<RegistroVacinal[]>([])
   const [carregando, setCarregando] = useState(false)
 
+  // Carrega registros de TODOS os membros do usuário em paralelo
   const recarregar = useCallback(async () => {
-    if (!isAuthenticated) return
+    if (!isAuthenticated || membros.length === 0) return
     setCarregando(true)
     try {
-      const data = await apiFetch<RegistroVacinal[]>('/registros')
-      setRegistros(data)
+      const resultados = await Promise.all(
+        membros.map(m =>
+          apiFetch<{ registros: RegistroVacinal[] }>(`/registros/membro/${m.id}`)
+            .then(res => (Array.isArray(res) ? res : (res.registros ?? [])))
+            .catch(() => [] as RegistroVacinal[])
+        )
+      )
+      setRegistros(resultados.flat())
     } catch { /* mantém estado */ } finally {
       setCarregando(false)
     }
-  }, [isAuthenticated])
+  }, [isAuthenticated, membros])
 
   useEffect(() => { recarregar() }, [recarregar])
 
@@ -91,10 +105,11 @@ export function VacinasProvider({ children }: { children: ReactNode }) {
     dados: Omit<RegistroVacinal, 'id' | 'criadoEm'>,
     gerarLembrete?: GerarLembreteReforcoFn,
   ) => {
-    const novo = await apiFetch<RegistroVacinal>('/registros', {
-      method: 'POST',
-      body: dados,
-    })
+    const res = await apiFetch<{ registro: RegistroVacinal } | RegistroVacinal>(
+      `/registros/membro/${dados.membroId}`,
+      { method: 'POST', body: dados },
+    )
+    const novo = 'registro' in res ? res.registro : res
     setRegistros(prev => [...prev, novo])
 
     if (gerarLembrete) {
