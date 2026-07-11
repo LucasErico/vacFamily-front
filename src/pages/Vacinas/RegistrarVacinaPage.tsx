@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { ArrowLeft, CheckCircle2, CalendarDays, Clock, Syringe, AlertTriangle } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, CalendarDays, Clock, AlertTriangle } from 'lucide-react'
 import { useMembros, RELACAO_LABEL } from '@/contexts/MembrosContext'
 import { useVacinas, vacinaCompativel } from '@/contexts/VacinasContext'
 import { useLembretes } from '@/contexts/LembretesContext'

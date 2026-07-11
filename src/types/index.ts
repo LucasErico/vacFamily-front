@@ -106,10 +106,12 @@ export interface RegistroVacinal {
   dose_zero?: boolean
   comprovante_url?: string
   observacoes?: string
+  /** Usado apenas em vacinas avulsas (vacina_id === 'avulsa') */
+  status_avulsa?: 'pendente' | 'concluida'
   created_at: string
 }
 
-export type TipoLembrete = 'campanha' | 'reforco'
+export type TipoLembrete = 'campanha' | 'reforco' | 'manual'
 export type StatusLembrete = 'pendente' | 'concluido' | 'ignorado'
 
 export interface Lembrete {
