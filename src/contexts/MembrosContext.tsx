@@ -2,24 +2,23 @@
  * MembrosContext — CRUD real via API backend
  * Endpoints: GET|POST /membros  |  GET|PUT|DELETE /membros/:id
  *
- * Respostas da API têm envelope:
- *   GET /membros        → { status, membros: [] }
- *   POST /membros       → { status, membro: {} }
- *   PUT /membros/:id    → { status, membro: {} }
+ * O backend usa snake_case. Este contexto abstrai essa diferença:
+ * o form passa um CriarMembroPayload (já em snake_case) e
+ * o contexto envia diretamente para a API.
  */
 import {
   createContext, useContext, useState, useCallback,
   useEffect, type ReactNode,
 } from 'react'
-import type { MembroFamiliar, Parentesco } from '@/types'
+import type { MembroFamiliar, CriarMembroPayload, Relacao } from '@/types'
 import { apiFetch } from '@/services/api'
 import { useAuth } from './AuthContext'
 
 interface MembrosContextValue {
   membros: MembroFamiliar[]
   carregando: boolean
-  adicionarMembro: (dados: Omit<MembroFamiliar, 'id' | 'usuarioId' | 'criadoEm'>) => Promise<MembroFamiliar>
-  atualizarMembro: (id: string, dados: Partial<Omit<MembroFamiliar, 'id' | 'usuarioId' | 'criadoEm'>>) => Promise<void>
+  adicionarMembro: (dados: CriarMembroPayload) => Promise<MembroFamiliar>
+  atualizarMembro: (id: string, dados: Partial<CriarMembroPayload>) => Promise<void>
   removerMembro: (id: string) => Promise<void>
   buscarMembro: (id: string) => MembroFamiliar | undefined
   recarregar: () => Promise<void>
@@ -47,12 +46,10 @@ export function MembrosProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => { recarregar() }, [recarregar])
 
-  const adicionarMembro = useCallback(async (
-    dados: Omit<MembroFamiliar, 'id' | 'usuarioId' | 'criadoEm'>,
-  ) => {
+  const adicionarMembro = useCallback(async (dados: CriarMembroPayload) => {
     const res = await apiFetch<{ membro: MembroFamiliar } | MembroFamiliar>('/membros', {
       method: 'POST',
-      body: dados,
+      body: dados, // já em snake_case
     })
     const novo = 'membro' in res ? res.membro : res
     setMembros(prev => [...prev, novo])
@@ -61,7 +58,7 @@ export function MembrosProvider({ children }: { children: ReactNode }) {
 
   const atualizarMembro = useCallback(async (
     id: string,
-    dados: Partial<Omit<MembroFamiliar, 'id' | 'usuarioId' | 'criadoEm'>>,
+    dados: Partial<CriarMembroPayload>,
   ) => {
     const res = await apiFetch<{ membro: MembroFamiliar } | MembroFamiliar>(`/membros/${id}`, {
       method: 'PUT',
@@ -97,7 +94,7 @@ export function useMembros() {
   return ctx
 }
 
-export const PARENTESCO_LABEL: Record<Parentesco, string> = {
+export const RELACAO_LABEL: Record<Relacao, string> = {
   titular:     'Titular',
   conjuge:     'Cônjuge',
   filho:       'Filho',
@@ -108,3 +105,6 @@ export const PARENTESCO_LABEL: Record<Parentesco, string> = {
   avo_materna: 'Avó',
   outro:       'Outro',
 }
+
+/** @deprecated use RELACAO_LABEL */
+export const PARENTESCO_LABEL = RELACAO_LABEL

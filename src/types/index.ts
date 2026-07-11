@@ -5,7 +5,7 @@ export interface Usuario {
   criadoEm: string
 }
 
-export type Parentesco =
+export type Relacao =
   | 'titular'
   | 'conjuge'
   | 'filho'
@@ -16,14 +16,47 @@ export type Parentesco =
   | 'avo_materna'
   | 'outro'
 
+/** @deprecated use Relacao */
+export type Parentesco = Relacao
+
+export type Sexo = 'M' | 'F' | 'outro'
+
+export type TipoCalendario =
+  | 'infantil'
+  | 'adolescente'
+  | 'adulto'
+  | 'gestante'
+  | 'idoso'
+  | 'especial'
+
+/** Estrutura retornada pelo backend (snake_case, espelho da tabela Supabase) */
 export interface MembroFamiliar {
   id: string
-  usuarioId: string
+  usuario_id: string
   nome: string
-  dataNascimento: string // ISO 8601 YYYY-MM-DD
-  parentesco: Parentesco
-  fotoUrl?: string
-  criadoEm: string
+  data_nascimento: string // YYYY-MM-DD
+  sexo: Sexo
+  relacao: Relacao
+  tipo_calendario: TipoCalendario
+  gestacao_semanas?: number
+  mae_id?: string
+  observacoes?: string
+  foto_url?: string
+  created_at: string
+  updated_at?: string
+}
+
+/** Payload para POST /membros */
+export interface CriarMembroPayload {
+  nome: string
+  data_nascimento: string
+  sexo: Sexo
+  relacao: Relacao
+  tipo_calendario: TipoCalendario
+  gestacao_semanas?: number
+  mae_id?: string
+  observacoes?: string
+  foto_url?: string
 }
 
 export type FaixaEtaria =
@@ -40,9 +73,9 @@ export interface Vacina {
   nome: string
   nomeCompleto: string
   doses: number
-  intervaloDias?: number   // intervalo entre doses
+  intervaloDias?: number
   faixaEtaria: FaixaEtaria[]
-  idadeRecomendadaDias?: number  // idade mínima em dias
+  idadeRecomendadaDias?: number
   obrigatoria: boolean
   descricao: string
   doencasProtege: string[]
@@ -52,26 +85,26 @@ export type StatusDose = 'aplicada' | 'pendente' | 'atrasada' | 'nao_aplicavel'
 
 export interface RegistroVacinal {
   id: string
-  membroId: string
-  vacinaId: string
-  numeroDose: number
-  dataAplicacao: string // ISO 8601
-  localAplicacao: string
-  comprovanteUrl?: string
-  criadoEm: string
+  membro_id: string
+  vacina_id: string
+  numero_dose: number
+  data_aplicacao: string
+  local_aplicacao: string
+  comprovante_url?: string
+  created_at: string
 }
 
 export type StatusLembrete = 'pendente' | 'enviado' | 'cancelado'
 
 export interface Lembrete {
   id: string
-  membroId: string
-  vacinaId: string
-  numeroDose: number
-  dataLembrete: string // ISO 8601
+  membro_id: string
+  vacina_id: string
+  numero_dose: number
+  data_lembrete: string
   status: StatusLembrete
   automatico: boolean
-  criadoEm: string
+  created_at: string
 }
 
 export interface DoseStatus {
