@@ -283,6 +283,21 @@ function styleBtnStatus(_s: string, ativo: boolean, cor?: string): React.CSSProp
   }
 }
 
+/**
+ * Retorna true quando o ciclo já foi superado pelo membro — ou seja,
+ * o botão "Confirmar todas" deve ser exibido.
+ *
+ * Regras:
+ * - pre_natal: sempre precedeu o membro atual (a gestação já passou),
+ *   pois a faixa 'gestante' não é derivada da idade e o ciclo nunca
+ *   seria encerrado pela comparação de idadeMaxAnos (50 anos).
+ * - demais ciclos: a idade do membro já superou a idade máxima do ciclo.
+ */
+function cicloPrecedeMembro(ciclo: Ciclo, idadeAnos: number): boolean {
+  if (ciclo.id === 'pre_natal') return true
+  return idadeAnos >= ciclo.idadeMaxAnos
+}
+
 export function VacinaMembroPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -605,7 +620,7 @@ export function VacinaMembroPage() {
             const expandido = ciclosExpandidos.has(ciclo.id)
             const todasDoses = vacinasCiclo.flatMap(({ doses }) => doses)
             const pendentes = todasDoses.filter(d => d.status === 'pendente' || isAtrasada(d, membroDefinido.data_nascimento, hoje)).length
-            const cicloJaEncerrado = idadeMembro >= ciclo.idadeMaxAnos
+            const cicloJaEncerrado = cicloPrecedeMembro(ciclo, idadeMembro)
 
             return (
               <section key={ciclo.id} aria-label={ciclo.label}>
