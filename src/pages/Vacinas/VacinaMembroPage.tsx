@@ -6,7 +6,7 @@ import { useVacinas, calcularDosesStatus, isAtrasada } from '@/contexts/VacinasC
 import { useLembretes } from '@/contexts/LembretesContext'
 import { Avatar } from '@/components/ui/Avatar'
 import { VacinaStatusBadge } from '@/components/ui/VacinaStatusBadge'
-import type { DoseStatus, CriarLembretePayload } from '@/types'
+import type { DoseStatus, CriarLembretePayload, FaixaEtaria } from '@/types'
 
 function formatarData(iso: string) {
   const [ano, mes, dia] = iso.split('-')
@@ -52,6 +52,12 @@ function VacinaSkeletonRow() {
       </div>
     </li>
   )
+}
+
+const FAIXAS_INFANTIS: FaixaEtaria[] = ['recem_nascido', 'crianca']
+
+function isVacinaInfantil(faixaEtaria: FaixaEtaria[]): boolean {
+  return faixaEtaria.some(f => FAIXAS_INFANTIS.includes(f))
 }
 
 export function VacinaMembroPage() {
@@ -107,7 +113,7 @@ export function VacinaMembroPage() {
     if (registrosMembro.length > 0) return
 
     const vacinasInfantis = vacinas.filter(
-      v => Array.isArray(v.faixa_etaria) && v.faixa_etaria.includes('infantil')
+      v => Array.isArray(v.faixa_etaria) && isVacinaInfantil(v.faixa_etaria)
     )
 
     let totalDoses = 0
@@ -128,7 +134,7 @@ export function VacinaMembroPage() {
     })
 
     setBannerInfantis(
-      `Histórico infantil preenchido automaticamente — ${totalDoses} doses registradas com data de hoje e local “${localInfantisNavState}”. Você pode editar ou apagar qualquer dose individualmente.`
+      `Histórico infantil preenchido automaticamente — ${totalDoses} doses registradas com data de hoje e local "${localInfantisNavState}". Você pode editar ou apagar qualquer dose individualmente.`
     )
 
     // Limpar o state de navegação para não re-disparar
@@ -161,7 +167,7 @@ export function VacinaMembroPage() {
 
   // Vacinas infantis pendentes (para botão "Confirmar todas")
   const vacinasInfantisPendentes = vacinasAplicaveis.filter(
-    v => Array.isArray(v.faixa_etaria) && v.faixa_etaria.includes('infantil')
+    v => Array.isArray(v.faixa_etaria) && isVacinaInfantil(v.faixa_etaria)
   )
   const temInfantisPendentes = vacinasInfantisPendentes.length > 0
 
@@ -204,6 +210,7 @@ export function VacinaMembroPage() {
   }
 
   async function handleConfirmarTodas() {
+    if (!membro) return
     if (!dataConfirmarTodas) { setErroConfirmarTodas('Informe a data de aplicação.'); return }
     if (dataConfirmarTodas > hoje) { setErroConfirmarTodas('A data não pode ser futura.'); return }
     if (!localConfirmarTodas.trim()) { setErroConfirmarTodas('Informe o local de aplicação.'); return }
