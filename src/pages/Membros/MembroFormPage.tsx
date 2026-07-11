@@ -26,6 +26,7 @@ export function MembroFormPage() {
   const [dataNascimento, setDataNascimento] = useState(membroExistente?.dataNascimento ?? '')
   const [parentesco, setParentesco] = useState<Parentesco>(membroExistente?.parentesco ?? 'filho')
   const [erros, setErros] = useState<Record<string, string>>({})
+  const [enviando, setEnviando] = useState(false)
 
   function validar() {
     const e: Record<string, string> = {}
@@ -38,17 +39,24 @@ export function MembroFormPage() {
     return e
   }
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     const errosValidacao = validar()
     if (Object.keys(errosValidacao).length > 0) { setErros(errosValidacao); return }
 
-    if (isEdicao) {
-      atualizarMembro(membroExistente!.id, { nome, dataNascimento, parentesco })
-      navigate(`/membros/${membroExistente!.id}`, { replace: true })
-    } else {
-      const novo = adicionarMembro({ nome, dataNascimento, parentesco })
-      navigate(`/membros/${novo.id}`, { replace: true })
+    setEnviando(true)
+    try {
+      if (isEdicao) {
+        await atualizarMembro(membroExistente!.id, { nome, dataNascimento, parentesco })
+        navigate(`/membros/${membroExistente!.id}`, { replace: true })
+      } else {
+        const novo = await adicionarMembro({ nome, dataNascimento, parentesco })
+        navigate(`/membros/${novo.id}`, { replace: true })
+      }
+    } catch {
+      setErros({ geral: 'Erro ao salvar. Tente novamente.' })
+    } finally {
+      setEnviando(false)
     }
   }
 
@@ -60,7 +68,7 @@ export function MembroFormPage() {
           display: 'flex', alignItems: 'center', gap: 'var(--space-2)',
           color: 'var(--color-text-muted)', fontSize: 'var(--text-sm)',
           marginBottom: 'var(--space-6)',
-          minHeight: 48, // alvo de toque mínimo 48px (ABNT NBR 17060)
+          minHeight: 48,
           padding: 'var(--space-2) 0',
         }}
       >
@@ -73,6 +81,12 @@ export function MembroFormPage() {
 
       <div className="card">
         <form onSubmit={handleSubmit} noValidate style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
+
+          {erros.geral && (
+            <p role="alert" style={{ fontSize: 'var(--text-sm)', color: 'var(--color-error)', background: 'var(--color-error-highlight)', borderRadius: 'var(--radius-md)', padding: 'var(--space-2) var(--space-3)' }}>
+              ⚠️ {erros.geral}
+            </p>
+          )}
 
           {/* Nome */}
           <div>
@@ -92,7 +106,7 @@ export function MembroFormPage() {
               aria-describedby={erros.nome ? 'erro-nome' : undefined}
               aria-invalid={!!erros.nome}
               placeholder="Ex: Maria da Silva"
-              style={{ minHeight: 48 }} // alvo de toque mínimo 48px
+              style={{ minHeight: 48 }}
             />
             {erros.nome && (
               <p
@@ -131,7 +145,7 @@ export function MembroFormPage() {
               className={`input-field${erros.dataNascimento ? ' error' : ''}`}
               aria-describedby={erros.dataNascimento ? 'erro-data' : undefined}
               aria-invalid={!!erros.dataNascimento}
-              style={{ minHeight: 48 }} // alvo de toque mínimo 48px
+              style={{ minHeight: 48 }}
             />
             {erros.dataNascimento && (
               <p
@@ -166,7 +180,7 @@ export function MembroFormPage() {
               value={parentesco}
               onChange={e => setParentesco(e.target.value as Parentesco)}
               className="input-field"
-              style={{ cursor: 'pointer', minHeight: 48 }} // alvo de toque mínimo 48px
+              style={{ cursor: 'pointer', minHeight: 48 }}
             >
               {PARENTESCOS.map(([val, label]) => (
                 <option key={val} value={val}>{label}</option>
@@ -180,16 +194,18 @@ export function MembroFormPage() {
               type="button"
               onClick={() => navigate(-1)}
               className="btn btn-ghost"
-              style={{ flex: 1, minHeight: 48 }} // alvo de toque mínimo 48px
+              style={{ flex: 1, minHeight: 48 }}
+              disabled={enviando}
             >
               Cancelar
             </button>
             <button
               type="submit"
               className="btn btn-primary"
-              style={{ flex: 2, minHeight: 48 }} // alvo de toque mínimo 48px
+              style={{ flex: 2, minHeight: 48 }}
+              disabled={enviando}
             >
-              {isEdicao ? 'Salvar alterações' : 'Adicionar membro'}
+              {enviando ? 'Salvando…' : isEdicao ? 'Salvar alterações' : 'Adicionar membro'}
             </button>
           </div>
 
