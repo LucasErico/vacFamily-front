@@ -55,24 +55,22 @@ export function LembretesProvider({ children }: { children: ReactNode }) {
   useEffect(() => { recarregar() }, [recarregar])
 
   const adicionarLembrete = useCallback(async (dados: CriarLembretePayload | Omit<Lembrete, 'id' | 'created_at'>) => {
-    const membro_familiar_id = 'membro_familiar_id' in dados
-      ? dados.membro_familiar_id
-      : ('membro_id' in dados ? dados.membro_id : undefined)
+    // Cast para Record<string, unknown> para acessar aliases de compatibilidade
+    // (membro_id, data_lembrete, numero_dose) sem violar o narrowing do TS
+    const raw = dados as Record<string, unknown>
 
-    const data_prevista = 'data_prevista' in dados
-      ? dados.data_prevista
-      : ('data_lembrete' in dados ? dados.data_lembrete : '')
+    const membro_familiar_id = (raw.membro_familiar_id ?? raw.membro_id) as string | undefined
+
+    const data_prevista = (raw.data_prevista ?? raw.data_lembrete ?? '') as string
 
     const payload: CriarLembretePayload = {
       membro_familiar_id,
-      vacina_id: dados.vacina_id,
-      tipo: 'tipo' in dados && dados.tipo ? dados.tipo : 'manual',
-      titulo: 'titulo' in dados && dados.titulo
-        ? dados.titulo
-        : LABEL_TIPO['manual'],
-      descricao: 'descricao' in dados ? dados.descricao : undefined,
+      vacina_id: raw.vacina_id as string | undefined,
+      tipo: (raw.tipo as CriarLembretePayload['tipo']) || 'manual',
+      titulo: (raw.titulo as string) || LABEL_TIPO['manual'],
+      descricao: raw.descricao as string | undefined,
       data_prevista,
-      automatico: dados.automatico ?? false,
+      automatico: (raw.automatico as boolean) ?? false,
     }
 
     const res = await apiFetch<{ lembrete: Lembrete } | Lembrete>('/lembretes', {
