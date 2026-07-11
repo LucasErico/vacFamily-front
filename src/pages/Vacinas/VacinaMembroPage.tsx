@@ -36,11 +36,30 @@ function lembreteVacinal(
   }
 }
 
+/** Skeleton de uma linha de vacina enquanto aguarda a API */
+function VacinaSkeletonRow() {
+  return (
+    <li>
+      <div className="card" style={{ padding: 'var(--space-4) var(--space-5)', display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+          <div className="skeleton skeleton-text" style={{ width: '55%' }} />
+          <div className="skeleton skeleton-text" style={{ width: '30%' }} />
+        </div>
+        <div style={{ display: 'flex', gap: 'var(--space-1)' }}>
+          <div className="skeleton" style={{ width: 16, height: 16, borderRadius: 'var(--radius-full)' }} />
+          <div className="skeleton" style={{ width: 16, height: 16, borderRadius: 'var(--radius-full)' }} />
+        </div>
+        <div className="skeleton" style={{ width: 16, height: 16, borderRadius: 'var(--radius-sm)' }} />
+      </div>
+    </li>
+  )
+}
+
 export function VacinaMembroPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { membros } = useMembros()
-  const { vacinas, registros, registrarDose, removerRegistro, buscarRegistrosMembro } = useVacinas()
+  const { vacinas, registros, carregando, membrosCarregados, registrarDose, removerRegistro, buscarRegistrosMembro } = useVacinas()
   const { adicionarLembrete, lembretes, removerLembrete } = useLembretes()
 
   const hoje = new Date().toISOString().slice(0, 10)
@@ -66,15 +85,25 @@ export function VacinaMembroPage() {
     )
   }
 
+  /**
+   * Só calcula e exibe vacinas após confirmar que os registros do membro
+   * atual já foram buscados na API ao menos uma vez.
+   * Isso evita a exibição antecipada de vacinas "pendentes" geradas
+   * puramente pela seed local enquanto o backend ainda não respondeu.
+   */
+  const registrosDoMembroCarregados = membrosCarregados.has(membroSelecionadoId)
+
   const registrosMembro = buscarRegistrosMembro(membroSelecionadoId)
 
-  // Exclui vacinas onde TODAS as doses já estão 'aplicada'.
-  const vacinasAplicaveis = vacinas.filter(v => {
-    const doses = calcularDosesStatus(v, registrosMembro, membro.data_nascimento)
-    const dosesVisiveis = doses.filter(d => d.status !== 'nao_aplicavel')
-    if (dosesVisiveis.length === 0) return false
-    return dosesVisiveis.some(d => d.status !== 'aplicada')
-  })
+  // Só computa vacinas aplicáveis depois que a API respondeu para este membro.
+  const vacinasAplicaveis = registrosDoMembroCarregados
+    ? vacinas.filter(v => {
+        const doses = calcularDosesStatus(v, registrosMembro, membro.data_nascimento)
+        const dosesVisiveis = doses.filter(d => d.status !== 'nao_aplicavel')
+        if (dosesVisiveis.length === 0) return false
+        return dosesVisiveis.some(d => d.status !== 'aplicada')
+      })
+    : []
 
   function handleMarcarTomada() {
     if (!dataConfirm) { setErroConfirm('Informe a data de aplicação.'); return }
@@ -113,6 +142,9 @@ export function VacinaMembroPage() {
     removerRegistro(modal.registroId)
     setModal({ tipo: 'nenhum' })
   }
+
+  /** Estado de carregamento: ainda não buscou a API para este membro */
+  const aguardandoAPI = carregando || !registrosDoMembroCarregados
 
   return (
     <div style={{ maxWidth: 640, margin: '0 auto', paddingBottom: 'var(--space-8)' }}>
@@ -171,8 +203,12 @@ export function VacinaMembroPage() {
         )}
       </div>
 
-      {/* Lista de vacinas */}
-      {vacinasAplicaveis.length === 0 ? (
+      {/* Lista de vacinas — skeleton enquanto API não respondeu */}
+      {aguardandoAPI ? (
+        <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }} role="list" aria-label="Carregando vacinas..." aria-busy="true">
+          {Array.from({ length: 5 }).map((_, i) => <VacinaSkeletonRow key={i} />)}
+        </ul>
+      ) : vacinasAplicaveis.length === 0 ? (
         <div style={{ textAlign: 'center', padding: 'var(--space-12) var(--space-8)', color: 'var(--color-text-muted)' }}>
           <p style={{ fontSize: 'var(--text-sm)' }}>Nenhuma vacina pendente para {membro.nome.split(' ')[0]}. ✅</p>
         </div>
@@ -228,7 +264,7 @@ export function VacinaMembroPage() {
                               <VacinaStatusBadge status={statusEfetivo} mostrarLabel={false} />
                               <div style={{ flex: 1, minWidth: 0 }}>
                                 <p style={{ fontWeight: 600, fontSize: 'var(--text-sm)', color: 'var(--color-text)' }}>
-                                  {dose.numeroDose}ª dose
+                                  {dose.numeroDose}ªdose
                                   {atrasada && <span style={{ marginLeft: 'var(--space-2)', fontSize: 'var(--text-xs)', color: 'var(--color-error)', fontWeight: 600 }}>ATRASADA</span>}
                                 </p>
                                 {dose.status === 'aplicada' && registro && (
