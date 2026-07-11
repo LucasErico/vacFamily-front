@@ -14,6 +14,11 @@
  *   - dose sem registro, data passada   → 'pendente'  → NÃO é 'atrasada' automática
  *     (evita poluição retroativa; 'atrasada' só deve existir com registro explícito)
  *   - dose ainda fora da faixa etária   → 'nao_aplicavel'
+ *
+ * ATENÇÃO — isAtrasada (em VacinaMembroPage):
+ *   Uma dose pendente só é exibida como 'atrasada' se o membro tiver
+ *   menos de IDADE_MAX_RETROATIVA_DIAS de vida. Para membros mais velhos,
+ *   doses do passado sem registro são exibidas apenas como 'pendente'.
  */
 import {
   createContext, useContext, useState, useCallback,
@@ -24,6 +29,13 @@ import { VACINAS_SEED } from '@/data/vacinasSeed'
 import { apiFetch } from '@/services/api'
 import { useAuth } from './AuthContext'
 import { useMembros } from './MembrosContext'
+
+/**
+ * Limite de idade (em dias) até o qual doses passadas sem registro
+ * são consideradas 'atrasadas'. Acima disso → apenas 'pendente'.
+ * 730 dias ≈ 2 anos — cobre o calendário pediátrico completo.
+ */
+export const IDADE_MAX_RETROATIVA_DIAS = 730
 
 function calcularIdadeEmDias(dataNascimento: string): number {
   const nasc = new Date(dataNascimento)
@@ -87,6 +99,31 @@ export function calcularDosesStatus(
   })
 }
 
+/**
+ * Determina se uma dose pendente deve ser exibida como "atrasada".
+ *
+ * Regra: só marca como atrasada se:
+ *  1. A dose está pendente (sem registro no banco)
+ *  2. A dataRecomendada já passou (hoje > dataRecomendada)
+ *  3. O membro tem menos de IDADE_MAX_RETROATIVA_DIAS de vida
+ *
+ * Motivo do critério 3: membros adultos/adolescentes cadastrados pela
+ * primeira vez não têm histórico no sistema — não é correto acusá-los
+ * de "atrasados" em vacinas que deveriam ter tomado décadas atrás.
+ * O sistema só rastreia atrasos reais dentro da janela pediátrica.
+ */
+export function isAtrasada(
+  dose: DoseStatus,
+  dataNascimento: string,
+  hoje: string,
+): boolean {
+  if (dose.status !== 'pendente') return false
+  if (!dose.dataRecomendada) return false
+  if (dose.dataRecomendada >= hoje) return false
+  const idadeEmDias = calcularIdadeEmDias(dataNascimento)
+  return idadeEmDias <= IDADE_MAX_RETROATIVA_DIAS
+}
+
 type GerarLembreteReforcoFn = (
   membro_id: string, vacina_id: string, numero_dose: number, data_lembrete: string,
 ) => void
@@ -140,11 +177,9 @@ export function VacinasProvider({ children }: { children: ReactNode }) {
     dados: Omit<RegistroVacinal, 'id' | 'created_at'>,
     gerarLembrete?: GerarLembreteReforcoFn,
   ) => {
-    // Monta payload explicitamente: garante tipos corretos e exclui campos
-    // que não pertencem ao body (ex: membro_id que vai no path param).
     const payload: Record<string, unknown> = {
       vacina_id: dados.vacina_id,
-      numero_dose: Number(dados.numero_dose), // Zod exige number, não string
+      numero_dose: Number(dados.numero_dose),
       data_aplicacao: dados.data_aplicacao,
     }
     if (dados.local_aplicacao) payload.local_aplicacao = dados.local_aplicacao
@@ -159,7 +194,6 @@ export function VacinasProvider({ children }: { children: ReactNode }) {
     )
     const novo = 'registro' in res ? res.registro : res
 
-    // Normaliza: garante que membro_id esteja presente (pode vir como membro_familiar_id do back)
     const novoNormalizado: RegistroVacinal = {
       ...novo,
       membro_id: (novo as unknown as Record<string, unknown>).membro_familiar_id as string ?? novo.membro_id ?? dados.membro_id,
@@ -185,8 +219,6 @@ export function VacinasProvider({ children }: { children: ReactNode }) {
   }, [])
 
   // CRÍTICO: o back retorna membro_familiar_id, não membro_id.
-  // Filtra pelos dois para garantir compatibilidade enquanto
-  // o campo não é normalizado pelo back.
   const buscarRegistrosMembro = useCallback(
     (membro_id: string) => registros.filter(
       r => r.membro_id === membro_id || r.membro_familiar_id === membro_id,
