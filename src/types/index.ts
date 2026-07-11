@@ -93,6 +93,14 @@ export interface Vacina {
 
 export type StatusDose = 'aplicada' | 'pendente' | 'atrasada' | 'nao_aplicavel'
 
+/**
+ * Status exclusivo de vacinas avulsas:
+ *   'pendente'  → data futura ou presente, ainda não tomada
+ *   'concluida' → usuário marcou como tomada
+ * 'atrasada' é derivado em runtime: status_avulsa === 'pendente' + data_aplicacao < hoje
+ */
+export type StatusAvulsa = 'pendente' | 'concluida'
+
 export interface RegistroVacinal {
   id: string
   membro_id: string
@@ -106,6 +114,8 @@ export interface RegistroVacinal {
   dose_zero?: boolean
   comprovante_url?: string
   observacoes?: string
+  /** Presente apenas em registros avulsos (vacina_id === 'avulsa') */
+  status_avulsa?: StatusAvulsa
   created_at: string
 }
 
