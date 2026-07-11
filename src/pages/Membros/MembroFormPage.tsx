@@ -40,6 +40,8 @@ const ERROS_SIMPLES = {
   dataNascimentoObrigatoria: 'Por favor, informe a data de nascimento da pessoa.',
   dataNascimentoFutura:
     'A data informada ainda não chegou. Por favor, escolha uma data de hoje ou de dias anteriores.',
+  localInfantisObrigatorio:
+    'Informe o local de vacinação para registrar as vacinas infantis (ex: UBS Centro, clínica particular).',
 }
 
 export function MembroFormPage() {
@@ -61,11 +63,23 @@ export function MembroFormPage() {
   const [erros, setErros] = useState<Record<string, string>>({})
   const [enviando, setEnviando] = useState(false)
 
+  // Estado para vacinas infantis retroativas
+  const [marcarInfantisComoTomadas, setMarcarInfantisComoTomadas] = useState(false)
+  const [localInfantis, setLocalInfantis] = useState('')
+
   // Auto-inferir calendário ao mudar data de nascimento
   function handleDataNascChange(val: string) {
     setDataNascimento(val)
     setErros(prev => ({ ...prev, dataNascimento: '' }))
-    if (val) setTipoCalendario(inferirCalendario(val))
+    if (val) {
+      const cal = inferirCalendario(val)
+      setTipoCalendario(cal)
+      // Resetar flag de infantis se não for mais calendário infantil
+      if (cal !== 'infantil') {
+        setMarcarInfantisComoTomadas(false)
+        setLocalInfantis('')
+      }
+    }
   }
 
   function validar() {
@@ -75,6 +89,9 @@ export function MembroFormPage() {
       e.dataNascimento = ERROS_SIMPLES.dataNascimentoObrigatoria
     } else if (new Date(dataNascimento) > new Date()) {
       e.dataNascimento = ERROS_SIMPLES.dataNascimentoFutura
+    }
+    if (marcarInfantisComoTomadas && !localInfantis.trim()) {
+      e.localInfantis = ERROS_SIMPLES.localInfantisObrigatorio
     }
     return e
   }
@@ -100,7 +117,12 @@ export function MembroFormPage() {
         navigate(`/membros/${membroExistente!.id}`, { replace: true })
       } else {
         const novo = await adicionarMembro(payload)
-        navigate(`/membros/${novo.id}`, { replace: true })
+        navigate(`/vacinas/membro/${novo.id}`, {
+          replace: true,
+          state: marcarInfantisComoTomadas
+            ? { confirmarInfantis: true, localInfantis: localInfantis.trim() }
+            : undefined,
+        })
       }
     } catch {
       setErros({ geral: 'Erro ao salvar. Tente novamente.' })
@@ -213,7 +235,14 @@ export function MembroFormPage() {
             <label htmlFor="calendario" style={labelStyle}>Calendário vacinal</label>
             <select
               id="calendario" value={tipoCalendario}
-              onChange={e => setTipoCalendario(e.target.value as TipoCalendario)}
+              onChange={e => {
+                const val = e.target.value as TipoCalendario
+                setTipoCalendario(val)
+                if (val !== 'infantil') {
+                  setMarcarInfantisComoTomadas(false)
+                  setLocalInfantis('')
+                }
+              }}
               className="input-field"
               style={{ cursor: 'pointer', minHeight: 48 }}
             >
@@ -225,6 +254,78 @@ export function MembroFormPage() {
               Sugerido automaticamente pela data de nascimento. Você pode ajustar.
             </p>
           </div>
+
+          {/* Seção de vacinas infantis retroativas — só exibida para calendário infantil na criação */}
+          {!isEdicao && tipoCalendario === 'infantil' && (
+            <div
+              style={{
+                background: 'var(--color-primary-highlight)',
+                border: '1px solid oklch(from var(--color-primary) l c h / 0.25)',
+                borderRadius: 'var(--radius-lg)',
+                padding: 'var(--space-4)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 'var(--space-3)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--space-3)' }}>
+                <input
+                  id="marcar-infantis"
+                  type="checkbox"
+                  checked={marcarInfantisComoTomadas}
+                  onChange={e => {
+                    setMarcarInfantisComoTomadas(e.target.checked)
+                    if (!e.target.checked) {
+                      setLocalInfantis('')
+                      setErros(prev => ({ ...prev, localInfantis: '' }))
+                    }
+                  }}
+                  style={{ width: 18, height: 18, marginTop: 2, cursor: 'pointer', flexShrink: 0, accentColor: 'var(--color-primary)' }}
+                />
+                <div style={{ flex: 1 }}>
+                  <label
+                    htmlFor="marcar-infantis"
+                    style={{ fontWeight: 600, fontSize: 'var(--text-sm)', color: 'var(--color-text)', cursor: 'pointer', display: 'block', marginBottom: 'var(--space-1)' }}
+                  >
+                    Vacinas da infância já aplicadas
+                  </label>
+                  <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', lineHeight: 1.5 }}>
+                    Use esta opção se a pessoa já tem o cartão de vacinas da infância preenchido e você quer começar
+                    o histórico completo. Todas as vacinas do calendário infantil serão registradas como tomadas,
+                    com data de hoje e o local que você informar. Você poderá editar ou apagar cada dose
+                    individualmente depois.
+                  </p>
+                </div>
+              </div>
+
+              {marcarInfantisComoTomadas && (
+                <div>
+                  <label
+                    htmlFor="local-infantis"
+                    style={{ display: 'block', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', fontWeight: 500, marginBottom: 'var(--space-2)' }}
+                  >
+                    Local de vacinação *
+                  </label>
+                  <input
+                    id="local-infantis"
+                    type="text"
+                    value={localInfantis}
+                    onChange={e => { setLocalInfantis(e.target.value); setErros(prev => ({ ...prev, localInfantis: '' })) }}
+                    placeholder="Ex: UBS Centro, clínica particular"
+                    className={`input-field${erros.localInfantis ? ' error' : ''}`}
+                    aria-describedby={erros.localInfantis ? 'erro-local-infantis' : undefined}
+                    aria-invalid={!!erros.localInfantis}
+                    style={{ minHeight: 48 }}
+                  />
+                  {erros.localInfantis && (
+                    <p id="erro-local-infantis" role="alert" aria-live="assertive" style={erroStyle}>
+                      ⚠️ {erros.localInfantis}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Observações (opcional) */}
           <div>
