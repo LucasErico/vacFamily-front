@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { ArrowLeft, CheckCircle2, CalendarDays, Clock } from 'lucide-react'
-import { useMembros, PARENTESCO_LABEL } from '@/contexts/MembrosContext'
+import { useMembros, RELACAO_LABEL } from '@/contexts/MembrosContext'
 import { useVacinas } from '@/contexts/VacinasContext'
 import { useLembretes } from '@/contexts/LembretesContext'
 
@@ -56,10 +56,10 @@ export function RegistrarVacinaPage() {
         const dataLembrete = new Date(dataBase.getTime() + offset * 86400000)
           .toISOString().slice(0, 10)
         adicionarLembrete({
-          membroId,
-          vacinaId,
-          numeroDose: d,
-          dataLembrete,
+          membro_id: membroId,
+          vacina_id: vacinaId,
+          numero_dose: d,
+          data_lembrete: dataLembrete,
           status: 'pendente',
           automatico: true,
         })
@@ -67,9 +67,22 @@ export function RegistrarVacinaPage() {
     } else {
       if (!localAplicacao.trim()) { setErro(ERROS_SIMPLES.localObrigatorio); return }
       registrarDose(
-        { membroId, vacinaId, numeroDose, dataAplicacao, localAplicacao },
+        {
+          membro_id: membroId,
+          vacina_id: vacinaId,
+          numero_dose: numeroDose,
+          data_aplicacao: dataAplicacao,
+          local_aplicacao: localAplicacao,
+        },
         (mId, vId, nDose, dataLembrete) => {
-          adicionarLembrete({ membroId: mId, vacinaId: vId, numeroDose: nDose, dataLembrete, status: 'pendente', automatico: true })
+          adicionarLembrete({
+            membro_id: mId,
+            vacina_id: vId,
+            numero_dose: nDose,
+            data_lembrete: dataLembrete,
+            status: 'pendente',
+            automatico: true,
+          })
         }
       )
     }
@@ -147,7 +160,7 @@ export function RegistrarVacinaPage() {
                 >
                   <div style={{ flex: 1 }}>
                     <p style={{ fontWeight: 600, fontSize: 'var(--text-sm)', color: 'var(--color-text)' }}>{m.nome}</p>
-                    <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>{PARENTESCO_LABEL[m.parentesco]}</p>
+                    <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>{RELACAO_LABEL[m.relacao]}</p>
                   </div>
                 </button>
               </li>

@@ -32,7 +32,7 @@ function calcularStatusDose(
 ): StatusDose {
   const idadeMin = vacina.idadeRecomendadaDias ?? 0
   if (idadeEmDias < idadeMin - 30) return 'nao_aplicavel'
-  const registro = registros.find(r => r.vacinaId === vacina.id && r.numeroDose === numeroDose)
+  const registro = registros.find(r => r.vacina_id === vacina.id && r.numero_dose === numeroDose)
   if (registro) return 'aplicada'
   const idadeRecomendada = idadeMin + (numeroDose - 1) * (vacina.intervaloDias ?? 0)
   if (idadeEmDias > idadeRecomendada + 30) return 'atrasada'
@@ -48,27 +48,27 @@ export function calcularDosesStatus(
   return Array.from({ length: vacina.doses }, (_, i) => {
     const numeroDose = i + 1
     const status = calcularStatusDose(vacina, numeroDose, registros, idadeEmDias)
-    const registro = registros.find(r => r.vacinaId === vacina.id && r.numeroDose === numeroDose)
+    const registro = registros.find(r => r.vacina_id === vacina.id && r.numero_dose === numeroDose)
     const idadeMin = vacina.idadeRecomendadaDias ?? 0
     const dataRecomendadaDias = idadeMin + i * (vacina.intervaloDias ?? 0)
     const dataRecomendada = new Date(
       new Date(dataNascimento).getTime() + dataRecomendadaDias * 86400000,
     ).toISOString().slice(0, 10)
-    return { vacinaId: vacina.id, vacina, numeroDose, status, dataAplicacao: registro?.dataAplicacao, dataRecomendada }
+    return { vacinaId: vacina.id, vacina, numeroDose, status, dataAplicacao: registro?.data_aplicacao, dataRecomendada }
   })
 }
 
 type GerarLembreteReforcoFn = (
-  membroId: string, vacinaId: string, numeroDose: number, dataLembrete: string,
+  membro_id: string, vacina_id: string, numero_dose: number, data_lembrete: string,
 ) => void
 
 interface VacinasContextValue {
   vacinas: Vacina[]
   registros: RegistroVacinal[]
   carregando: boolean
-  registrarDose: (dados: Omit<RegistroVacinal, 'id' | 'criadoEm'>, gerarLembrete?: GerarLembreteReforcoFn) => Promise<RegistroVacinal>
+  registrarDose: (dados: Omit<RegistroVacinal, 'id' | 'created_at'>, gerarLembrete?: GerarLembreteReforcoFn) => Promise<RegistroVacinal>
   removerRegistro: (id: string) => Promise<void>
-  buscarRegistrosMembro: (membroId: string) => RegistroVacinal[]
+  buscarRegistrosMembro: (membro_id: string) => RegistroVacinal[]
   recarregar: () => Promise<void>
 }
 
@@ -102,23 +102,23 @@ export function VacinasProvider({ children }: { children: ReactNode }) {
   useEffect(() => { recarregar() }, [recarregar])
 
   const registrarDose = useCallback(async (
-    dados: Omit<RegistroVacinal, 'id' | 'criadoEm'>,
+    dados: Omit<RegistroVacinal, 'id' | 'created_at'>,
     gerarLembrete?: GerarLembreteReforcoFn,
   ) => {
     const res = await apiFetch<{ registro: RegistroVacinal } | RegistroVacinal>(
-      `/registros/membro/${dados.membroId}`,
+      `/registros/membro/${dados.membro_id}`,
       { method: 'POST', body: dados },
     )
     const novo = 'registro' in res ? res.registro : res
     setRegistros(prev => [...prev, novo])
 
     if (gerarLembrete) {
-      const vacina = vacinas.find(v => v.id === dados.vacinaId)
-      if (vacina && dados.numeroDose < vacina.doses && vacina.intervaloDias) {
+      const vacina = vacinas.find(v => v.id === dados.vacina_id)
+      if (vacina && dados.numero_dose < vacina.doses && vacina.intervaloDias) {
         const proximaData = new Date(
-          new Date(dados.dataAplicacao).getTime() + vacina.intervaloDias * 86400000,
+          new Date(dados.data_aplicacao).getTime() + vacina.intervaloDias * 86400000,
         ).toISOString().slice(0, 10)
-        gerarLembrete(dados.membroId, dados.vacinaId, dados.numeroDose + 1, proximaData)
+        gerarLembrete(dados.membro_id, dados.vacina_id, dados.numero_dose + 1, proximaData)
       }
     }
     return novo
@@ -130,7 +130,7 @@ export function VacinasProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const buscarRegistrosMembro = useCallback(
-    (membroId: string) => registros.filter(r => r.membroId === membroId),
+    (membro_id: string) => registros.filter(r => r.membro_id === membro_id),
     [registros],
   )
 

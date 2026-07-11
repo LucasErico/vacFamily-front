@@ -18,10 +18,10 @@ import { useAuth } from './AuthContext'
 interface LembretesContextValue {
   lembretes: Lembrete[]
   carregando: boolean
-  adicionarLembrete: (dados: Omit<Lembrete, 'id' | 'criadoEm'>) => Promise<Lembrete>
+  adicionarLembrete: (dados: Omit<Lembrete, 'id' | 'created_at'>) => Promise<Lembrete>
   marcarStatus: (id: string, status: StatusLembrete) => Promise<void>
   removerLembrete: (id: string) => Promise<void>
-  buscarLembretesMembro: (membroId: string) => Lembrete[]
+  buscarLembretesMembro: (membro_id: string) => Lembrete[]
   lembretesPendentes: Lembrete[]
   recarregar: () => Promise<void>
 }
@@ -46,7 +46,7 @@ export function LembretesProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => { recarregar() }, [recarregar])
 
-  const adicionarLembrete = useCallback(async (dados: Omit<Lembrete, 'id' | 'criadoEm'>) => {
+  const adicionarLembrete = useCallback(async (dados: Omit<Lembrete, 'id' | 'created_at'>) => {
     const res = await apiFetch<{ lembrete: Lembrete } | Lembrete>('/lembretes', {
       method: 'POST',
       body: dados,
@@ -71,7 +71,7 @@ export function LembretesProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const buscarLembretesMembro = useCallback(
-    (membroId: string) => lembretes.filter(l => l.membroId === membroId),
+    (membro_id: string) => lembretes.filter(l => l.membro_id === membro_id),
     [lembretes],
   )
 

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Plus, Users, ClipboardList, Syringe } from 'lucide-react'
-import { useMembros, PARENTESCO_LABEL } from '@/contexts/MembrosContext'
+import { useMembros, RELACAO_LABEL } from '@/contexts/MembrosContext'
 import { Avatar } from '@/components/ui/Avatar'
 import { calcularIdade } from '@/utils/idade'
 
@@ -67,19 +67,19 @@ export function MembrosPage() {
               <div className="card" style={{ padding: 'var(--space-4) var(--space-5)' }}>
                 {/* Linha principal: avatar + info + perfil */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
-                  <Avatar nome={membro.nome} tamanho={48} fotoUrl={membro.fotoUrl} />
+                  <Avatar nome={membro.nome} tamanho={48} fotoUrl={membro.foto_url} />
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontWeight: 600, color: 'var(--color-text)', fontSize: 'var(--text-sm)', marginBottom: 'var(--space-1)' }}>
+                    <p style={{ fontWeight: 700, fontSize: 'var(--text-sm)', color: 'var(--color-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {membro.nome}
                     </p>
                     <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
-                      {PARENTESCO_LABEL[membro.parentesco]} · {calcularIdade(membro.dataNascimento)}
+                      {RELACAO_LABEL[membro.relacao]} · {calcularIdade(membro.data_nascimento)}
                     </p>
                   </div>
                   <Link
                     to={`/membros/${membro.id}`}
                     className="btn btn-ghost"
-                    style={{ fontSize: 'var(--text-xs)', padding: 'var(--space-2) var(--space-3)', minHeight: 36 }}
+                    style={{ fontSize: 'var(--text-xs)', flexShrink: 0 }}
                     aria-label={`Ver perfil de ${membro.nome}`}
                   >
                     Perfil
@@ -87,37 +87,20 @@ export function MembrosPage() {
                 </div>
 
                 {/* Ações rápidas */}
-                <div style={{
-                  marginTop: 'var(--space-3)',
-                  paddingTop: 'var(--space-3)',
-                  borderTop: '1px solid var(--color-divider)',
-                  display: 'flex',
-                  gap: 'var(--space-4)',
-                }}>
-                  <Link
-                    to={`/historico?membro=${membro.id}`}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 'var(--space-2)',
-                      fontSize: 'var(--text-xs)', color: 'var(--color-primary)',
-                      fontWeight: 500, textDecoration: 'none', minHeight: 36,
-                    }}
-                    aria-label={`Ver histórico vacinal de ${membro.nome}`}
-                  >
-                    <ClipboardList size={14} aria-hidden />
-                    Ver histórico
-                  </Link>
-
+                <div style={{ display: 'flex', gap: 'var(--space-2)', marginTop: 'var(--space-3)', paddingTop: 'var(--space-3)', borderTop: '1px solid var(--color-divider)' }}>
                   <Link
                     to={`/vacinas/membro/${membro.id}`}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 'var(--space-2)',
-                      fontSize: 'var(--text-xs)', color: 'var(--color-primary)',
-                      fontWeight: 500, textDecoration: 'none', minHeight: 36,
-                    }}
-                    aria-label={`Administrar doses de ${membro.nome}`}
+                    className="btn btn-ghost"
+                    style={{ flex: 1, justifyContent: 'center', fontSize: 'var(--text-xs)', gap: 'var(--space-1)' }}
                   >
-                    <Syringe size={14} aria-hidden />
-                    Administrar doses
+                    <Syringe size={14} aria-hidden /> Vacinas
+                  </Link>
+                  <Link
+                    to={`/historico?membro=${membro.id}`}
+                    className="btn btn-ghost"
+                    style={{ flex: 1, justifyContent: 'center', fontSize: 'var(--text-xs)', gap: 'var(--space-1)' }}
+                  >
+                    <ClipboardList size={14} aria-hidden /> Histórico
                   </Link>
                 </div>
               </div>
