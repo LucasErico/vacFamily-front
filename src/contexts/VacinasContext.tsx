@@ -189,6 +189,9 @@ export function VacinasProvider({ children }: { children: ReactNode }) {
 
     setRegistros(prev => [...prev, novoNormalizado])
 
+    // Só gera lembrete de reforço se a dose foi APLICADA (data passada).
+    // Doses agendadas (data futura) não disparam lembrete para a dose seguinte —
+    // o lembrete da própria dose já foi criado em RegistrarVacinaPage.
     if (gerarLembrete) {
       const vacina = vacinas.find(v => v.id === dados.vacina_id)
       if (vacina && dados.numero_dose < vacina.doses_total) {
