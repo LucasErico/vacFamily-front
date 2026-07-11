@@ -7,6 +7,13 @@
  *   DELETE /registros/:id
  *
  * A lista de vacinas continua local (seed) — dado público imutável.
+ *
+ * Regras de negócio de status:
+ *   - dose com registro (data passada)  → 'aplicada'  → vai para Histórico
+ *   - dose sem registro, data futura    → 'pendente'  → vai para Calendário
+ *   - dose sem registro, data passada   → 'pendente'  → NÃO é 'atrasada' automática
+ *     (evita poluição retroativa; 'atrasada' só deve existir com registro explícito)
+ *   - dose ainda fora da faixa etária   → 'nao_aplicavel'
  */
 import {
   createContext, useContext, useState, useCallback,
@@ -31,11 +38,18 @@ function calcularStatusDose(
   idadeEmDias: number,
 ): StatusDose {
   const idadeMin = vacina.idadeRecomendadaDias ?? 0
+
+  // Fora da faixa etária com margem de 30 dias
   if (idadeEmDias < idadeMin - 30) return 'nao_aplicavel'
-  const registro = registros.find(r => r.vacina_id === vacina.id && r.numero_dose === numeroDose)
+
+  // Se há registro para esta dose → aplicada (vai para Histórico)
+  const registro = registros.find(
+    r => (r.vacina_id === vacina.id || r.vacina_id === vacina.id) && r.numero_dose === numeroDose,
+  )
   if (registro) return 'aplicada'
-  const idadeRecomendada = idadeMin + (numeroDose - 1) * (vacina.intervaloDias ?? 0)
-  if (idadeEmDias > idadeRecomendada + 30) return 'atrasada'
+
+  // Sem registro: sempre 'pendente' — nunca calcular 'atrasada' retroativamente.
+  // Doses passadas sem registro são omitidas no Calendário e não poluem o histórico.
   return 'pendente'
 }
 
@@ -45,16 +59,32 @@ export function calcularDosesStatus(
   dataNascimento: string,
 ): DoseStatus[] {
   const idadeEmDias = calcularIdadeEmDias(dataNascimento)
+  const hoje = new Date().toISOString().slice(0, 10)
+
   return Array.from({ length: vacina.doses }, (_, i) => {
     const numeroDose = i + 1
     const status = calcularStatusDose(vacina, numeroDose, registros, idadeEmDias)
-    const registro = registros.find(r => r.vacina_id === vacina.id && r.numero_dose === numeroDose)
+    const registro = registros.find(
+      r => r.vacina_id === vacina.id && r.numero_dose === numeroDose,
+    )
     const idadeMin = vacina.idadeRecomendadaDias ?? 0
     const dataRecomendadaDias = idadeMin + i * (vacina.intervaloDias ?? 0)
     const dataRecomendada = new Date(
       new Date(dataNascimento).getTime() + dataRecomendadaDias * 86400000,
     ).toISOString().slice(0, 10)
-    return { vacinaId: vacina.id, vacina, numeroDose, status, dataAplicacao: registro?.data_aplicacao, dataRecomendada }
+
+    // Dose aplicada com data passada → Histórico; futura → Calendário
+    const isHistorico = status === 'aplicada' && (registro?.data_aplicacao ?? '') <= hoje
+
+    return {
+      vacinaId: vacina.id,
+      vacina,
+      numeroDose,
+      status,
+      dataAplicacao: registro?.data_aplicacao,
+      dataRecomendada,
+      isHistorico,
+    }
   })
 }
 
@@ -94,7 +124,7 @@ export function VacinasProvider({ children }: { children: ReactNode }) {
         )
       )
       setRegistros(resultados.flat())
-    } catch { /* mantém estado */ } finally {
+    } catch { /* mantém estado offline */ } finally {
       setCarregando(false)
     }
   }, [isAuthenticated, membros])
@@ -105,12 +135,32 @@ export function VacinasProvider({ children }: { children: ReactNode }) {
     dados: Omit<RegistroVacinal, 'id' | 'created_at'>,
     gerarLembrete?: GerarLembreteReforcoFn,
   ) => {
+    // Monta payload explicitamente: garante tipos corretos e exclui campos
+    // que não pertencem ao body (ex: membro_id que vai no path param).
+    const payload: Record<string, unknown> = {
+      vacina_id: dados.vacina_id,
+      numero_dose: Number(dados.numero_dose), // Zod exige number, não string
+      data_aplicacao: dados.data_aplicacao,
+    }
+    if (dados.local_aplicacao) payload.local_aplicacao = dados.local_aplicacao
+    if (dados.fabricante)      payload.fabricante      = dados.fabricante
+    if (dados.lote)            payload.lote            = dados.lote
+    if (dados.dose_zero != null) payload.dose_zero     = dados.dose_zero
+    if (dados.observacoes)     payload.observacoes     = dados.observacoes
+
     const res = await apiFetch<{ registro: RegistroVacinal } | RegistroVacinal>(
       `/registros/membro/${dados.membro_id}`,
-      { method: 'POST', body: dados },
+      { method: 'POST', body: payload },
     )
     const novo = 'registro' in res ? res.registro : res
-    setRegistros(prev => [...prev, novo])
+
+    // Normaliza: garante que membro_id esteja presente (pode vir como membro_familiar_id do back)
+    const novoNormalizado: RegistroVacinal = {
+      ...novo,
+      membro_id: (novo as Record<string, unknown>).membro_familiar_id as string ?? novo.membro_id ?? dados.membro_id,
+    }
+
+    setRegistros(prev => [...prev, novoNormalizado])
 
     if (gerarLembrete) {
       const vacina = vacinas.find(v => v.id === dados.vacina_id)
@@ -121,7 +171,7 @@ export function VacinasProvider({ children }: { children: ReactNode }) {
         gerarLembrete(dados.membro_id, dados.vacina_id, dados.numero_dose + 1, proximaData)
       }
     }
-    return novo
+    return novoNormalizado
   }, [vacinas])
 
   const removerRegistro = useCallback(async (id: string) => {
@@ -129,8 +179,14 @@ export function VacinasProvider({ children }: { children: ReactNode }) {
     setRegistros(prev => prev.filter(r => r.id !== id))
   }, [])
 
+  // CRÍTICO: o back retorna membro_familiar_id, não membro_id.
+  // Filtra pelos dois para garantir compatibilidade enquanto
+  // o campo não é normalizado pelo back.
   const buscarRegistrosMembro = useCallback(
-    (membro_id: string) => registros.filter(r => r.membro_id === membro_id),
+    (membro_id: string) => registros.filter(
+      r => r.membro_id === membro_id
+        || (r as Record<string, unknown>).membro_familiar_id === membro_id,
+    ),
     [registros],
   )
 

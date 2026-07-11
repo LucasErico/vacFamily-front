@@ -5,7 +5,7 @@
  */
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react'
 import type { Usuario } from '@/types'
-import { apiFetch, setToken, clearToken, getToken } from '@/services/api'
+import { apiFetch, setToken, clearToken, getToken, wakeUpBack } from '@/services/api'
 
 const SESSION_KEY = 'vf_session'
 
@@ -48,6 +48,10 @@ const AuthContext = createContext<AuthContextValue | null>(null)
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [usuario, setUsuario] = useState<Usuario | null>(lerSessao)
 
+  // Acorda o back no Render assim que o app é carregado.
+  // Fire-and-forget: não bloqueia, não quebra offline-first.
+  useEffect(() => { wakeUpBack() }, [])
+
   // Sincroniza sessionStorage
   useEffect(() => { salvarSessao(usuario) }, [usuario])
 
@@ -84,7 +88,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (data.requiresVerification) {
         return { ok: true, requiresVerification: true }
       }
-      // Cadastro sem verificação: já recebe token
       if (data.access_token && data.usuario) {
         setToken(data.access_token)
         setUsuario(data.usuario)

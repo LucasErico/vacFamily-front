@@ -20,6 +20,14 @@ export function clearToken(): void {
   try { sessionStorage.removeItem(TOKEN_KEY) } catch { /* noop */ }
 }
 
+/**
+ * Acorda o back no Render (free tier hiberna após inatividade).
+ * Fire-and-forget: não bloqueia nada, não falha se offline.
+ */
+export function wakeUpBack(): void {
+  fetch(`${BASE_URL}/health`, { method: 'GET' }).catch(() => { /* noop — offline ou back dormindo */ })
+}
+
 interface ApiOptions extends Omit<RequestInit, 'body'> {
   body?: unknown
 }
@@ -47,8 +55,17 @@ export async function apiFetch<T = unknown>(
     let message = `Erro ${res.status}`
     try {
       const err = await res.json()
-      message = err.message ?? err.erro ?? message
-    } catch { /* ignora */ }
+      // Back retorna { errors: { campo: [msg] } } nos 400 do Zod
+      if (err.errors && typeof err.errors === 'object') {
+        const primeiroCampo = Object.keys(err.errors)[0]
+        const msgs = err.errors[primeiroCampo]
+        message = Array.isArray(msgs) && msgs.length > 0
+          ? `${primeiroCampo}: ${msgs[0]}`
+          : message
+      } else {
+        message = err.message ?? err.erro ?? message
+      }
+    } catch { /* ignora body não-JSON */ }
     throw new Error(message)
   }
 
