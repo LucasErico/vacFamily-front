@@ -91,7 +91,9 @@ export function VacinaMembroPage() {
   // Exibe skeleton enquanto carregando (registros) ou vacinas ainda não chegaram do banco
   const aguardandoAPI = carregando || vacinas.length === 0
 
-  const vacinasAplicaveis = !aguardandoAPI
+  // Regra: se não há nenhum registro para o membro,
+  // a lista de vacinas deve vir vazia (sem pré-cálculo local).
+  const vacinasAplicaveis = !aguardandoAPI && registrosMembro.length > 0
     ? vacinas.filter(v => {
         const doses = calcularDosesStatus(v, registrosMembro, membro.data_nascimento)
         const dosesVisiveis = doses.filter(d => d.status !== 'nao_aplicavel')

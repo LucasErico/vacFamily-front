@@ -51,10 +51,16 @@ export function VacinasPage() {
       ) : (
         <ul style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)', listStyle: 'none', padding: 0 }} role="list">
           {membros.map(membro => {
-            // Enquanto vacinas ou registros ainda carregam, exibe indicador neutro
+            // Enquanto vacinas ou registros ainda carregam, exibe indicador neutro.
+            // Se o membro não tem registros, não inferimos pendência: fica "Sem registros".
             const resumo: { label: string; cor: string } = !carregando && vacinas.length > 0
               ? (() => {
                   const registrosMembro = buscarRegistrosMembro(membro.id)
+
+                  if (registrosMembro.length === 0) {
+                    return { label: 'Sem registros', cor: 'var(--color-text-faint)' }
+                  }
+
                   const todasDoses = vacinas.flatMap(v =>
                     calcularDosesStatus(v, registrosMembro, membro.data_nascimento).map(d => d.status)
                   )
