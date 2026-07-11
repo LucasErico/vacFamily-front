@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { Plus, Syringe } from 'lucide-react'
-import { useMembros, PARENTESCO_LABEL } from '@/contexts/MembrosContext'
+import { useMembros, RELACAO_LABEL } from '@/contexts/MembrosContext'
 import { useVacinas, calcularDosesStatus } from '@/contexts/VacinasContext'
 import { Avatar } from '@/components/ui/Avatar'
 import type { StatusDose } from '@/types'
@@ -35,7 +35,6 @@ export function VacinasPage() {
         </Link>
       </div>
 
-      {/* Lista por membro — cada card é um link para /vacinas/membro/:id */}
       {membros.length === 0 ? (
         <div style={{ textAlign: 'center', padding: 'var(--space-16) var(--space-8)', color: 'var(--color-text-muted)' }}>
           <Syringe size={48} style={{ margin: '0 auto var(--space-4)', color: 'var(--color-text-faint)' }} aria-hidden />
@@ -54,7 +53,7 @@ export function VacinasPage() {
           {membros.map(membro => {
             const registrosMembro = buscarRegistrosMembro(membro.id)
             const todasDoses = vacinas.flatMap(v =>
-              calcularDosesStatus(v, registrosMembro, membro.dataNascimento).map(d => d.status)
+              calcularDosesStatus(v, registrosMembro, membro.data_nascimento).map(d => d.status)
             )
             const resumo = resumoStatus(todasDoses)
 
@@ -69,13 +68,13 @@ export function VacinasPage() {
                     className="card card-hover"
                     style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)', padding: 'var(--space-4) var(--space-5)' }}
                   >
-                    <Avatar nome={membro.nome} tamanho={44} fotoUrl={membro.fotoUrl} />
+                    <Avatar nome={membro.nome} tamanho={44} fotoUrl={membro.foto_url} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p style={{ fontWeight: 600, color: 'var(--color-text)', fontSize: 'var(--text-sm)' }}>
                         {membro.nome}
                       </p>
                       <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
-                        {PARENTESCO_LABEL[membro.parentesco]}
+                        {RELACAO_LABEL[membro.relacao]}
                       </p>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', flexShrink: 0 }}>

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { ArrowLeft, Plus, CheckCircle2, Trash2, CalendarDays, ChevronDown } from 'lucide-react'
-import { useMembros, PARENTESCO_LABEL } from '@/contexts/MembrosContext'
+import { useMembros, RELACAO_LABEL } from '@/contexts/MembrosContext'
 import { useVacinas, calcularDosesStatus } from '@/contexts/VacinasContext'
 import { useLembretes } from '@/contexts/LembretesContext'
 import { Avatar } from '@/components/ui/Avatar'
@@ -33,7 +33,6 @@ export function VacinaMembroPage() {
   const [vacinaExpandida, setVacinaExpandida] = useState<string | null>(null)
   const [modal, setModal] = useState<ModalState>({ tipo: 'nenhum' })
 
-  // Formulário "marcar como tomada"
   const [dataConfirm, setDataConfirm] = useState(hoje)
   const [localConfirm, setLocalConfirm] = useState('')
   const [erroConfirm, setErroConfirm] = useState('')
@@ -52,7 +51,7 @@ export function VacinaMembroPage() {
 
   const registrosMembro = buscarRegistrosMembro(membroSelecionadoId)
   const vacinasAplicaveis = vacinas.filter(v =>
-    calcularDosesStatus(v, registrosMembro, membro.dataNascimento).some(d => d.status !== 'nao_aplicavel')
+    calcularDosesStatus(v, registrosMembro, membro.data_nascimento).some(d => d.status !== 'nao_aplicavel')
   )
 
   function handleMarcarTomada() {
@@ -62,15 +61,32 @@ export function VacinaMembroPage() {
     if (modal.tipo !== 'marcarTomada') return
 
     registrarDose(
-      { membroId: membroSelecionadoId, vacinaId: modal.dose.vacinaId, numeroDose: modal.dose.numeroDose, dataAplicacao: dataConfirm, localAplicacao: localConfirm },
+      {
+        membro_id: membroSelecionadoId,
+        vacina_id: modal.dose.vacinaId,
+        numero_dose: modal.dose.numeroDose,
+        data_aplicacao: dataConfirm,
+        local_aplicacao: localConfirm,
+      },
       (mId, vId, nDose, dataLembrete) => {
-        adicionarLembrete({ membroId: mId, vacinaId: vId, numeroDose: nDose, dataLembrete, status: 'pendente', automatico: true })
+        adicionarLembrete({
+          membro_id: mId,
+          vacina_id: vId,
+          numero_dose: nDose,
+          data_lembrete: dataLembrete,
+          status: 'pendente',
+          automatico: true,
+        })
       }
     )
 
     // Remover lembrete pendente dessa dose, se existir
     const lembreteExistente = lembretes.find(
-      l => l.membroId === membroSelecionadoId && l.vacinaId === modal.dose.vacinaId && l.numeroDose === modal.dose.numeroDose && l.status === 'pendente'
+      l =>
+        l.membro_id === membroSelecionadoId &&
+        l.vacina_id === modal.dose.vacinaId &&
+        l.numero_dose === modal.dose.numeroDose &&
+        l.status === 'pendente'
     )
     if (lembreteExistente) removerLembrete(lembreteExistente.id)
 
@@ -109,10 +125,10 @@ export function VacinaMembroPage() {
       {/* Card do membro + seletor */}
       <div className="card" style={{ marginBottom: 'var(--space-5)', padding: 'var(--space-4) var(--space-5)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
-          <Avatar nome={membro.nome} tamanho={48} fotoUrl={membro.fotoUrl} />
+          <Avatar nome={membro.nome} tamanho={48} fotoUrl={membro.foto_url} />
           <div style={{ flex: 1, minWidth: 0 }}>
             <p style={{ fontWeight: 700, color: 'var(--color-text)', fontSize: 'var(--text-base)' }}>{membro.nome}</p>
-            <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>{PARENTESCO_LABEL[membro.parentesco]}</p>
+            <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>{RELACAO_LABEL[membro.relacao]}</p>
           </div>
           {outrosMembros.length > 0 && (
             <button
@@ -126,7 +142,6 @@ export function VacinaMembroPage() {
           )}
         </div>
 
-        {/* Seletor de membro */}
         {seletorAberto && (
           <div style={{ marginTop: 'var(--space-3)', paddingTop: 'var(--space-3)', borderTop: '1px solid var(--color-divider)', display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
             {outrosMembros.map(m => (
@@ -138,7 +153,7 @@ export function VacinaMembroPage() {
                 <Avatar nome={m.nome} tamanho={32} />
                 <div>
                   <p style={{ fontWeight: 600, fontSize: 'var(--text-sm)', color: 'var(--color-text)' }}>{m.nome}</p>
-                  <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>{PARENTESCO_LABEL[m.parentesco]}</p>
+                  <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>{RELACAO_LABEL[m.relacao]}</p>
                 </div>
               </button>
             ))}
@@ -154,7 +169,7 @@ export function VacinaMembroPage() {
       ) : (
         <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }} role="list">
           {vacinasAplicaveis.map(vacina => {
-            const doses = calcularDosesStatus(vacina, registrosMembro, membro.dataNascimento)
+            const doses = calcularDosesStatus(vacina, registrosMembro, membro.data_nascimento)
               .filter(d => d.status !== 'nao_aplicavel')
             const aberto = vacinaExpandida === vacina.id
 
@@ -185,7 +200,12 @@ export function VacinaMembroPage() {
                         {doses.map(dose => {
                           const atrasada = isAtrasada(dose)
                           const statusEfetivo: typeof dose.status = atrasada ? 'atrasada' : dose.status
-                          const registro = registros.find(r => r.vacinaId === vacina.id && r.membroId === membroSelecionadoId && r.numeroDose === dose.numeroDose)
+                          const registro = registros.find(
+                            r =>
+                              r.vacina_id === vacina.id &&
+                              r.membro_id === membroSelecionadoId &&
+                              r.numero_dose === dose.numeroDose
+                          )
 
                           return (
                             <li key={dose.numeroDose} style={{ padding: 'var(--space-3) var(--space-5)', display: 'flex', alignItems: 'flex-start', gap: 'var(--space-3)', borderBottom: '1px solid var(--color-divider)' }}>
@@ -197,8 +217,8 @@ export function VacinaMembroPage() {
                                 </p>
                                 {dose.status === 'aplicada' && registro && (
                                   <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
-                                    Aplicada em {formatarData(registro.dataAplicacao)}
-                                    {registro.localAplicacao ? ` · ${registro.localAplicacao}` : ''}
+                                    Aplicada em {formatarData(registro.data_aplicacao)}
+                                    {registro.local_aplicacao ? ` · ${registro.local_aplicacao}` : ''}
                                   </p>
                                 )}
                                 {dose.status !== 'aplicada' && dose.dataRecomendada && (
@@ -208,7 +228,6 @@ export function VacinaMembroPage() {
                                 )}
                               </div>
 
-                              {/* Ações */}
                               <div style={{ display: 'flex', gap: 'var(--space-2)', flexShrink: 0 }}>
                                 {dose.status !== 'aplicada' && (
                                   <button
