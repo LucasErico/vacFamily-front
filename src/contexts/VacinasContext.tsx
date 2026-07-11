@@ -44,7 +44,7 @@ function calcularStatusDose(
 
   // Se há registro para esta dose → aplicada (vai para Histórico)
   const registro = registros.find(
-    r => (r.vacina_id === vacina.id || r.vacina_id === vacina.id) && r.numero_dose === numeroDose,
+    r => r.vacina_id === vacina.id && r.numero_dose === numeroDose,
   )
   if (registro) return 'aplicada'
 
@@ -157,7 +157,7 @@ export function VacinasProvider({ children }: { children: ReactNode }) {
     // Normaliza: garante que membro_id esteja presente (pode vir como membro_familiar_id do back)
     const novoNormalizado: RegistroVacinal = {
       ...novo,
-      membro_id: (novo as Record<string, unknown>).membro_familiar_id as string ?? novo.membro_id ?? dados.membro_id,
+      membro_id: (novo as unknown as Record<string, unknown>).membro_familiar_id as string ?? novo.membro_id ?? dados.membro_id,
     }
 
     setRegistros(prev => [...prev, novoNormalizado])
@@ -184,8 +184,7 @@ export function VacinasProvider({ children }: { children: ReactNode }) {
   // o campo não é normalizado pelo back.
   const buscarRegistrosMembro = useCallback(
     (membro_id: string) => registros.filter(
-      r => r.membro_id === membro_id
-        || (r as Record<string, unknown>).membro_familiar_id === membro_id,
+      r => r.membro_id === membro_id || r.membro_familiar_id === membro_id,
     ),
     [registros],
   )
