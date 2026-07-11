@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef, useEffect } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import { ClipboardList, Plus, CheckCircle2, Clock, AlertCircle, Filter, Search, X } from 'lucide-react'
 import { useMembros } from '@/contexts/MembrosContext'
