@@ -15,7 +15,7 @@ function resumoStatus(statuses: StatusDose[]): { label: string; cor: string } {
 
 export function VacinasPage() {
   const { membros } = useMembros()
-  const { vacinas, buscarRegistrosMembro } = useVacinas()
+  const { vacinas, membrosCarregados, buscarRegistrosMembro } = useVacinas()
 
   return (
     <div style={{ maxWidth: 640, margin: '0 auto', paddingBottom: 'var(--space-8)' }}>
@@ -51,11 +51,19 @@ export function VacinasPage() {
       ) : (
         <ul style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)', listStyle: 'none', padding: 0 }} role="list">
           {membros.map(membro => {
-            const registrosMembro = buscarRegistrosMembro(membro.id)
-            const todasDoses = vacinas.flatMap(v =>
-              calcularDosesStatus(v, registrosMembro, membro.data_nascimento).map(d => d.status)
-            )
-            const resumo = resumoStatus(todasDoses)
+            const jaCarregado = membrosCarregados.has(membro.id)
+
+            // Só calcula status após a API ter respondido para este membro.
+            // Enquanto não carregado, exibe indicador neutro — nunca pré-renderiza pela seed.
+            const resumo: { label: string; cor: string } = jaCarregado
+              ? (() => {
+                  const registrosMembro = buscarRegistrosMembro(membro.id)
+                  const todasDoses = vacinas.flatMap(v =>
+                    calcularDosesStatus(v, registrosMembro, membro.data_nascimento).map(d => d.status)
+                  )
+                  return resumoStatus(todasDoses)
+                })()
+              : { label: '...', cor: 'var(--color-text-faint)' }
 
             return (
               <li key={membro.id}>

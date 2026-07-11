@@ -86,17 +86,22 @@ export function VacinaMembroPage() {
   }
 
   /**
-   * Só calcula e exibe vacinas após confirmar que os registros do membro
-   * atual já foram buscados na API ao menos uma vez.
-   * Isso evita a exibição antecipada de vacinas "pendentes" geradas
-   * puramente pela seed local enquanto o backend ainda não respondeu.
+   * A única fonte de verdade é a API.
+   * Exibe skeleton enquanto carregando OU enquanto este membro
+   * específico ainda não teve seus registros buscados na API.
+   * Nunca pré-renderiza nada a partir da seed local.
    */
-  const registrosDoMembroCarregados = membrosCarregados.has(membroSelecionadoId)
+  const jaCarregado = membrosCarregados.has(membroSelecionadoId)
+  const aguardandoAPI = carregando || !jaCarregado
 
   const registrosMembro = buscarRegistrosMembro(membroSelecionadoId)
 
-  // Só computa vacinas aplicáveis depois que a API respondeu para este membro.
-  const vacinasAplicaveis = registrosDoMembroCarregados
+  /**
+   * Só computa vacinas aplicáveis após confirmação da API para este membro.
+   * Se jaCarregado === false, retorna [] — nenhuma dose é exibida,
+   * independentemente do que a seed calcularia.
+   */
+  const vacinasAplicaveis = jaCarregado
     ? vacinas.filter(v => {
         const doses = calcularDosesStatus(v, registrosMembro, membro.data_nascimento)
         const dosesVisiveis = doses.filter(d => d.status !== 'nao_aplicavel')
@@ -142,9 +147,6 @@ export function VacinaMembroPage() {
     removerRegistro(modal.registroId)
     setModal({ tipo: 'nenhum' })
   }
-
-  /** Estado de carregamento: ainda não buscou a API para este membro */
-  const aguardandoAPI = carregando || !registrosDoMembroCarregados
 
   return (
     <div style={{ maxWidth: 640, margin: '0 auto', paddingBottom: 'var(--space-8)' }}>
@@ -203,12 +205,14 @@ export function VacinaMembroPage() {
         )}
       </div>
 
-      {/* Lista de vacinas — skeleton enquanto API não respondeu */}
+      {/* Lista de vacinas */}
       {aguardandoAPI ? (
+        // Skeleton enquanto a API não respondeu — nunca exibe dados da seed
         <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }} role="list" aria-label="Carregando vacinas..." aria-busy="true">
           {Array.from({ length: 5 }).map((_, i) => <VacinaSkeletonRow key={i} />)}
         </ul>
       ) : vacinasAplicaveis.length === 0 ? (
+        // API respondeu + não há doses pendentes: membro em dia ou novo sem registros
         <div style={{ textAlign: 'center', padding: 'var(--space-12) var(--space-8)', color: 'var(--color-text-muted)' }}>
           <p style={{ fontSize: 'var(--text-sm)' }}>Nenhuma vacina pendente para {membro.nome.split(' ')[0]}. ✅</p>
         </div>
