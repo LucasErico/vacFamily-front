@@ -577,7 +577,7 @@ export function VacinaMembroPage() {
     })
   }
 
-  function styleBtnStatus(s: string, ativo: boolean, cor?: string) {
+  function styleBtnStatus(_s: string, ativo: boolean, cor?: string) {
     return {
       fontSize: 'var(--text-xs)',
       fontWeight: ativo ? 700 : 400,
@@ -1103,13 +1103,13 @@ export function VacinaMembroPage() {
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
               <label style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--color-text-muted)' }}>Local *</label>
-              <input type="text" value={avulsaLocal} onChange={e => setAvulsaLocal(e.target.value)} placeholder="UBS, clínica, farmácia..." className="input-field" style={{ minHeight: 44 }} />
+              <input type="text" value={avulsaLocal} onChange={e => setAvulsaLocal(e.target.value)} placeholder="UBS, clínica, hospital..." className="input-field" style={{ minHeight: 44 }} />
             </div>
             {avulsaErro && <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-error)' }}>{avulsaErro}</p>}
             <div style={{ display: 'flex', gap: 'var(--space-3)', justifyContent: 'flex-end' }}>
-              <button onClick={() => setModal({ tipo: 'nenhum' })} className="btn btn-ghost">Cancelar</button>
+              <button onClick={() => { setModal({ tipo: 'nenhum' }); setAvulsaErro('') }} className="btn btn-ghost">Cancelar</button>
               <button onClick={handleAdicionarAvulsa} disabled={avulsaSalvando} className="btn btn-primary">
-                {avulsaData > hoje ? 'Criar lembrete' : 'Registrar dose'}
+                {avulsaSalvando ? 'Salvando...' : avulsaData > hoje ? 'Criar lembrete' : 'Registrar dose'}
               </button>
             </div>
           </div>
