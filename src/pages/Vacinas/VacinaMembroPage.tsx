@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import {
   ArrowLeft, CheckCircle2, Trash2, ChevronDown, ListChecks,
-  Bell, Search, Syringe, X,
+  Bell, BellOff, Search, Syringe, X,
   CalendarCheck, Clock,
 } from 'lucide-react'
 import { useMembros, RELACAO_LABEL } from '@/contexts/MembrosContext'
@@ -760,34 +760,34 @@ export function VacinaMembroPage() {
                                         >
                                           <CheckCircle2 size={13} aria-hidden /> Tomada
                                         </button>
-                                        {/* Botão lembrete:
-                                            - temLembrete=true  → sino cheio (Bell) colorido = lembrete ativo, clique remove
-                                            - temLembrete=false → sino vazio (Bell) acinzentado = sem lembrete, clique cria */}
+                                        {/*
+                                          Botão lembrete:
+                                          - temLembrete=false → Bell (sino limpo), botão ativo → clique abre modal para criar
+                                          - temLembrete=true  → BellOff (sino riscado), botão desativado com tooltip informando que já existe
+                                        */}
                                         <button
                                           onClick={() => {
-                                            if (temLembrete) {
-                                              const l = lembretes.find(x => x.membro_id === membroSelecionadoId && x.vacina_id === vacina.id && x.numero_dose === dose.numeroDose && x.status === 'pendente')
-                                              if (l) removerLembrete(l.id)
-                                            } else {
-                                              setDataLembrete(dose.dataRecomendada ?? '')
-                                              setErroLembrete('')
-                                              setModal({ tipo: 'lembreteManual', dose, vacinaNome: vacina.nome })
-                                            }
+                                            if (temLembrete) return
+                                            setDataLembrete(dose.dataRecomendada ?? '')
+                                            setErroLembrete('')
+                                            setModal({ tipo: 'lembreteManual', dose, vacinaNome: vacina.nome })
                                           }}
+                                          disabled={temLembrete}
                                           className="btn btn-ghost"
                                           style={{
                                             minHeight: 32,
                                             padding: 'var(--space-1) var(--space-2)',
-                                            color: temLembrete ? 'var(--color-primary)' : 'var(--color-text-faint)',
-                                            background: temLembrete ? 'var(--color-primary-highlight)' : 'transparent',
+                                            color: temLembrete ? 'var(--color-text-faint)' : 'var(--color-text-muted)',
+                                            background: 'transparent',
                                             borderRadius: 'var(--radius-md)',
+                                            opacity: temLembrete ? 0.5 : 1,
+                                            cursor: temLembrete ? 'not-allowed' : 'pointer',
                                             transition: 'all 150ms',
                                           }}
-                                          aria-label={temLembrete ? 'Remover lembrete' : 'Adicionar lembrete'}
-                                          title={temLembrete ? 'Lembrete ativo — clique para remover' : 'Criar lembrete para esta dose'}
+                                          aria-label={temLembrete ? 'Lembrete já criado para esta dose' : 'Adicionar lembrete'}
+                                          title={temLembrete ? 'Lembrete já existe para esta dose' : 'Criar lembrete para esta dose'}
                                         >
-                                          {/* Sempre exibe Bell; o estado ativo é indicado pela cor/fundo */}
-                                          {temLembrete ? <Bell size={15} aria-hidden /> : <Bell size={15} aria-hidden />}
+                                          {temLembrete ? <BellOff size={15} aria-hidden /> : <Bell size={15} aria-hidden />}
                                         </button>
                                       </>
                                     ) : (
