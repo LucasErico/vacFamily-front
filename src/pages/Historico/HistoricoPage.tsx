@@ -2,7 +2,7 @@ import { useMemo, useState, useRef, useEffect } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import {
   ClipboardList, Plus, CheckCircle2, Clock, AlertCircle,
-  Search, ChevronDown, Syringe, X,
+  Search, ChevronDown, Syringe, X, CalendarCheck,
 } from 'lucide-react'
 import { useMembros } from '@/contexts/MembrosContext'
 import { useVacinas } from '@/contexts/VacinasContext'
@@ -43,12 +43,13 @@ const CICLOS_HISTORICO: CicloInfo[] = [
 // ---------------------------------------------------------------------------
 // Tipos
 // ---------------------------------------------------------------------------
+type Aba = 'ciclo' | 'avulsas'
 type StatusFiltro = 'todos' | 'aplicada' | 'pendente' | 'atrasada'
 
 type EntradaTimeline =
-  | { tipo: 'aplicada'; data: string; vacinaNome: string; numeroDose: number; local?: string; faixas: string[] }
-  | { tipo: 'pendente'; data: string; vacinaNome: string; numeroDose: number; faixas: string[] }
-  | { tipo: 'atrasada'; data: string; vacinaNome: string; numeroDose: number; faixas: string[] }
+  | { tipo: 'aplicada'; data: string; vacinaNome: string; numeroDose: number; local?: string; faixas: string[]; avulsa?: boolean }
+  | { tipo: 'pendente'; data: string; vacinaNome: string; numeroDose: number; faixas: string[]; avulsa?: boolean }
+  | { tipo: 'atrasada'; data: string; vacinaNome: string; numeroDose: number; faixas: string[]; avulsa?: boolean }
 
 function getCicloDeEntrada(entrada: EntradaTimeline): CicloId | null {
   if (!entrada.faixas || entrada.faixas.length === 0) return null
@@ -205,7 +206,8 @@ export function HistoricoPage() {
     membroIdParam && membros.find(m => m.id === membroIdParam) ? membroIdParam : (membros[0]?.id ?? '')
   )
 
-  // --- filtros ---
+  // --- abas e filtros ---
+  const [abaAtiva, setAbaAtiva]         = useState<Aba>('ciclo')
   const [filtroStatus, setFiltroStatus] = useState<StatusFiltro>('todos')
   const [filtroCiclo, setFiltroCiclo]   = useState<CicloId | 'todos'>('todos')
   const [busca, setBusca]               = useState('')
@@ -213,7 +215,7 @@ export function HistoricoPage() {
   const membro = membros.find(m => m.id === membroId)
 
   // ---------------------------------------------------------------------------
-  // Timeline — apenas vacinas do catálogo (vacina_id UUID válido)
+  // Timeline completa (vacinas de catálogo + avulsas)
   // ---------------------------------------------------------------------------
   const timeline = useMemo((): EntradaTimeline[] => {
     if (!membro) return []
@@ -222,21 +224,22 @@ export function HistoricoPage() {
     const lembretesMembro = lembretes.filter(l => l.membro_id === membroId || l.membro_familiar_id === membroId)
     const entradas: EntradaTimeline[] = []
 
-    // Registros aplicados — apenas vacinas presentes no catálogo
+    // Registros aplicados
     for (const reg of registrosMembro) {
       const vacina = vacinas.find(v => v.id === reg.vacina_id)
-      if (!vacina) continue
+      const isAvulsa = !vacina || reg.vacina_id === 'avulsa'
       entradas.push({
         tipo: 'aplicada',
         data: reg.data_aplicacao,
-        vacinaNome: vacina.nome,
+        vacinaNome: vacina?.nome ?? reg.vacina_nome ?? 'Vacina avulsa',
         numeroDose: reg.numero_dose,
         local: reg.local_aplicacao,
-        faixas: vacina.faixa_etaria as string[],
+        faixas: vacina ? (vacina.faixa_etaria as string[]) : [],
+        avulsa: isAvulsa,
       })
     }
 
-    // Lembretes de reforço pendentes (apenas vacinas de calendário)
+    // Lembretes de reforço pendentes (apenas catálogo)
     for (const lem of lembretesMembro) {
       if (lem.status !== 'pendente') continue
       if (lem.tipo !== 'reforco' && lem.tipo !== 'campanha') continue
@@ -261,6 +264,7 @@ export function HistoricoPage() {
         vacinaNome: vacina.nome,
         numeroDose,
         faixas: vacina.faixa_etaria as string[],
+        avulsa: false,
       })
     }
 
@@ -268,12 +272,21 @@ export function HistoricoPage() {
   }, [membroId, membro, registros, lembretes, vacinas, buscarRegistrosMembro, hoje])
 
   // ---------------------------------------------------------------------------
-  // Filtros
+  // Separar entradas por aba e aplicar filtros
   // ---------------------------------------------------------------------------
-  const timelineFiltrada = useMemo(() => {
-    return timeline.filter(e => {
+  const timelineCiclo = useMemo(
+    () => timeline.filter(e => !e.avulsa),
+    [timeline]
+  )
+  const timelineAvulsas = useMemo(
+    () => timeline.filter(e => e.avulsa),
+    [timeline]
+  )
+
+  function aplicarFiltros(entradas: EntradaTimeline[]) {
+    return entradas.filter(e => {
       if (filtroStatus !== 'todos' && e.tipo !== filtroStatus) return false
-      if (filtroCiclo !== 'todos') {
+      if (filtroCiclo !== 'todos' && abaAtiva === 'ciclo') {
         const cicloEntrada = getCicloDeEntrada(e)
         if (cicloEntrada !== filtroCiclo) return false
       }
@@ -285,14 +298,20 @@ export function HistoricoPage() {
       }
       return true
     })
-  }, [timeline, filtroStatus, filtroCiclo, busca])
+  }
 
-  const aplicadas  = timelineFiltrada.filter(e => e.tipo === 'aplicada')
-  const agendadas  = timelineFiltrada.filter(e => e.tipo === 'pendente')
-  const atrasadas  = timelineFiltrada.filter(e => e.tipo === 'atrasada')
+  const cicloFiltrado   = useMemo(() => aplicarFiltros(timelineCiclo),   [timelineCiclo, filtroStatus, filtroCiclo, busca])
+  const avulsasFiltradas = useMemo(() => aplicarFiltros(timelineAvulsas), [timelineAvulsas, filtroStatus, busca])
 
-  // Agrupar aplicadas por ciclo
+  const entradaAtivaFiltrada = abaAtiva === 'ciclo' ? cicloFiltrado : avulsasFiltradas
+
+  const aplicadas = entradaAtivaFiltrada.filter(e => e.tipo === 'aplicada')
+  const agendadas = entradaAtivaFiltrada.filter(e => e.tipo === 'pendente')
+  const atrasadas = entradaAtivaFiltrada.filter(e => e.tipo === 'atrasada')
+
+  // Agrupar aplicadas de ciclo por ciclo
   const aplicadasPorCiclo = useMemo(() => {
+    if (abaAtiva !== 'ciclo') return []
     const mapa = new Map<string, typeof aplicadas>()
     for (const e of aplicadas) {
       const key = getCicloDeEntrada(e) ?? 'outros'
@@ -331,7 +350,7 @@ export function HistoricoPage() {
       })
     }
     return grupos
-  }, [aplicadas])
+  }, [aplicadas, abaAtiva])
 
   // ---------------------------------------------------------------------------
   // Guard: sem membros
@@ -361,7 +380,10 @@ export function HistoricoPage() {
           Histórico Vacinal
         </h2>
         <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)', marginTop: 'var(--space-1)' }}>
-          {timeline.filter(e => e.tipo === 'aplicada').length} dose{timeline.filter(e => e.tipo === 'aplicada').length !== 1 ? 's' : ''} registrada{timeline.filter(e => e.tipo === 'aplicada').length !== 1 ? 's' : ''}
+          {timelineCiclo.filter(e => e.tipo === 'aplicada').length} dose{timelineCiclo.filter(e => e.tipo === 'aplicada').length !== 1 ? 's' : ''} registrada{timelineCiclo.filter(e => e.tipo === 'aplicada').length !== 1 ? 's' : ''} no calendário
+          {timelineAvulsas.filter(e => e.tipo === 'aplicada').length > 0 && (
+            <> · {timelineAvulsas.filter(e => e.tipo === 'aplicada').length} avulsa{timelineAvulsas.filter(e => e.tipo === 'aplicada').length !== 1 ? 's' : ''}</>
+          )}
         </p>
       </div>
 
@@ -390,6 +412,65 @@ export function HistoricoPage() {
           >
             <Avatar nome={m.nome} tamanho={20} />
             {m.nome.split(' ')[0]}
+          </button>
+        ))}
+      </div>
+
+      {/* Abas */}
+      <div
+        role="tablist"
+        aria-label="Tipo de vacina"
+        style={{
+          display: 'flex',
+          gap: 0,
+          marginBottom: 'var(--space-5)',
+          borderBottom: '2px solid var(--color-divider)',
+        }}
+      >
+        {([
+          { id: 'ciclo' as Aba,    label: 'Vacinas de Ciclo',  icon: <CalendarCheck size={15} aria-hidden /> },
+          { id: 'avulsas' as Aba,  label: 'Vacinas Avulsas',   icon: <ClipboardList  size={15} aria-hidden /> },
+        ]).map(aba => (
+          <button
+            key={aba.id}
+            role="tab"
+            aria-selected={abaAtiva === aba.id}
+            onClick={() => { setAbaAtiva(aba.id); setFiltroStatus('todos'); setFiltroCiclo('todos'); setBusca('') }}
+            style={{
+              padding: 'var(--space-3) var(--space-5)',
+              fontSize: 'var(--text-sm)',
+              fontWeight: abaAtiva === aba.id ? 700 : 400,
+              color: abaAtiva === aba.id ? 'var(--color-primary)' : 'var(--color-text-muted)',
+              background: 'none',
+              border: 'none',
+              borderBottom: abaAtiva === aba.id ? '2px solid var(--color-primary)' : '2px solid transparent',
+              marginBottom: -2,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 'var(--space-2)',
+              transition: 'all 150ms',
+            }}
+          >
+            {aba.icon}
+            {aba.label}
+            {/* badge de contagem */}
+            {(() => {
+              const total = (aba.id === 'ciclo' ? timelineCiclo : timelineAvulsas).length
+              if (total === 0) return null
+              return (
+                <span style={{
+                  fontSize: 'var(--text-xs)', fontWeight: 700,
+                  minWidth: 18, height: 18, borderRadius: 'var(--radius-full)',
+                  background: abaAtiva === aba.id ? 'var(--color-primary-highlight)' : 'var(--color-surface-offset)',
+                  color: abaAtiva === aba.id ? 'var(--color-primary)' : 'var(--color-text-muted)',
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  paddingInline: 'var(--space-1)',
+                }}>
+                  {total}
+                </span>
+              )
+            })()}
           </button>
         ))}
       </div>
@@ -424,8 +505,10 @@ export function HistoricoPage() {
           Atrasadas
         </button>
 
-        {/* Dropdown de ciclo */}
-        <CicloDropdown value={filtroCiclo} onChange={v => setFiltroCiclo(v)} />
+        {/* Dropdown de ciclo — só visível na aba de ciclo */}
+        {abaAtiva === 'ciclo' && (
+          <CicloDropdown value={filtroCiclo} onChange={v => setFiltroCiclo(v)} />
+        )}
 
         {/* Limpar filtros */}
         {(filtroStatus !== 'todos' || filtroCiclo !== 'todos' || busca) && (
@@ -440,14 +523,16 @@ export function HistoricoPage() {
       </div>
 
       {/* Conteúdo */}
-      {timelineFiltrada.length === 0 ? (
+      {entradaAtivaFiltrada.length === 0 ? (
         <div style={{ textAlign: 'center', padding: 'var(--space-12) var(--space-8)', color: 'var(--color-text-muted)' }}>
           <Syringe size={40} style={{ margin: '0 auto var(--space-3)', opacity: 0.3 }} aria-hidden />
           <p style={{ fontWeight: 600, marginBottom: 'var(--space-2)', color: 'var(--color-text)' }}>
-            {timeline.length === 0 ? 'Nenhum registro ainda' : 'Nenhum resultado para os filtros'}
+            {(abaAtiva === 'ciclo' ? timelineCiclo : timelineAvulsas).length === 0
+              ? (abaAtiva === 'ciclo' ? 'Nenhuma vacina de ciclo registrada' : 'Nenhuma vacina avulsa registrada')
+              : 'Nenhum resultado para os filtros'}
           </p>
           <p style={{ fontSize: 'var(--text-xs)', maxWidth: 280, margin: '0 auto' }}>
-            {timeline.length === 0
+            {(abaAtiva === 'ciclo' ? timelineCiclo : timelineAvulsas).length === 0
               ? `Registre vacinas para ${membro?.nome?.split(' ')[0]} na página de Vacinas.`
               : 'Tente ajustar os filtros ou a busca.'}
           </p>
@@ -455,112 +540,172 @@ export function HistoricoPage() {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
 
-          {/* Seção: Atrasadas */}
-          {atrasadas.length > 0 && (
-            <section aria-label="Doses atrasadas">
-              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-3)' }}>
-                <div style={{ flex: 1, height: 1, background: 'var(--color-error)' }} aria-hidden />
-                <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--color-error)', textTransform: 'uppercase', letterSpacing: '0.08em', whiteSpace: 'nowrap' }}>Atrasadas</span>
-                <div style={{ flex: 1, height: 1, background: 'var(--color-error)' }} aria-hidden />
-              </div>
-              <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }} role="list">
-                {atrasadas.map((e, i) => (
-                  <li key={i} style={{ display: 'flex', gap: 'var(--space-4)', alignItems: 'flex-start' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 4 }}>
-                      <AlertCircle size={18} style={{ color: 'var(--color-error)', flexShrink: 0 }} aria-hidden />
-                      {i < atrasadas.length - 1 && <div style={{ flex: 1, width: 2, background: 'var(--color-divider)', marginTop: 4, minHeight: 20 }} aria-hidden />}
-                    </div>
-                    <div className="card" style={{ flex: 1, padding: 'var(--space-4) var(--space-5)', border: '1px solid var(--color-error-highlight)' }}>
-                      <p style={{ fontWeight: 600, fontSize: 'var(--text-sm)', color: 'var(--color-error)' }}>{e.vacinaNome} — {e.numeroDose}ª dose</p>
-                      <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginTop: 'var(--space-1)' }}>Prevista para {formatarData(e.data)} · Não realizada</p>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </section>
+          {/* ── ABA: VACINAS AVULSAS ── lista simples */}
+          {abaAtiva === 'avulsas' && (
+            <>
+              {atrasadas.length > 0 && (
+                <section aria-label="Avulsas atrasadas">
+                  <SectionDivider label="Atrasadas" cor="var(--color-error)" />
+                  <ListaEntradas entradas={atrasadas} />
+                </section>
+              )}
+              {agendadas.length > 0 && (
+                <section aria-label="Avulsas agendadas">
+                  <SectionDivider label="Agendadas" cor="var(--color-primary)" />
+                  <ListaEntradas entradas={agendadas} />
+                </section>
+              )}
+              {aplicadas.length > 0 && (
+                <section aria-label="Avulsas aplicadas">
+                  <SectionDivider label="Aplicadas" cor="var(--color-success)" />
+                  <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }} role="list">
+                    {aplicadas.map((e, i) => (
+                      <li key={i} style={{ display: 'flex', gap: 'var(--space-4)', alignItems: 'flex-start' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 4 }}>
+                          <CheckCircle2 size={18} style={{ color: 'var(--color-success)', flexShrink: 0 }} aria-hidden />
+                          {i < aplicadas.length - 1 && <div style={{ flex: 1, width: 2, background: 'var(--color-divider)', marginTop: 4, minHeight: 20 }} aria-hidden />}
+                        </div>
+                        <div className="card" style={{ flex: 1, padding: 'var(--space-4) var(--space-5)', border: '1px solid var(--color-success-highlight)' }}>
+                          <p style={{ fontWeight: 600, fontSize: 'var(--text-sm)', color: 'var(--color-text)' }}>{e.vacinaNome} — {e.numeroDose}ª dose</p>
+                          <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginTop: 'var(--space-1)' }}>
+                            {formatarData(e.data)}
+                            {e.tipo === 'aplicada' && (e as { local?: string }).local ? ` · ${(e as { local?: string }).local}` : ''}
+                          </p>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+            </>
           )}
 
-          {/* Seção: Agendadas */}
-          {agendadas.length > 0 && (
-            <section aria-label="Doses agendadas">
-              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-3)' }}>
-                <div style={{ flex: 1, height: 1, background: 'var(--color-primary)' }} aria-hidden />
-                <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--color-primary)', textTransform: 'uppercase', letterSpacing: '0.08em', whiteSpace: 'nowrap' }}>Agendadas</span>
-                <div style={{ flex: 1, height: 1, background: 'var(--color-primary)' }} aria-hidden />
-              </div>
-              <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }} role="list">
-                {agendadas.map((e, i) => (
-                  <li key={i} style={{ display: 'flex', gap: 'var(--space-4)', alignItems: 'flex-start' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 4 }}>
-                      <Clock size={18} style={{ color: 'var(--color-primary)', flexShrink: 0 }} aria-hidden />
-                      {i < agendadas.length - 1 && <div style={{ flex: 1, width: 2, background: 'var(--color-divider)', marginTop: 4, minHeight: 20 }} aria-hidden />}
-                    </div>
-                    <div className="card" style={{ flex: 1, padding: 'var(--space-4) var(--space-5)' }}>
-                      <p style={{ fontWeight: 600, fontSize: 'var(--text-sm)', color: 'var(--color-text)' }}>{e.vacinaNome} — {e.numeroDose}ª dose</p>
-                      <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginTop: 'var(--space-1)' }}>Prevista para {formatarData(e.data)}</p>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
+          {/* ── ABA: VACINAS DE CICLO ── */}
+          {abaAtiva === 'ciclo' && (
+            <>
+              {/* Atrasadas */}
+              {atrasadas.length > 0 && (
+                <section aria-label="Doses atrasadas">
+                  <SectionDivider label="Atrasadas" cor="var(--color-error)" />
+                  <ListaEntradas entradas={atrasadas} />
+                </section>
+              )}
 
-          {/* Seção: Histórico aplicado por ciclo */}
-          {aplicadasPorCiclo.length > 0 && (
-            <section aria-label="Histórico de doses aplicadas por ciclo">
-              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-4)' }}>
-                <div style={{ flex: 1, height: 1, background: 'var(--color-success)' }} aria-hidden />
-                <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--color-success)', textTransform: 'uppercase', letterSpacing: '0.08em', whiteSpace: 'nowrap' }}>Histórico Aplicado</span>
-                <div style={{ flex: 1, height: 1, background: 'var(--color-success)' }} aria-hidden />
-              </div>
+              {/* Agendadas */}
+              {agendadas.length > 0 && (
+                <section aria-label="Doses agendadas">
+                  <SectionDivider label="Agendadas" cor="var(--color-primary)" />
+                  <ListaEntradas entradas={agendadas} />
+                </section>
+              )}
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-                {aplicadasPorCiclo.map(grupo => (
-                  <div
-                    key={grupo.id}
-                    style={{ borderRadius: 'var(--radius-lg)', border: `1.5px solid ${grupo.corBorda}`, overflow: 'hidden' }}
-                  >
-                    {/* Cabeçalho do ciclo */}
-                    <div style={{ background: grupo.corBg, padding: 'var(--space-3) var(--space-5)', borderBottom: `1px solid ${grupo.corBorda}`, display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-                      <span style={{ width: 10, height: 10, borderRadius: '50%', background: grupo.cor, flexShrink: 0 }} aria-hidden />
-                      <p style={{ fontWeight: 700, fontSize: 'var(--text-sm)', color: grupo.cor, flex: 1 }}>{grupo.label}</p>
-                      <span style={{ fontSize: 'var(--text-xs)', color: grupo.cor, opacity: 0.8 }}>
-                        {grupo.entradas.length} dose{grupo.entradas.length !== 1 ? 's' : ''}
-                      </span>
-                    </div>
+              {/* Histórico aplicado por ciclo */}
+              {aplicadasPorCiclo.length > 0 && (
+                <section aria-label="Histórico de doses aplicadas por ciclo">
+                  <SectionDivider label="Histórico Aplicado" cor="var(--color-success)" />
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+                    {aplicadasPorCiclo.map(grupo => (
+                      <div
+                        key={grupo.id}
+                        style={{ borderRadius: 'var(--radius-lg)', border: `1.5px solid ${grupo.corBorda}`, overflow: 'hidden' }}
+                      >
+                        {/* Cabeçalho do ciclo */}
+                        <div style={{ background: grupo.corBg, padding: 'var(--space-3) var(--space-5)', borderBottom: `1px solid ${grupo.corBorda}`, display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+                          <span style={{ width: 10, height: 10, borderRadius: '50%', background: grupo.cor, flexShrink: 0 }} aria-hidden />
+                          <p style={{ fontWeight: 700, fontSize: 'var(--text-sm)', color: grupo.cor, flex: 1 }}>{grupo.label}</p>
+                          <span style={{ fontSize: 'var(--text-xs)', color: grupo.cor, opacity: 0.8 }}>
+                            {grupo.entradas.length} dose{grupo.entradas.length !== 1 ? 's' : ''}
+                          </span>
+                        </div>
 
-                    {/* Lista de doses do ciclo */}
-                    <ul style={{ listStyle: 'none', padding: 0, margin: 0 }} role="list">
-                      {grupo.entradas.map((e, i) => (
-                        <li
-                          key={i}
-                          style={{
-                            display: 'flex', gap: 'var(--space-4)', alignItems: 'center',
-                            padding: 'var(--space-4) var(--space-5)',
-                            borderBottom: i < grupo.entradas.length - 1 ? '1px solid var(--color-divider)' : 'none',
-                            background: 'var(--color-surface)',
-                          }}
-                        >
-                          <CheckCircle2 size={16} style={{ color: 'var(--color-success)', flexShrink: 0 }} aria-hidden />
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <p style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--color-text)' }}>
-                              {e.vacinaNome} — {e.numeroDose}ª dose
-                            </p>
-                            <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginTop: 'var(--space-1)' }}>
-                              {formatarData(e.data)}
-                              {e.tipo === 'aplicada' && (e as { local?: string }).local ? ` · ${(e as { local?: string }).local}` : ''}
-                            </p>
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
+                        {/* Lista de doses */}
+                        <ul style={{ listStyle: 'none', padding: 0, margin: 0 }} role="list">
+                          {grupo.entradas.map((e, i) => (
+                            <li
+                              key={i}
+                              style={{
+                                display: 'flex', gap: 'var(--space-4)', alignItems: 'center',
+                                padding: 'var(--space-4) var(--space-5)',
+                                borderBottom: i < grupo.entradas.length - 1 ? '1px solid var(--color-divider)' : 'none',
+                                background: 'var(--color-surface)',
+                              }}
+                            >
+                              <CheckCircle2 size={16} style={{ color: 'var(--color-success)', flexShrink: 0 }} aria-hidden />
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <p style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--color-text)' }}>
+                                  {e.vacinaNome} — {e.numeroDose}ª dose
+                                </p>
+                                <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginTop: 'var(--space-1)' }}>
+                                  {formatarData(e.data)}
+                                  {e.tipo === 'aplicada' && (e as { local?: string }).local ? ` · ${(e as { local?: string }).local}` : ''}
+                                </p>
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            </section>
+                </section>
+              )}
+            </>
           )}
         </div>
       )}
     </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Sub-componentes auxiliares
+// ---------------------------------------------------------------------------
+function SectionDivider({ label, cor }: { label: string; cor: string }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-3)' }}>
+      <div style={{ flex: 1, height: 1, background: cor }} aria-hidden />
+      <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: cor, textTransform: 'uppercase', letterSpacing: '0.08em', whiteSpace: 'nowrap' }}>{label}</span>
+      <div style={{ flex: 1, height: 1, background: cor }} aria-hidden />
+    </div>
+  )
+}
+
+type EntradaBasica =
+  | { tipo: 'aplicada'; data: string; vacinaNome: string; numeroDose: number; local?: string; faixas: string[]; avulsa?: boolean }
+  | { tipo: 'pendente'; data: string; vacinaNome: string; numeroDose: number; faixas: string[]; avulsa?: boolean }
+  | { tipo: 'atrasada'; data: string; vacinaNome: string; numeroDose: number; faixas: string[]; avulsa?: boolean }
+
+function ListaEntradas({ entradas }: { entradas: EntradaBasica[] }) {
+  return (
+    <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }} role="list">
+      {entradas.map((e, i) => {
+        const isAtrasada = e.tipo === 'atrasada'
+        const isPendente = e.tipo === 'pendente'
+        const icon = isAtrasada
+          ? <AlertCircle size={18} style={{ color: 'var(--color-error)', flexShrink: 0 }} aria-hidden />
+          : isPendente
+            ? <Clock size={18} style={{ color: 'var(--color-primary)', flexShrink: 0 }} aria-hidden />
+            : <CheckCircle2 size={18} style={{ color: 'var(--color-success)', flexShrink: 0 }} aria-hidden />
+        const borderColor = isAtrasada ? 'var(--color-error-highlight)' : isPendente ? 'var(--color-border)' : 'var(--color-success-highlight)'
+        const labelCor = isAtrasada ? 'var(--color-error)' : 'var(--color-text)'
+        const dataLabel = isAtrasada
+          ? `Prevista para ${formatarData(e.data)} · Não realizada`
+          : isPendente
+            ? `Prevista para ${formatarData(e.data)}`
+            : formatarData(e.data) + (e.tipo === 'aplicada' && (e as { local?: string }).local ? ` · ${(e as { local?: string }).local}` : '')
+
+        return (
+          <li key={i} style={{ display: 'flex', gap: 'var(--space-4)', alignItems: 'flex-start' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 4 }}>
+              {icon}
+              {i < entradas.length - 1 && <div style={{ flex: 1, width: 2, background: 'var(--color-divider)', marginTop: 4, minHeight: 20 }} aria-hidden />}
+            </div>
+            <div className="card" style={{ flex: 1, padding: 'var(--space-4) var(--space-5)', border: `1px solid ${borderColor}` }}>
+              <p style={{ fontWeight: 600, fontSize: 'var(--text-sm)', color: labelCor }}>{e.vacinaNome} — {e.numeroDose}ª dose</p>
+              <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginTop: 'var(--space-1)' }}>{dataLabel}</p>
+            </div>
+          </li>
+        )
+      })}
+    </ul>
   )
 }
