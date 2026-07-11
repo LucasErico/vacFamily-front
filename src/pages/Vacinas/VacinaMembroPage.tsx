@@ -13,9 +13,6 @@ import { Avatar } from '@/components/ui/Avatar'
 import { VacinaStatusBadge } from '@/components/ui/VacinaStatusBadge'
 import type { DoseStatus, CriarLembretePayload, FaixaEtaria, Vacina, RegistroVacinal } from '@/types'
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 function formatarData(iso: string) {
   if (!iso) return ''
   const [ano, mes, dia] = iso.split('-')
@@ -31,9 +28,6 @@ function calcularIdadeAnos(dataNascimento: string, hoje: string): number {
   return idade
 }
 
-// ---------------------------------------------------------------------------
-// Definição de Ciclos
-// ---------------------------------------------------------------------------
 export type CicloId = 'pre_natal' | 'recem_nascido' | 'crianca' | 'adolescente' | 'adulto' | 'idoso'
 
 interface Ciclo {
@@ -93,9 +87,6 @@ const CICLOS: Ciclo[] = [
   },
 ]
 
-// ---------------------------------------------------------------------------
-// Tipos de modal
-// ---------------------------------------------------------------------------
 type ModalState =
   | { tipo: 'nenhum' }
   | { tipo: 'marcarTomada'; dose: DoseStatus; vacinaNome: string }
@@ -103,9 +94,6 @@ type ModalState =
   | { tipo: 'confirmarCiclo'; ciclo: Ciclo; vacinas: Vacina[] }
   | { tipo: 'lembreteManual'; dose: DoseStatus; vacinaNome: string }
 
-// ---------------------------------------------------------------------------
-// Helpers de lembrete
-// ---------------------------------------------------------------------------
 function lembreteVacinal(
   vacinaId: string,
   membroFamiliarId: string,
@@ -122,9 +110,6 @@ function lembreteVacinal(
   }
 }
 
-// ---------------------------------------------------------------------------
-// Skeleton
-// ---------------------------------------------------------------------------
 function VacinaSkeletonRow() {
   return (
     <li>
@@ -139,9 +124,6 @@ function VacinaSkeletonRow() {
   )
 }
 
-// ---------------------------------------------------------------------------
-// Dropdown de Ciclo (portal para scroll independente)
-// ---------------------------------------------------------------------------
 function CicloDropdown({
   value,
   onChange,
@@ -191,7 +173,8 @@ function CicloDropdown({
         border: '1px solid var(--color-border)',
         borderRadius: 'var(--radius-lg)',
         boxShadow: 'var(--shadow-md)',
-        overflow: 'hidden',
+        maxHeight: 280,
+        overflowY: 'auto',
         padding: 'var(--space-1) 0',
       }}
     >
@@ -262,9 +245,6 @@ function CicloDropdown({
   )
 }
 
-// ---------------------------------------------------------------------------
-// Overlay de modal genérico
-// ---------------------------------------------------------------------------
 function ModalOverlay({ onClose, children }: { onClose: () => void; children: React.ReactNode }) {
   return (
     <div
@@ -291,9 +271,6 @@ function ModalOverlay({ onClose, children }: { onClose: () => void; children: Re
   )
 }
 
-// ---------------------------------------------------------------------------
-// styleBtnStatus helper
-// ---------------------------------------------------------------------------
 function styleBtnStatus(_s: string, ativo: boolean, cor?: string): React.CSSProperties {
   return {
     fontSize: 'var(--text-xs)', fontWeight: ativo ? 700 : 400,
@@ -306,9 +283,6 @@ function styleBtnStatus(_s: string, ativo: boolean, cor?: string): React.CSSProp
   }
 }
 
-// ---------------------------------------------------------------------------
-// Componente principal
-// ---------------------------------------------------------------------------
 export function VacinaMembroPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -321,38 +295,23 @@ export function VacinaMembroPage() {
   const { adicionarLembrete, lembretes, removerLembrete } = useLembretes()
 
   const hoje = new Date().toISOString().slice(0, 10)
-
-  // --- state geral ---
   const [membroSelecionadoId, setMembroSelecionadoId] = useState(id ?? '')
   const [seletorAberto, setSeletorAberto] = useState(false)
   const [bannerMsg, setBannerMsg] = useState('')
-
-  // --- filtros caderneta ---
   const [filtroCiclo, setFiltroCiclo] = useState<CicloId | 'todos'>('todos')
   const [filtroStatus, setFiltroStatus] = useState<'todos' | 'pendente' | 'aplicada' | 'atrasada'>('todos')
   const [busca, setBusca] = useState('')
   const [ciclosExpandidos, setCiclosExpandidos] = useState<Set<CicloId>>(new Set(CICLOS.map(c => c.id)))
-
-  // --- modais ---
   const [modal, setModal] = useState<ModalState>({ tipo: 'nenhum' })
-
-  // modal marcar tomada (dose individual)
   const [dataConfirm, setDataConfirm] = useState(hoje)
   const [localConfirm, setLocalConfirm] = useState('')
   const [erroConfirm, setErroConfirm] = useState('')
-
-  // modal confirmar ciclo (só coleta local; data vem de cada dose.dataRecomendada)
   const [localCiclo, setLocalCiclo] = useState('')
   const [erroCiclo, setErroCiclo] = useState('')
   const [confirmandoCiclo, setConfirmandoCiclo] = useState(false)
-
-  // lembrete manual
   const [dataLembrete, setDataLembrete] = useState('')
   const [erroLembrete, setErroLembrete] = useState('')
 
-  // ---------------------------------------------------------------------------
-  // Membro
-  // ---------------------------------------------------------------------------
   const membro = membros.find(m => m.id === membroSelecionadoId)
   const outrosMembros = membros.filter(m => m.id !== membroSelecionadoId)
 
@@ -382,12 +341,8 @@ export function VacinaMembroPage() {
     })
     setBannerMsg(`Histórico infantil preenchido automaticamente — ${totalDoses} doses registradas com data de hoje e local "${localInfantisNavState}".`)
     navigate(location.pathname, { replace: true, state: null })
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [confirmarInfantisFlag, membros, membroSelecionadoId, carregando, vacinas.length])
 
-  // ---------------------------------------------------------------------------
-  // Guard
-  // ---------------------------------------------------------------------------
   if (!membro) {
     return (
       <div style={{ textAlign: 'center', padding: 'var(--space-16)' }}>
@@ -402,12 +357,6 @@ export function VacinaMembroPage() {
   const idadeMembro = calcularIdadeAnos(membroDefinido.data_nascimento, hoje)
   const aguardandoAPI = carregando || vacinas.length === 0
 
-  // ---------------------------------------------------------------------------
-  // Agrupamento por ciclo
-  // Mostra TODOS os ciclos (sem restrição de idade), filtrando apenas
-  // doses com status !== 'nao_aplicavel'. O botão "Confirmar todas" é
-  // controlado separadamente (só para ciclos já encerrados).
-  // ---------------------------------------------------------------------------
   const vacinasPorCiclo = useMemo(() => {
     if (aguardandoAPI) return []
     return CICLOS.map(ciclo => {
@@ -421,7 +370,6 @@ export function VacinaMembroPage() {
       }).filter(item => item.doses.length > 0)
       return { ciclo, vacinas: vacinasComDoses }
     }).filter(g => g.vacinas.length > 0)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [aguardandoAPI, vacinas, registros, membroSelecionadoId, idadeMembro])
 
   const vacinasPorCicloFiltrado = useMemo(() => {
@@ -441,12 +389,8 @@ export function VacinaMembroPage() {
         return true
       }),
     })).filter(g => g.vacinas.length > 0)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vacinasPorCiclo, filtroCiclo, busca, filtroStatus])
 
-  // ---------------------------------------------------------------------------
-  // Ações
-  // ---------------------------------------------------------------------------
   function handleMarcarTomada() {
     if (!dataConfirm) { setErroConfirm('Informe a data de aplicação.'); return }
     if (dataConfirm > hoje) { setErroConfirm('A data não pode ser futura para uma dose já tomada.'); return }
@@ -471,8 +415,6 @@ export function VacinaMembroPage() {
     setModal({ tipo: 'nenhum' })
   }
 
-  // Confirmar ciclo inteiro: usa dose.dataRecomendada como data de aplicação
-  // para cada dose, garantindo a data histórica correta.
   async function handleConfirmarCiclo() {
     if (!localCiclo.trim()) { setErroCiclo('Informe o local de aplicação.'); return }
     if (modal.tipo !== 'confirmarCiclo') return
@@ -483,7 +425,6 @@ export function VacinaMembroPage() {
         const doses = calcularDosesStatus(vacina, registrosMembro, membroDefinido.data_nascimento)
         for (const dose of doses) {
           if (dose.status !== 'aplicada' && dose.status !== 'nao_aplicavel') {
-            // Usa a data prevista da dose; faz fallback para hoje se não houver
             const dataAplicacao = dose.dataRecomendada && dose.dataRecomendada <= hoje
               ? dose.dataRecomendada
               : hoje
@@ -524,9 +465,6 @@ export function VacinaMembroPage() {
     setBannerMsg('Lembrete adicionado na Agenda.')
   }
 
-  // ---------------------------------------------------------------------------
-  // Render helpers
-  // ---------------------------------------------------------------------------
   function temLembretePendente(vacinaId: string, numeroDose: number) {
     return lembretes.some(l =>
       l.membro_id === membroSelecionadoId && l.vacina_id === vacinaId &&
@@ -540,13 +478,8 @@ export function VacinaMembroPage() {
     )
   }
 
-  // ---------------------------------------------------------------------------
-  // JSX
-  // ---------------------------------------------------------------------------
   return (
     <div style={{ maxWidth: 720, margin: '0 auto', paddingBottom: 'var(--space-16)' }}>
-
-      {/* Banner */}
       {bannerMsg && (
         <div style={{
           background: 'var(--color-primary-highlight)', color: 'var(--color-primary)',
@@ -559,7 +492,6 @@ export function VacinaMembroPage() {
         </div>
       )}
 
-      {/* Voltar */}
       <button
         onClick={() => navigate('/vacinas')}
         className="btn btn-ghost"
@@ -568,7 +500,6 @@ export function VacinaMembroPage() {
         <ArrowLeft size={16} aria-hidden /> Voltar
       </button>
 
-      {/* Header do membro */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)', marginBottom: 'var(--space-6)', flexWrap: 'wrap' }}>
         <Avatar nome={membroDefinido.nome} tamanho={52} fotoUrl={membroDefinido.foto_url} />
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -619,7 +550,6 @@ export function VacinaMembroPage() {
         </div>
       </div>
 
-      {/* Header da seção */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-5)', borderBottom: '1.5px solid var(--color-border)', paddingBottom: 'var(--space-4)' }}>
         <CalendarCheck size={18} style={{ color: 'var(--color-primary)' }} aria-hidden />
         <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--text-base)', fontWeight: 700, color: 'var(--color-text)' }}>
@@ -627,7 +557,6 @@ export function VacinaMembroPage() {
         </h3>
       </div>
 
-      {/* Filtros — linha 1: busca + status */}
       <div style={{ display: 'flex', gap: 'var(--space-2)', marginBottom: 'var(--space-2)', flexWrap: 'wrap', alignItems: 'center' }}>
         <div style={{ position: 'relative', flex: 1, minWidth: 200 }}>
           <Search size={15} style={{ position: 'absolute', left: 'var(--space-3)', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-faint)', pointerEvents: 'none' }} aria-hidden />
@@ -657,12 +586,10 @@ export function VacinaMembroPage() {
         </div>
       </div>
 
-      {/* Filtros — linha 2: dropdown de ciclo (largura total) */}
       <div style={{ marginBottom: 'var(--space-4)' }}>
         <CicloDropdown value={filtroCiclo} onChange={setFiltroCiclo} />
       </div>
 
-      {/* Lista de ciclos */}
       {aguardandoAPI ? (
         <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
           {[1, 2, 3].map(i => <VacinaSkeletonRow key={i} />)}
@@ -678,12 +605,10 @@ export function VacinaMembroPage() {
             const expandido = ciclosExpandidos.has(ciclo.id)
             const todasDoses = vacinasCiclo.flatMap(({ doses }) => doses)
             const pendentes = todasDoses.filter(d => d.status === 'pendente' || isAtrasada(d, membroDefinido.data_nascimento, hoje)).length
-            // Botão "Confirmar todas" só para ciclos já encerrados (membro ultrapassou idadeMaxAnos)
             const cicloJaEncerrado = idadeMembro >= ciclo.idadeMaxAnos
 
             return (
               <section key={ciclo.id} aria-label={ciclo.label}>
-                {/* Header do ciclo */}
                 <div style={{
                   display: 'flex', alignItems: 'center', gap: 'var(--space-3)',
                   marginBottom: 'var(--space-3)',
@@ -714,7 +639,6 @@ export function VacinaMembroPage() {
                     <ChevronDown size={14} style={{ marginLeft: 'auto', color: 'var(--color-text-faint)', transform: expandido ? 'rotate(180deg)' : 'none', transition: 'transform 150ms' }} aria-hidden />
                   </button>
 
-                  {/* Confirmar todas — só para ciclos já encerrados com doses pendentes */}
                   {cicloJaEncerrado && pendentes > 0 && (
                     <button
                       onClick={() => {
@@ -734,7 +658,6 @@ export function VacinaMembroPage() {
                   )}
                 </div>
 
-                {/* Vacinas do ciclo */}
                 {expandido && (
                   <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
                     {vacinasCiclo.map(({ vacina, doses }) => (
@@ -744,7 +667,6 @@ export function VacinaMembroPage() {
                           border: `1px solid ${ciclo.corBorda}`,
                           overflow: 'hidden',
                         }}>
-                          {/* Header vacina */}
                           <div style={{
                             background: ciclo.corBg,
                             padding: 'var(--space-3) var(--space-4)',
@@ -761,7 +683,6 @@ export function VacinaMembroPage() {
                             </div>
                           </div>
 
-                          {/* Doses */}
                           <ul style={{ listStyle: 'none', padding: 'var(--space-2) var(--space-3)', display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
                             {doses.map(dose => {
                               const atrasada = isAtrasada(dose, membroDefinido.data_nascimento, hoje)
@@ -777,7 +698,6 @@ export function VacinaMembroPage() {
                                   borderRadius: 'var(--radius-md)',
                                   background: tomada ? 'var(--color-surface-offset)' : 'var(--color-surface)',
                                 }}>
-                                  {/* Ícone status */}
                                   <span style={{ flexShrink: 0, color: statusEfetivo === 'atrasada' ? 'var(--color-error)' : statusEfetivo === 'aplicada' ? 'var(--color-success)' : 'var(--color-warning)' }}>
                                     {statusEfetivo === 'aplicada' ? <CheckCircle2 size={16} aria-hidden /> : <Clock size={16} aria-hidden />}
                                   </span>
@@ -799,7 +719,6 @@ export function VacinaMembroPage() {
                                     )}
                                   </div>
 
-                                  {/* Ações */}
                                   <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', flexShrink: 0 }}>
                                     {!tomada ? (
                                       <>
@@ -859,11 +778,6 @@ export function VacinaMembroPage() {
         </div>
       )}
 
-      {/* ================================================================ */}
-      {/* MODAIS                                                            */}
-      {/* ================================================================ */}
-
-      {/* Modal: Marcar Tomada */}
       {modal.tipo === 'marcarTomada' && (
         <ModalOverlay onClose={() => setModal({ tipo: 'nenhum' })}>
           <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--text-lg)', fontWeight: 700, marginBottom: 'var(--space-1)' }}>
@@ -900,7 +814,6 @@ export function VacinaMembroPage() {
         </ModalOverlay>
       )}
 
-      {/* Modal: Apagar Dose */}
       {modal.tipo === 'apagarDose' && (
         <ModalOverlay onClose={() => setModal({ tipo: 'nenhum' })}>
           <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--text-lg)', fontWeight: 700, marginBottom: 'var(--space-2)' }}>
@@ -923,7 +836,6 @@ export function VacinaMembroPage() {
         </ModalOverlay>
       )}
 
-      {/* Modal: Confirmar Ciclo inteiro */}
       {modal.tipo === 'confirmarCiclo' && (
         <ModalOverlay onClose={() => setModal({ tipo: 'nenhum' })}>
           <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--text-lg)', fontWeight: 700, marginBottom: 'var(--space-1)' }}>
@@ -957,7 +869,6 @@ export function VacinaMembroPage() {
         </ModalOverlay>
       )}
 
-      {/* Modal: Lembrete Manual */}
       {modal.tipo === 'lembreteManual' && (
         <ModalOverlay onClose={() => setModal({ tipo: 'nenhum' })}>
           <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--text-lg)', fontWeight: 700, marginBottom: 'var(--space-1)' }}>

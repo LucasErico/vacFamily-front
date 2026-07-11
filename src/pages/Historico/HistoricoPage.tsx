@@ -1,4 +1,5 @@
 import { useMemo, useState, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { useSearchParams, Link } from 'react-router-dom'
 import {
   ClipboardList, Plus, CheckCircle2, Clock, AlertCircle,
@@ -70,23 +71,97 @@ function CicloDropdown({
   onChange: (v: CicloId | 'todos') => void
 }) {
   const [aberto, setAberto] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
+  const btnRef = useRef<HTMLButtonElement>(null)
+  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null)
 
   useEffect(() => {
     function handler(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setAberto(false)
+      const target = e.target as Node
+      const popupEl = document.getElementById('ciclo-dropdown-popup-historico')
+      if (
+        btnRef.current && !btnRef.current.contains(target) &&
+        (!popupEl || !popupEl.contains(target))
+      ) setAberto(false)
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
+  function abrirDropdown() {
+    if (!btnRef.current) return
+    const rect = btnRef.current.getBoundingClientRect()
+    setPos({ top: rect.bottom + 8, left: rect.left, width: Math.max(rect.width, 200) })
+    setAberto(v => !v)
+  }
+
   const cicloAtual = value === 'todos' ? null : CICLOS_HISTORICO.find(c => c.id === value)
   const label = cicloAtual ? cicloAtual.label : 'Todos os ciclos'
 
-  return (
-    <div ref={ref} style={{ position: 'relative', flexShrink: 0 }}>
+  const popup = aberto && pos && createPortal(
+    <div
+      id="ciclo-dropdown-popup-historico"
+      role="listbox"
+      aria-label="Filtrar por ciclo"
+      style={{
+        position: 'fixed',
+        top: pos.top,
+        left: pos.left,
+        minWidth: pos.width,
+        zIndex: 9999,
+        background: 'var(--color-surface)',
+        border: '1px solid var(--color-border)',
+        borderRadius: 'var(--radius-lg)',
+        boxShadow: 'var(--shadow-md)',
+        maxHeight: 280,
+        overflowY: 'auto',
+        padding: 'var(--space-1) 0',
+      }}
+    >
       <button
-        onClick={() => setAberto(v => !v)}
+        role="option"
+        aria-selected={value === 'todos'}
+        onClick={() => { onChange('todos'); setAberto(false) }}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 'var(--space-3)',
+          width: '100%', padding: 'var(--space-3) var(--space-4)',
+          background: value === 'todos' ? 'var(--color-surface-offset)' : 'none',
+          border: 'none', cursor: 'pointer', textAlign: 'left',
+          fontSize: 'var(--text-sm)', color: 'var(--color-text)',
+          fontWeight: value === 'todos' ? 600 : 400,
+        }}
+      >
+        <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--color-border)', flexShrink: 0 }} aria-hidden />
+        Todos os ciclos
+      </button>
+      {CICLOS_HISTORICO.map(c => (
+        <button
+          key={c.id}
+          role="option"
+          aria-selected={value === c.id}
+          onClick={() => { onChange(c.id); setAberto(false) }}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 'var(--space-3)',
+            width: '100%', padding: 'var(--space-3) var(--space-4)',
+            background: value === c.id ? c.corBg : 'none',
+            border: 'none', cursor: 'pointer', textAlign: 'left',
+            fontSize: 'var(--text-sm)',
+            color: value === c.id ? c.cor : 'var(--color-text)',
+            fontWeight: value === c.id ? 600 : 400,
+          }}
+        >
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: c.cor, flexShrink: 0 }} aria-hidden />
+          {c.label}
+        </button>
+      ))}
+    </div>,
+    document.body,
+  )
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        onClick={abrirDropdown}
         className="btn btn-ghost"
         style={{
           minHeight: 40,
@@ -107,64 +182,8 @@ function CicloDropdown({
         {label}
         <ChevronDown size={13} style={{ transform: aberto ? 'rotate(180deg)' : 'none', transition: 'transform 150ms' }} aria-hidden />
       </button>
-
-      {aberto && (
-        <div
-          role="listbox"
-          aria-label="Filtrar por ciclo"
-          style={{
-            position: 'absolute',
-            top: 'calc(100% + var(--space-2))',
-            right: 0,
-            zIndex: 40,
-            background: 'var(--color-surface)',
-            border: '1px solid var(--color-border)',
-            borderRadius: 'var(--radius-lg)',
-            boxShadow: 'var(--shadow-md)',
-            minWidth: 200,
-            overflow: 'hidden',
-            padding: 'var(--space-1) 0',
-          }}
-        >
-          <button
-            role="option"
-            aria-selected={value === 'todos'}
-            onClick={() => { onChange('todos'); setAberto(false) }}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 'var(--space-3)',
-              width: '100%', padding: 'var(--space-3) var(--space-4)',
-              background: value === 'todos' ? 'var(--color-surface-offset)' : 'none',
-              border: 'none', cursor: 'pointer', textAlign: 'left',
-              fontSize: 'var(--text-sm)', color: 'var(--color-text)',
-              fontWeight: value === 'todos' ? 600 : 400,
-            }}
-          >
-            <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--color-border)', flexShrink: 0 }} aria-hidden />
-            Todos os ciclos
-          </button>
-          {CICLOS_HISTORICO.map(c => (
-            <button
-              key={c.id}
-              role="option"
-              aria-selected={value === c.id}
-              onClick={() => { onChange(c.id); setAberto(false) }}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 'var(--space-3)',
-                width: '100%', padding: 'var(--space-3) var(--space-4)',
-                background: value === c.id ? c.corBg : 'none',
-                border: 'none', cursor: 'pointer', textAlign: 'left',
-                fontSize: 'var(--text-sm)',
-                color: value === c.id ? c.cor : 'var(--color-text)',
-                fontWeight: value === c.id ? 600 : 400,
-              }}
-            >
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: c.cor, flexShrink: 0 }} aria-hidden />
-              {c.label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
+      {popup}
+    </>
   )
 }
 
@@ -206,7 +225,6 @@ export function HistoricoPage() {
     membroIdParam && membros.find(m => m.id === membroIdParam) ? membroIdParam : (membros[0]?.id ?? '')
   )
 
-  // --- abas e filtros ---
   const [abaAtiva, setAbaAtiva]         = useState<Aba>('ciclo')
   const [filtroStatus, setFiltroStatus] = useState<StatusFiltro>('todos')
   const [filtroCiclo, setFiltroCiclo]   = useState<CicloId | 'todos'>('todos')
@@ -214,9 +232,6 @@ export function HistoricoPage() {
 
   const membro = membros.find(m => m.id === membroId)
 
-  // ---------------------------------------------------------------------------
-  // Timeline completa (vacinas de catálogo + avulsas)
-  // ---------------------------------------------------------------------------
   const timeline = useMemo((): EntradaTimeline[] => {
     if (!membro) return []
 
@@ -224,11 +239,9 @@ export function HistoricoPage() {
     const lembretesMembro = lembretes.filter(l => l.membro_id === membroId || l.membro_familiar_id === membroId)
     const entradas: EntradaTimeline[] = []
 
-    // Registros aplicados
     for (const reg of registrosMembro) {
       const vacina = vacinas.find(v => v.id === reg.vacina_id)
       const isAvulsa = !vacina || reg.vacina_id === 'avulsa'
-      // fallback de nome: observações do registro ou string genérica
       const nomeVacina = vacina?.nome ?? reg.observacoes ?? 'Vacina avulsa'
       entradas.push({
         tipo: 'aplicada',
@@ -241,7 +254,6 @@ export function HistoricoPage() {
       })
     }
 
-    // Lembretes de reforço pendentes (apenas catálogo)
     for (const lem of lembretesMembro) {
       if (lem.status !== 'pendente') continue
       if (lem.tipo !== 'reforco' && lem.tipo !== 'campanha') continue
@@ -273,9 +285,6 @@ export function HistoricoPage() {
     return entradas.sort((a, b) => b.data.localeCompare(a.data))
   }, [membroId, membro, registros, lembretes, vacinas, buscarRegistrosMembro, hoje])
 
-  // ---------------------------------------------------------------------------
-  // Separar entradas por aba e aplicar filtros
-  // ---------------------------------------------------------------------------
   const timelineCiclo = useMemo(
     () => timeline.filter(e => !e.avulsa),
     [timeline]
@@ -311,7 +320,6 @@ export function HistoricoPage() {
   const agendadas = entradaAtivaFiltrada.filter(e => e.tipo === 'pendente')
   const atrasadas = entradaAtivaFiltrada.filter(e => e.tipo === 'atrasada')
 
-  // Agrupar aplicadas de ciclo por ciclo
   const aplicadasPorCiclo = useMemo(() => {
     if (abaAtiva !== 'ciclo') return []
     const mapa = new Map<string, typeof aplicadas>()
@@ -354,9 +362,6 @@ export function HistoricoPage() {
     return grupos
   }, [aplicadas, abaAtiva])
 
-  // ---------------------------------------------------------------------------
-  // Guard: sem membros
-  // ---------------------------------------------------------------------------
   if (membros.length === 0) {
     return (
       <div style={{ maxWidth: 640, margin: '0 auto', paddingBottom: 'var(--space-8)', textAlign: 'center', paddingTop: 'var(--space-16)' }}>
@@ -370,13 +375,8 @@ export function HistoricoPage() {
     )
   }
 
-  // ---------------------------------------------------------------------------
-  // Render
-  // ---------------------------------------------------------------------------
   return (
     <div style={{ maxWidth: 640, margin: '0 auto', paddingBottom: 'var(--space-8)' }}>
-
-      {/* Header */}
       <div style={{ marginBottom: 'var(--space-5)' }}>
         <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--text-lg)', fontWeight: 700, color: 'var(--color-text)' }}>
           Histórico Vacinal
@@ -389,7 +389,6 @@ export function HistoricoPage() {
         </p>
       </div>
 
-      {/* Seletor de membros (chips) */}
       <div
         style={{ display: 'flex', gap: 'var(--space-2)', marginBottom: 'var(--space-5)', overflowX: 'auto', paddingBottom: 4 }}
         role="group"
@@ -418,7 +417,6 @@ export function HistoricoPage() {
         ))}
       </div>
 
-      {/* Abas */}
       <div
         role="tablist"
         aria-label="Tipo de vacina"
@@ -476,7 +474,6 @@ export function HistoricoPage() {
         ))}
       </div>
 
-      {/* Filtros inline */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)', marginBottom: 'var(--space-5)', alignItems: 'center' }}>
         <div style={{ flex: '1 1 180px', position: 'relative', minWidth: 160 }}>
           <Search size={14} style={{ position: 'absolute', left: 'var(--space-3)', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-faint)', pointerEvents: 'none' }} aria-hidden />
@@ -519,7 +516,6 @@ export function HistoricoPage() {
         )}
       </div>
 
-      {/* Conteúdo */}
       {entradaAtivaFiltrada.length === 0 ? (
         <div style={{ textAlign: 'center', padding: 'var(--space-12) var(--space-8)', color: 'var(--color-text-muted)' }}>
           <Syringe size={40} style={{ margin: '0 auto var(--space-3)', opacity: 0.3 }} aria-hidden />
@@ -536,8 +532,6 @@ export function HistoricoPage() {
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
-
-          {/* ── ABA: VACINAS AVULSAS ── */}
           {abaAtiva === 'avulsas' && (
             <>
               {atrasadas.length > 0 && (
@@ -577,7 +571,6 @@ export function HistoricoPage() {
             </>
           )}
 
-          {/* ── ABA: VACINAS DE CICLO ── */}
           {abaAtiva === 'ciclo' && (
             <>
               {atrasadas.length > 0 && (
@@ -645,9 +638,6 @@ export function HistoricoPage() {
   )
 }
 
-// ---------------------------------------------------------------------------
-// Sub-componentes auxiliares
-// ---------------------------------------------------------------------------
 function SectionDivider({ label, cor }: { label: string; cor: string }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-3)' }}>
