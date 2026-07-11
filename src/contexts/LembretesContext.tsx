@@ -27,12 +27,6 @@ function normalizarLembrete(l: Lembrete): Lembrete {
   }
 }
 
-const LABEL_TIPO: Record<string, string> = {
-  campanha: 'Campanha de vacinação',
-  reforco: 'Reforço vacinal',
-  manual: 'Lembrete manual',
-}
-
 export function LembretesProvider({ children }: { children: ReactNode }) {
   const { isAuthenticated } = useAuth()
   const [lembretes, setLembretes] = useState<Lembrete[]>([])
@@ -55,19 +49,16 @@ export function LembretesProvider({ children }: { children: ReactNode }) {
   useEffect(() => { recarregar() }, [recarregar])
 
   const adicionarLembrete = useCallback(async (dados: CriarLembretePayload | Omit<Lembrete, 'id' | 'created_at'>) => {
-    // Cast para Record<string, unknown> para acessar aliases de compatibilidade
-    // (membro_id, data_lembrete, numero_dose) sem violar o narrowing do TS
     const raw = dados as Record<string, unknown>
 
     const membro_familiar_id = (raw.membro_familiar_id ?? raw.membro_id) as string | undefined
-
     const data_prevista = (raw.data_prevista ?? raw.data_lembrete ?? '') as string
 
     const payload: CriarLembretePayload = {
       membro_familiar_id,
       vacina_id: raw.vacina_id as string | undefined,
-      tipo: (raw.tipo as CriarLembretePayload['tipo']) || 'manual',
-      titulo: (raw.titulo as string) || LABEL_TIPO['manual'],
+      tipo: (raw.tipo as CriarLembretePayload['tipo']) || 'reforco',
+      titulo: (raw.titulo as string) || 'Reforço vacinal',
       descricao: raw.descricao as string | undefined,
       data_prevista,
       automatico: (raw.automatico as boolean) ?? false,

@@ -109,7 +109,7 @@ export interface RegistroVacinal {
   created_at: string
 }
 
-export type TipoLembrete = 'campanha' | 'reforco' | 'manual'
+export type TipoLembrete = 'campanha' | 'reforco'
 export type StatusLembrete = 'pendente' | 'concluido' | 'ignorado'
 
 export interface Lembrete {

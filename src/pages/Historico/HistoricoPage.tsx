@@ -213,7 +213,7 @@ export function HistoricoPage() {
   const membro = membros.find(m => m.id === membroId)
 
   // ---------------------------------------------------------------------------
-  // Timeline — apenas vacinas de ciclo (vacinas com vacina_id válido no catálogo)
+  // Timeline — apenas vacinas do catálogo (vacina_id UUID válido)
   // ---------------------------------------------------------------------------
   const timeline = useMemo((): EntradaTimeline[] => {
     if (!membro) return []
@@ -236,10 +236,10 @@ export function HistoricoPage() {
       })
     }
 
-    // Lembretes pendentes — apenas os de reforço (vacinas de calendário)
+    // Lembretes de reforço pendentes (apenas vacinas de calendário)
     for (const lem of lembretesMembro) {
       if (lem.status !== 'pendente') continue
-      if (lem.tipo === 'manual') continue // lembretes manuais ignorados
+      if (lem.tipo !== 'reforco' && lem.tipo !== 'campanha') continue
 
       const vacina = vacinas.find(v => v.id === lem.vacina_id)
       if (!vacina) continue
@@ -321,7 +321,6 @@ export function HistoricoPage() {
         })
       }
     }
-    // Entradas sem ciclo mapeado
     const outros = mapa.get('outros')
     if (outros && outros.length > 0) {
       grupos.push({
