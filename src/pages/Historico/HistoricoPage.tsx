@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useSearchParams, Link } from 'react-router-dom'
 import {
   ClipboardList, Plus, CheckCircle2, Clock, AlertCircle,
-  Search, ChevronDown, Syringe, X, CalendarCheck,
+  Search, ChevronDown, Syringe, X,
 } from 'lucide-react'
 import { useMembros } from '@/contexts/MembrosContext'
 import { useVacinas } from '@/contexts/VacinasContext'
