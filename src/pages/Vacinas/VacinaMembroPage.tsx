@@ -2,15 +2,15 @@ import { useState, useEffect, useMemo } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import {
   ArrowLeft, CheckCircle2, Trash2, ChevronDown, ListChecks,
-  Bell, BellOff, Plus, Search, Filter, X, Clock,
-  BookOpen, Syringe, CalendarCheck, Info,
+  Bell, BellOff, Plus, Search, Filter, X,
+  CalendarCheck, Syringe,
 } from 'lucide-react'
 import { useMembros, RELACAO_LABEL } from '@/contexts/MembrosContext'
 import { useVacinas, calcularDosesStatus, isAtrasada } from '@/contexts/VacinasContext'
 import { useLembretes } from '@/contexts/LembretesContext'
 import { Avatar } from '@/components/ui/Avatar'
 import { VacinaStatusBadge } from '@/components/ui/VacinaStatusBadge'
-import type { DoseStatus, CriarLembretePayload, FaixaEtaria, Vacina, RegistroVacinal } from '@/types'
+import type { DoseStatus, CriarLembretePayload, FaixaEtaria, Vacina } from '@/types'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -39,10 +39,10 @@ interface Ciclo {
   label: string
   descricao: string
   faixas: FaixaEtaria[]
-  cor: string            // CSS color var ou hex
+  cor: string
   corBg: string
   corBorda: string
-  idadeMinAnos: number   // para decidir se o ciclo é "atual/futuro" do membro
+  idadeMinAnos: number
   idadeMaxAnos: number
 }
 
@@ -115,13 +115,6 @@ const CICLOS: Ciclo[] = [
   },
 ]
 
-function getCicloDeVacina(vacina: Vacina): Ciclo | undefined {
-  for (const ciclo of CICLOS) {
-    if (vacina.faixa_etaria.some(f => ciclo.faixas.includes(f))) return ciclo
-  }
-  return undefined
-}
-
 // ---------------------------------------------------------------------------
 // Tipos de modal
 // ---------------------------------------------------------------------------
@@ -174,11 +167,6 @@ function VacinaSkeletonRow() {
 }
 
 // ---------------------------------------------------------------------------
-// Abas principais
-// ---------------------------------------------------------------------------
-type Aba = 'caderneta' | 'historico'
-
-// ---------------------------------------------------------------------------
 // Componente principal
 // ---------------------------------------------------------------------------
 export function VacinaMembroPage() {
@@ -197,7 +185,6 @@ export function VacinaMembroPage() {
   // --- state geral ---
   const [membroSelecionadoId, setMembroSelecionadoId] = useState(id ?? '')
   const [seletorAberto, setSeletorAberto] = useState(false)
-  const [abaAtiva, setAbaAtiva] = useState<Aba>('caderneta')
   const [bannerInfantis, setBannerInfantis] = useState('')
 
   // --- filtros caderneta ---
@@ -205,10 +192,7 @@ export function VacinaMembroPage() {
   const [filtroStatus, setFiltroStatus] = useState<'todos' | 'pendente' | 'aplicada' | 'atrasada'>('todos')
   const [busca, setBusca] = useState('')
   const [ciclosExpandidos, setCiclosExpandidos] = useState<Set<CicloId>>(new Set(CICLOS.map(c => c.id)))
-
-  // --- filtros histórico ---
-  const [filtroCicloHistorico, setFiltroCicloHistorico] = useState<CicloId | 'todos' | 'avulsa'>('todos')
-  const [buscaHistorico, setBuscaHistorico] = useState('')
+  const [filtrosAbertos, setFiltrosAbertos] = useState(false)
 
   // --- modais ---
   const [modal, setModal] = useState<ModalState>({ tipo: 'nenhum' })
@@ -286,7 +270,7 @@ export function VacinaMembroPage() {
   const aguardandoAPI = carregando || vacinas.length === 0
 
   // ---------------------------------------------------------------------------
-  // Agrupamento por ciclo (caderneta de pendentes/todas)
+  // Agrupamento por ciclo (caderneta)
   // ---------------------------------------------------------------------------
   const vacinasPorCiclo = useMemo(() => {
     if (aguardandoAPI) return []
@@ -324,58 +308,6 @@ export function VacinaMembroPage() {
     })).filter(g => g.vacinas.length > 0)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vacinasPorCiclo, filtroCiclo, busca, filtroStatus])
-
-  // ---------------------------------------------------------------------------
-  // Histórico (vacinas aplicadas + avulsas)
-  // ---------------------------------------------------------------------------
-  const registrosHistorico = useMemo(() => {
-    return registrosMembro.filter(r => r.data_aplicacao <= hoje)
-  }, [registrosMembro, hoje])
-
-  // Histórico agrupado por ciclo
-  const historicoPorCiclo = useMemo(() => {
-    const grupos: { ciclo: Ciclo | null; label: string; registros: (RegistroVacinal & { vacina?: Vacina })[] }[] = []
-    const cicloMap = new Map<string, (RegistroVacinal & { vacina?: Vacina })[]>()
-
-    registrosHistorico.forEach(reg => {
-      const vacina = vacinas.find(v => v.id === reg.vacina_id)
-      const ciclo = vacina ? getCicloDeVacina(vacina) : undefined
-      const key = ciclo?.id ?? 'avulsa'
-      if (!cicloMap.has(key)) cicloMap.set(key, [])
-      cicloMap.get(key)!.push({ ...reg, vacina })
-    })
-
-    CICLOS.forEach(ciclo => {
-      const regs = cicloMap.get(ciclo.id)
-      if (regs && regs.length > 0) grupos.push({ ciclo, label: ciclo.label, registros: regs })
-    })
-
-    const avulsas = cicloMap.get('avulsa')
-    if (avulsas && avulsas.length > 0) {
-      grupos.push({ ciclo: null, label: 'Vacinas Avulsas', registros: avulsas })
-    }
-    return grupos
-  }, [registrosHistorico, vacinas])
-
-  // Filtro histórico
-  const historicoFiltrado = useMemo(() => {
-    return historicoPorCiclo.map(grupo => ({
-      ...grupo,
-      registros: grupo.registros.filter(reg => {
-        const chave = grupo.ciclo?.id ?? 'avulsa'
-        if (filtroCicloHistorico !== 'todos' && chave !== filtroCicloHistorico) return false
-        if (buscaHistorico) {
-          const nome = reg.vacina?.nome ?? ''
-          const nomeCompleto = reg.vacina?.nome_completo ?? ''
-          const nomeBusca = buscaHistorico.toLowerCase()
-          if (!nome.toLowerCase().includes(nomeBusca) &&
-            !nomeCompleto.toLowerCase().includes(nomeBusca) &&
-            !(reg.local_aplicacao ?? '').toLowerCase().includes(nomeBusca)) return false
-        }
-        return true
-      }),
-    })).filter(g => g.registros.length > 0)
-  }, [historicoPorCiclo, filtroCicloHistorico, buscaHistorico])
 
   // ---------------------------------------------------------------------------
   // Ações
@@ -496,6 +428,9 @@ export function VacinaMembroPage() {
     })
   }
 
+  // Conta filtros ativos para badge no botão
+  const filtrosAtivos = [filtroCiclo !== 'todos', filtroStatus !== 'todos'].filter(Boolean).length
+
   // ---------------------------------------------------------------------------
   // Render
   // ---------------------------------------------------------------------------
@@ -514,8 +449,8 @@ export function VacinaMembroPage() {
         <div style={{ flex: 1 }} />
         <button
           onClick={() => setModal({ tipo: 'adicionarAvulsa' })}
-          className="btn btn-ghost"
-          style={{ gap: 'var(--space-2)', fontSize: 'var(--text-sm)' }}
+          className="btn btn-primary"
+          style={{ gap: 'var(--space-2)', fontSize: 'var(--text-sm)', minHeight: 44 }}
         >
           <Plus size={16} aria-hidden /> Vacina avulsa
         </button>
@@ -561,328 +496,265 @@ export function VacinaMembroPage() {
         )}
       </div>
 
-      {/* Abas */}
-      <div style={{ display: 'flex', borderBottom: '2px solid var(--color-divider)', marginBottom: 'var(--space-5)', gap: 'var(--space-1)' }} role="tablist">
-        {([
-          { id: 'caderneta', label: 'Caderneta de Vacinas', icon: <Syringe size={15} aria-hidden /> },
-          { id: 'historico', label: 'Histórico', icon: <BookOpen size={15} aria-hidden /> },
-        ] as { id: Aba; label: string; icon: React.ReactNode }[]).map(aba => (
-          <button
-            key={aba.id}
-            role="tab"
-            aria-selected={abaAtiva === aba.id}
-            onClick={() => setAbaAtiva(aba.id)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 'var(--space-2)',
-              padding: 'var(--space-3) var(--space-4)',
-              fontSize: 'var(--text-sm)', fontWeight: abaAtiva === aba.id ? 700 : 500,
-              color: abaAtiva === aba.id ? 'var(--color-primary)' : 'var(--color-text-muted)',
-              borderBottom: abaAtiva === aba.id ? '2px solid var(--color-primary)' : '2px solid transparent',
-              marginBottom: -2, background: 'none', cursor: 'pointer',
-              transition: 'color var(--transition-interactive)',
-            }}
-          >
-            {aba.icon} {aba.label}
-          </button>
-        ))}
+      {/* Título da seção */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginBottom: 'var(--space-4)' }}>
+        <Syringe size={16} style={{ color: 'var(--color-primary)' }} aria-hidden />
+        <h2 style={{ fontWeight: 700, fontSize: 'var(--text-base)', color: 'var(--color-text)' }}>Caderneta de Vacinas</h2>
       </div>
 
-      {/* ================================================================= */}
-      {/* ABA: CADERNETA */}
-      {/* ================================================================= */}
-      {abaAtiva === 'caderneta' && (
-        <div>
-          {/* Filtros caderneta */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)', marginBottom: 'var(--space-5)' }}>
-            {/* Busca */}
-            <div style={{ position: 'relative' }}>
-              <Search size={15} style={{ position: 'absolute', left: 'var(--space-3)', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-faint)', pointerEvents: 'none' }} aria-hidden />
-              <input
-                type="search"
-                placeholder="Buscar vacina..."
-                value={busca}
-                onChange={e => setBusca(e.target.value)}
-                className="input-field"
-                style={{ paddingLeft: 'var(--space-8)', minHeight: 40, fontSize: 'var(--text-sm)' }}
-                aria-label="Buscar vacina na caderneta"
-              />
-            </div>
-            {/* Filtros rápidos */}
-            <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap', alignItems: 'center' }}>
-              <Filter size={13} style={{ color: 'var(--color-text-faint)' }} aria-hidden />
-              {(['todos', 'pendente', 'atrasada', 'aplicada'] as const).map(s => (
-                <button key={s} onClick={() => setFiltroStatus(s)} style={{ padding: 'var(--space-1) var(--space-3)', borderRadius: 'var(--radius-full)', fontSize: 'var(--text-xs)', fontWeight: 600, border: '1px solid', cursor: 'pointer', transition: 'all var(--transition-interactive)', background: filtroStatus === s ? 'var(--color-primary)' : 'transparent', color: filtroStatus === s ? '#fff' : 'var(--color-text-muted)', borderColor: filtroStatus === s ? 'var(--color-primary)' : 'var(--color-border)' }}>
-                  {s === 'todos' ? 'Todos' : s === 'pendente' ? 'Pendentes' : s === 'atrasada' ? 'Atrasadas' : 'Aplicadas'}
-                </button>
-              ))}
-            </div>
-            {/* Filtro ciclo */}
-            <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
-              <button onClick={() => setFiltroCiclo('todos')} style={{ padding: 'var(--space-1) var(--space-3)', borderRadius: 'var(--radius-full)', fontSize: 'var(--text-xs)', fontWeight: 600, border: '1px solid', cursor: 'pointer', background: filtroCiclo === 'todos' ? 'var(--color-text)' : 'transparent', color: filtroCiclo === 'todos' ? 'var(--color-bg)' : 'var(--color-text-muted)', borderColor: filtroCiclo === 'todos' ? 'var(--color-text)' : 'var(--color-border)' }}>Todos os ciclos</button>
-              {CICLOS.map(ciclo => (
-                <button key={ciclo.id} onClick={() => setFiltroCiclo(ciclo.id)} style={{ padding: 'var(--space-1) var(--space-3)', borderRadius: 'var(--radius-full)', fontSize: 'var(--text-xs)', fontWeight: 600, border: '1px solid', cursor: 'pointer', background: filtroCiclo === ciclo.id ? ciclo.cor : 'transparent', color: filtroCiclo === ciclo.id ? '#fff' : 'var(--color-text-muted)', borderColor: filtroCiclo === ciclo.id ? ciclo.cor : 'var(--color-border)' }}>
-                  {ciclo.label}
-                </button>
-              ))}
-            </div>
-          </div>
+      {/* Filtros colapsados */}
+      <div style={{ display: 'flex', gap: 'var(--space-3)', marginBottom: 'var(--space-5)', alignItems: 'center' }}>
+        <div style={{ flex: 1, position: 'relative' }}>
+          <Search size={15} style={{ position: 'absolute', left: 'var(--space-3)', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-faint)', pointerEvents: 'none' }} aria-hidden />
+          <input
+            type="search"
+            placeholder="Buscar vacina..."
+            value={busca}
+            onChange={e => setBusca(e.target.value)}
+            className="input-field"
+            style={{ paddingLeft: 'var(--space-8)', minHeight: 44, fontSize: 'var(--text-sm)' }}
+            aria-label="Buscar vacina na caderneta"
+          />
+        </div>
+        <button
+          onClick={() => setFiltrosAbertos(true)}
+          className="btn btn-ghost"
+          style={{ minHeight: 44, gap: 'var(--space-2)', fontSize: 'var(--text-sm)', flexShrink: 0, position: 'relative' }}
+          aria-label={`Filtros${filtrosAtivos > 0 ? ` — ${filtrosAtivos} ativo${filtrosAtivos > 1 ? 's' : ''}` : ''}`}
+        >
+          <Filter size={15} aria-hidden />
+          Filtros
+          {filtrosAtivos > 0 && (
+            <span style={{ position: 'absolute', top: 6, right: 6, width: 8, height: 8, borderRadius: '50%', background: 'var(--color-primary)' }} aria-hidden />
+          )}
+        </button>
+      </div>
 
-          {aguardandoAPI ? (
-            <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }} role="list" aria-busy="true">
-              {Array.from({ length: 5 }).map((_, i) => <VacinaSkeletonRow key={i} />)}
-            </ul>
-          ) : vacinasPorCicloFiltrado.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: 'var(--space-12) var(--space-8)', color: 'var(--color-text-muted)' }}>
-              <CalendarCheck size={40} style={{ margin: '0 auto var(--space-3)', opacity: 0.3 }} aria-hidden />
-              <p style={{ fontWeight: 600, marginBottom: 'var(--space-2)' }}>Nenhuma vacina encontrada</p>
-              <p style={{ fontSize: 'var(--text-xs)' }}>Tente ajustar os filtros ou a busca.</p>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
-              {vacinasPorCicloFiltrado.map(({ ciclo, vacinas: vacinasCiclo }) => {
-                const pendentesNoCiclo = vacinasCiclo.filter(({ doses }) =>
-                  doses.some(d => d.status !== 'aplicada')
-                )
-                const expandido = ciclosExpandidos.has(ciclo.id)
+      {/* Caderneta por ciclo */}
+      {aguardandoAPI ? (
+        <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }} role="list" aria-busy="true">
+          {Array.from({ length: 5 }).map((_, i) => <VacinaSkeletonRow key={i} />)}
+        </ul>
+      ) : vacinasPorCicloFiltrado.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: 'var(--space-12) var(--space-8)', color: 'var(--color-text-muted)' }}>
+          <CalendarCheck size={40} style={{ margin: '0 auto var(--space-3)', opacity: 0.3 }} aria-hidden />
+          <p style={{ fontWeight: 600, marginBottom: 'var(--space-2)' }}>Nenhuma vacina encontrada</p>
+          <p style={{ fontSize: 'var(--text-xs)' }}>Tente ajustar os filtros ou a busca.</p>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
+          {vacinasPorCicloFiltrado.map(({ ciclo, vacinas: vacinasCiclo }) => {
+            const pendentesNoCiclo = vacinasCiclo.filter(({ doses }) =>
+              doses.some(d => d.status !== 'aplicada')
+            )
+            const expandido = ciclosExpandidos.has(ciclo.id)
 
-                return (
-                  <div key={ciclo.id} style={{ borderRadius: 'var(--radius-lg)', border: `1.5px solid ${ciclo.corBorda}`, overflow: 'hidden' }}>
-                    {/* Cabeçalho do ciclo */}
-                    <div style={{ background: ciclo.corBg, padding: 'var(--space-4) var(--space-5)', borderBottom: expandido ? `1px solid ${ciclo.corBorda}` : 'none' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-                        <div style={{ width: 10, height: 10, borderRadius: '50%', background: ciclo.cor, flexShrink: 0 }} aria-hidden />
-                        <div style={{ flex: 1 }}>
-                          <p style={{ fontWeight: 700, fontSize: 'var(--text-sm)', color: ciclo.cor }}>{ciclo.label}</p>
-                          <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginTop: 2 }}>{ciclo.descricao}</p>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', flexShrink: 0 }}>
-                          {pendentesNoCiclo.length > 0 && (
-                            <button
-                              onClick={() => setModal({ tipo: 'confirmarCiclo', ciclo, vacinas: pendentesNoCiclo.map(v => v.vacina) })}
-                              style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)', fontSize: 'var(--text-xs)', fontWeight: 600, padding: 'var(--space-1) var(--space-3)', borderRadius: 'var(--radius-full)', border: `1px solid ${ciclo.cor}`, background: ciclo.corBg, color: ciclo.cor, cursor: 'pointer', minHeight: 32 }}
-                              title={`Marcar todas as ${pendentesNoCiclo.length} vacinas pendentes de ${ciclo.label} como tomadas`}
-                            >
-                              <ListChecks size={13} aria-hidden />
-                              Confirmar todas ({pendentesNoCiclo.length})
-                            </button>
-                          )}
-                          <button onClick={() => toggleCiclo(ciclo.id)} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', background: 'none', border: 'none', cursor: 'pointer', minHeight: 32 }} aria-expanded={expandido} aria-label={expandido ? `Recolher ${ciclo.label}` : `Expandir ${ciclo.label}`}>
-                            <ChevronDown size={14} style={{ transform: expandido ? 'rotate(180deg)' : 'none', transition: 'transform 150ms' }} aria-hidden />
-                          </button>
-                        </div>
-                      </div>
+            return (
+              <div key={ciclo.id} style={{ borderRadius: 'var(--radius-lg)', border: `1.5px solid ${ciclo.corBorda}`, overflow: 'hidden' }}>
+                {/* Cabeçalho do ciclo */}
+                <div style={{ background: ciclo.corBg, padding: 'var(--space-4) var(--space-5)', borderBottom: expandido ? `1px solid ${ciclo.corBorda}` : 'none' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+                    <div style={{ width: 10, height: 10, borderRadius: '50%', background: ciclo.cor, flexShrink: 0 }} aria-hidden />
+                    <div style={{ flex: 1 }}>
+                      <p style={{ fontWeight: 700, fontSize: 'var(--text-sm)', color: ciclo.cor }}>{ciclo.label}</p>
+                      <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginTop: 2 }}>{ciclo.descricao}</p>
                     </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', flexShrink: 0 }}>
+                      {pendentesNoCiclo.length > 0 && (
+                        <button
+                          onClick={() => setModal({ tipo: 'confirmarCiclo', ciclo, vacinas: pendentesNoCiclo.map(v => v.vacina) })}
+                          style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)', fontSize: 'var(--text-xs)', fontWeight: 600, padding: 'var(--space-1) var(--space-3)', borderRadius: 'var(--radius-full)', border: `1px solid ${ciclo.cor}`, background: ciclo.corBg, color: ciclo.cor, cursor: 'pointer', minHeight: 32 }}
+                          title={`Marcar todas as ${pendentesNoCiclo.length} vacinas pendentes de ${ciclo.label} como tomadas`}
+                        >
+                          <ListChecks size={13} aria-hidden />
+                          Confirmar todas ({pendentesNoCiclo.length})
+                        </button>
+                      )}
+                      <button onClick={() => toggleCiclo(ciclo.id)} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', background: 'none', border: 'none', cursor: 'pointer', minHeight: 32 }} aria-expanded={expandido} aria-label={expandido ? `Recolher ${ciclo.label}` : `Expandir ${ciclo.label}`}>
+                        <ChevronDown size={14} style={{ transform: expandido ? 'rotate(180deg)' : 'none', transition: 'transform 150ms' }} aria-hidden />
+                      </button>
+                    </div>
+                  </div>
+                </div>
 
-                    {/* Vacinas do ciclo */}
-                    {expandido && (
-                      <ul style={{ listStyle: 'none', padding: 'var(--space-2) 0', background: 'var(--color-surface)' }} role="list">
-                        {vacinasCiclo.map(({ vacina, doses }) => {
-                          const todasAplicadas = doses.every(d => d.status === 'aplicada')
-                          return (
-                            <li key={vacina.id} style={{ padding: 'var(--space-4) var(--space-5)', borderBottom: '1px solid var(--color-divider)' }}>
-                              {/* Nome + doses resumo */}
-                              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--space-3)', marginBottom: doses.length > 1 ? 'var(--space-3)' : 0 }}>
+                {/* Vacinas do ciclo */}
+                {expandido && (
+                  <ul style={{ listStyle: 'none', padding: 'var(--space-2) 0', background: 'var(--color-surface)' }} role="list">
+                    {vacinasCiclo.map(({ vacina, doses }) => {
+                      const todasAplicadas = doses.every(d => d.status === 'aplicada')
+                      return (
+                        <li key={vacina.id} style={{ padding: 'var(--space-4) var(--space-5)', borderBottom: '1px solid var(--color-divider)' }}>
+                          {/* Nome + doses resumo */}
+                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--space-3)', marginBottom: doses.length > 1 ? 'var(--space-3)' : 0 }}>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
+                                <p style={{ fontWeight: 600, fontSize: 'var(--text-sm)', color: 'var(--color-text)' }}>{vacina.nome}</p>
+                                {todasAplicadas && (
+                                  <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-success)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 2 }}>
+                                    <CheckCircle2 size={12} aria-hidden /> Completa
+                                  </span>
+                                )}
+                              </div>
+                              <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginTop: 2 }}>
+                                {vacina.descricao ?? (vacina.doses_total === 1 ? 'Dose única' : `${vacina.doses_total} doses`)}
+                              </p>
+                              {vacina.doencas_previstas.length > 0 && (
+                                <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-faint)', marginTop: 2 }}>
+                                  Protege contra: {vacina.doencas_previstas.join(', ')}
+                                </p>
+                              )}
+                            </div>
+                            <div style={{ display: 'flex', gap: 'var(--space-1)', flexShrink: 0 }}>
+                              {doses.map(d => (
+                                <VacinaStatusBadge key={d.numeroDose} status={isAtrasada(d, membroDefinido.data_nascimento, hoje) ? 'atrasada' : d.status} mostrarLabel={false} />
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Detalhes de cada dose */}
+                          {doses.map(dose => {
+                            const atrasada = isAtrasada(dose, membroDefinido.data_nascimento, hoje)
+                            const statusEfetivo = atrasada ? 'atrasada' : dose.status
+                            const registro = registros.find(
+                              r => r.vacina_id === vacina.id &&
+                                (r.membro_id === membroSelecionadoId || r.membro_familiar_id === membroSelecionadoId) &&
+                                r.numero_dose === dose.numeroDose
+                            )
+                            const jaTemLembrete = temLembrete(vacina.id, dose.numeroDose)
+                            const ehFutura = dose.dataRecomendada && dose.dataRecomendada > hoje
+
+                            return (
+                              <div key={dose.numeroDose} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', padding: 'var(--space-2) 0', borderTop: '1px dashed var(--color-divider)' }}>
+                                <VacinaStatusBadge status={statusEfetivo} mostrarLabel={false} />
                                 <div style={{ flex: 1, minWidth: 0 }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
-                                    <p style={{ fontWeight: 600, fontSize: 'var(--text-sm)', color: 'var(--color-text)' }}>{vacina.nome}</p>
-                                    {todasAplicadas && (
-                                      <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-success)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 2 }}>
-                                        <CheckCircle2 size={12} aria-hidden /> Completa
-                                      </span>
-                                    )}
-                                  </div>
-                                  <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginTop: 2 }}>
-                                    {vacina.descricao ?? (vacina.doses_total === 1 ? 'Dose única' : `${vacina.doses_total} doses`)}
+                                  <p style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--color-text)' }}>
+                                    {vacina.doses_total === 1 ? 'Dose única' : `${dose.numeroDose}ª dose`}
+                                    {atrasada && <span style={{ marginLeft: 'var(--space-2)', color: 'var(--color-error)' }}>ATRASADA</span>}
                                   </p>
-                                  {vacina.doencas_previstas.length > 0 && (
-                                    <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-faint)', marginTop: 2 }}>
-                                      Protege contra: {vacina.doencas_previstas.join(', ')}
+                                  {dose.status === 'aplicada' && registro && (
+                                    <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
+                                      {formatarData(registro.data_aplicacao)}{registro.local_aplicacao ? ` · ${registro.local_aplicacao}` : ''}
+                                    </p>
+                                  )}
+                                  {dose.status !== 'aplicada' && dose.dataRecomendada && (
+                                    <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
+                                      Prevista: {formatarData(dose.dataRecomendada)}
                                     </p>
                                   )}
                                 </div>
-                                <div style={{ display: 'flex', gap: 'var(--space-1)', flexShrink: 0 }}>
-                                  {doses.map(d => (
-                                    <VacinaStatusBadge key={d.numeroDose} status={isAtrasada(d, membroDefinido.data_nascimento, hoje) ? 'atrasada' : d.status} mostrarLabel={false} />
-                                  ))}
-                                </div>
-                              </div>
-
-                              {/* Detalhes de cada dose */}
-                              {doses.map(dose => {
-                                const atrasada = isAtrasada(dose, membroDefinido.data_nascimento, hoje)
-                                const statusEfetivo = atrasada ? 'atrasada' : dose.status
-                                const registro = registros.find(
-                                  r => r.vacina_id === vacina.id &&
-                                    (r.membro_id === membroSelecionadoId || r.membro_familiar_id === membroSelecionadoId) &&
-                                    r.numero_dose === dose.numeroDose
-                                )
-                                const jaTemLembrete = temLembrete(vacina.id, dose.numeroDose)
-                                const ehFutura = dose.dataRecomendada && dose.dataRecomendada > hoje
-
-                                return (
-                                  <div key={dose.numeroDose} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', padding: 'var(--space-2) 0', borderTop: '1px dashed var(--color-divider)' }}>
-                                    <VacinaStatusBadge status={statusEfetivo} mostrarLabel={false} />
-                                    <div style={{ flex: 1, minWidth: 0 }}>
-                                      <p style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--color-text)' }}>
-                                        {vacina.doses_total === 1 ? 'Dose única' : `${dose.numeroDose}ª dose`}
-                                        {atrasada && <span style={{ marginLeft: 'var(--space-2)', color: 'var(--color-error)' }}>ATRASADA</span>}
-                                      </p>
-                                      {dose.status === 'aplicada' && registro && (
-                                        <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
-                                          {formatarData(registro.data_aplicacao)}{registro.local_aplicacao ? ` · ${registro.local_aplicacao}` : ''}
-                                        </p>
-                                      )}
-                                      {dose.status !== 'aplicada' && dose.dataRecomendada && (
-                                        <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
-                                          Prevista: {formatarData(dose.dataRecomendada)}
-                                        </p>
-                                      )}
-                                    </div>
-                                    <div style={{ display: 'flex', gap: 'var(--space-2)', flexShrink: 0 }}>
-                                      {dose.status !== 'aplicada' && (
-                                        <>
-                                          <button
-                                            onClick={() => setModal({ tipo: 'marcarTomada', dose, vacinaNome: vacina.nome })}
-                                            style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)', fontSize: 'var(--text-xs)', color: 'var(--color-success)', fontWeight: 600, padding: 'var(--space-2)', minHeight: 36, border: '1px solid var(--color-success-highlight)', borderRadius: 'var(--radius-md)', background: 'var(--color-success-highlight)' }}
-                                            aria-label={`Marcar ${dose.numeroDose}ª dose de ${vacina.nome} como tomada`}
-                                          >
-                                            <CheckCircle2 size={13} aria-hidden /> Tomada
-                                          </button>
-                                          {(ehFutura || dose.status === 'pendente') && (
-                                            <button
-                                              onClick={() => {
-                                                if (jaTemLembrete) return
-                                                setDataLembrete(dose.dataRecomendada ?? '')
-                                                setModal({ tipo: 'lembreteManual', dose, vacinaNome: vacina.nome })
-                                              }}
-                                              disabled={jaTemLembrete}
-                                              title={jaTemLembrete ? 'Lembrete já criado para esta dose' : 'Criar lembrete para esta dose'}
-                                              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 'var(--space-2)', minHeight: 36, minWidth: 36, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', background: 'none', color: jaTemLembrete ? 'var(--color-text-faint)' : 'var(--color-text-muted)', cursor: jaTemLembrete ? 'default' : 'pointer' }}
-                                              aria-label={jaTemLembrete ? 'Lembrete já criado' : `Criar lembrete para ${dose.numeroDose}ª dose de ${vacina.nome}`}
-                                            >
-                                              {jaTemLembrete ? <BellOff size={13} aria-hidden /> : <Bell size={13} aria-hidden />}
-                                            </button>
-                                          )}
-                                        </>
-                                      )}
-                                      {dose.status === 'aplicada' && registro && (
+                                <div style={{ display: 'flex', gap: 'var(--space-2)', flexShrink: 0 }}>
+                                  {dose.status !== 'aplicada' && (
+                                    <>
+                                      <button
+                                        onClick={() => setModal({ tipo: 'marcarTomada', dose, vacinaNome: vacina.nome })}
+                                        style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)', fontSize: 'var(--text-xs)', color: 'var(--color-success)', fontWeight: 600, padding: 'var(--space-2)', minHeight: 36, border: '1px solid var(--color-success-highlight)', borderRadius: 'var(--radius-md)', background: 'var(--color-success-highlight)' }}
+                                        aria-label={`Marcar ${dose.numeroDose}ª dose de ${vacina.nome} como tomada`}
+                                      >
+                                        <CheckCircle2 size={13} aria-hidden /> Tomada
+                                      </button>
+                                      {(ehFutura || dose.status === 'pendente') && (
                                         <button
-                                          onClick={() => setModal({ tipo: 'apagarDose', dose, vacinaNome: vacina.nome, registroId: registro.id })}
-                                          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-error)', padding: 'var(--space-2)', minHeight: 36, minWidth: 36, border: 'none', background: 'none' }}
-                                          aria-label={`Remover registro da ${dose.numeroDose}ª dose de ${vacina.nome}`}
+                                          onClick={() => {
+                                            if (jaTemLembrete) return
+                                            setDataLembrete(dose.dataRecomendada ?? '')
+                                            setModal({ tipo: 'lembreteManual', dose, vacinaNome: vacina.nome })
+                                          }}
+                                          disabled={jaTemLembrete}
+                                          title={jaTemLembrete ? 'Lembrete já criado para esta dose' : 'Criar lembrete para esta dose'}
+                                          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 'var(--space-2)', minHeight: 36, minWidth: 36, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', background: 'none', color: jaTemLembrete ? 'var(--color-text-faint)' : 'var(--color-text-muted)', cursor: jaTemLembrete ? 'default' : 'pointer' }}
+                                          aria-label={jaTemLembrete ? 'Lembrete já criado' : `Criar lembrete para ${dose.numeroDose}ª dose de ${vacina.nome}`}
                                         >
-                                          <Trash2 size={14} aria-hidden />
+                                          {jaTemLembrete ? <BellOff size={13} aria-hidden /> : <Bell size={13} aria-hidden />}
                                         </button>
                                       )}
-                                    </div>
-                                  </div>
-                                )
-                              })}
-                            </li>
-                          )
-                        })}
-                      </ul>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ================================================================= */}
-      {/* ABA: HISTÓRICO */}
-      {/* ================================================================= */}
-      {abaAtiva === 'historico' && (
-        <div>
-          {/* Filtros histórico */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)', marginBottom: 'var(--space-5)' }}>
-            <div style={{ position: 'relative' }}>
-              <Search size={15} style={{ position: 'absolute', left: 'var(--space-3)', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-faint)', pointerEvents: 'none' }} aria-hidden />
-              <input
-                type="search"
-                placeholder="Buscar por vacina ou local..."
-                value={buscaHistorico}
-                onChange={e => setBuscaHistorico(e.target.value)}
-                className="input-field"
-                style={{ paddingLeft: 'var(--space-8)', minHeight: 40, fontSize: 'var(--text-sm)' }}
-                aria-label="Buscar no histórico"
-              />
-            </div>
-            <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
-              <button onClick={() => setFiltroCicloHistorico('todos')} style={{ padding: 'var(--space-1) var(--space-3)', borderRadius: 'var(--radius-full)', fontSize: 'var(--text-xs)', fontWeight: 600, border: '1px solid', cursor: 'pointer', background: filtroCicloHistorico === 'todos' ? 'var(--color-text)' : 'transparent', color: filtroCicloHistorico === 'todos' ? 'var(--color-bg)' : 'var(--color-text-muted)', borderColor: filtroCicloHistorico === 'todos' ? 'var(--color-text)' : 'var(--color-border)' }}>Todos</button>
-              {CICLOS.map(ciclo => (
-                <button key={ciclo.id} onClick={() => setFiltroCicloHistorico(ciclo.id)} style={{ padding: 'var(--space-1) var(--space-3)', borderRadius: 'var(--radius-full)', fontSize: 'var(--text-xs)', fontWeight: 600, border: '1px solid', cursor: 'pointer', background: filtroCicloHistorico === ciclo.id ? ciclo.cor : 'transparent', color: filtroCicloHistorico === ciclo.id ? '#fff' : 'var(--color-text-muted)', borderColor: filtroCicloHistorico === ciclo.id ? ciclo.cor : 'var(--color-border)' }}>
-                  {ciclo.label}
-                </button>
-              ))}
-              <button onClick={() => setFiltroCicloHistorico('avulsa')} style={{ padding: 'var(--space-1) var(--space-3)', borderRadius: 'var(--radius-full)', fontSize: 'var(--text-xs)', fontWeight: 600, border: '1px solid', cursor: 'pointer', background: filtroCicloHistorico === 'avulsa' ? 'var(--color-text-muted)' : 'transparent', color: filtroCicloHistorico === 'avulsa' ? '#fff' : 'var(--color-text-muted)', borderColor: filtroCicloHistorico === 'avulsa' ? 'var(--color-text-muted)' : 'var(--color-border)' }}>Avulsas</button>
-            </div>
-          </div>
-
-          {/* Mensagem explicativa */}
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--space-2)', padding: 'var(--space-3)', background: 'var(--color-surface-offset)', borderRadius: 'var(--radius-md)', marginBottom: 'var(--space-4)' }}>
-            <Info size={14} style={{ color: 'var(--color-text-faint)', flexShrink: 0, marginTop: 2 }} aria-hidden />
-            <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', lineHeight: 1.5 }}>
-              O histórico exibe todas as doses aplicadas até hoje, organizadas por ciclo vacinal. Vacinas avulsas são entradas manuais não vinculadas ao calendário padrão.
-            </p>
-          </div>
-
-          {aguardandoAPI ? (
-            <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }} role="list" aria-busy="true">
-              {Array.from({ length: 4 }).map((_, i) => <VacinaSkeletonRow key={i} />)}
-            </ul>
-          ) : historicoFiltrado.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: 'var(--space-12) var(--space-8)', color: 'var(--color-text-muted)' }}>
-              <Clock size={40} style={{ margin: '0 auto var(--space-3)', opacity: 0.3 }} aria-hidden />
-              <p style={{ fontWeight: 600, marginBottom: 'var(--space-2)' }}>Nenhum registro encontrado</p>
-              <p style={{ fontSize: 'var(--text-xs)' }}>As doses aplicadas aparecerão aqui. Use os filtros para navegar.</p>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
-              {historicoFiltrado.map(({ ciclo, label, registros: regs }) => {
-                const cor = ciclo?.cor ?? 'var(--color-text-muted)'
-                const corBg = ciclo?.corBg ?? 'var(--color-surface-offset)'
-                const corBorda = ciclo?.corBorda ?? 'var(--color-border)'
-
-                return (
-                  <div key={ciclo?.id ?? 'avulsa'} style={{ borderRadius: 'var(--radius-lg)', border: `1.5px solid ${corBorda}`, overflow: 'hidden' }}>
-                    <div style={{ background: corBg, padding: 'var(--space-3) var(--space-5)', borderBottom: `1px solid ${corBorda}`, display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-                      <div style={{ width: 10, height: 10, borderRadius: '50%', background: cor, flexShrink: 0 }} aria-hidden />
-                      <p style={{ fontWeight: 700, fontSize: 'var(--text-sm)', color: cor }}>{label}</p>
-                      <span style={{ marginLeft: 'auto', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>{regs.length} {regs.length === 1 ? 'registro' : 'registros'}</span>
-                    </div>
-                    <ul style={{ listStyle: 'none', padding: 'var(--space-2) 0', background: 'var(--color-surface)' }} role="list">
-                      {regs
-                        .slice()
-                        .sort((a, b) => b.data_aplicacao.localeCompare(a.data_aplicacao))
-                        .map(reg => (
-                          <li key={reg.id} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)', padding: 'var(--space-3) var(--space-5)', borderBottom: '1px solid var(--color-divider)' }}>
-                            <CheckCircle2 size={16} style={{ color: 'var(--color-success)', flexShrink: 0 }} aria-hidden />
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <p style={{ fontWeight: 600, fontSize: 'var(--text-sm)', color: 'var(--color-text)' }}>
-                                {reg.vacina?.nome ?? reg.observacoes ?? 'Vacina avulsa'}
-                              </p>
-                              <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
-                                {reg.numero_dose}ª dose · {formatarData(reg.data_aplicacao)}
-                                {reg.local_aplicacao ? ` · ${reg.local_aplicacao}` : ''}
-                              </p>
-                            </div>
-                          </li>
-                        ))}
-                    </ul>
-                  </div>
-                )
-              })}
-            </div>
-          )}
+                                    </>
+                                  )}
+                                  {dose.status === 'aplicada' && registro && (
+                                    <button
+                                      onClick={() => setModal({ tipo: 'apagarDose', dose, vacinaNome: vacina.nome, registroId: registro.id })}
+                                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-error)', padding: 'var(--space-2)', minHeight: 36, minWidth: 36, border: 'none', background: 'none' }}
+                                      aria-label={`Remover registro da ${dose.numeroDose}ª dose de ${vacina.nome}`}
+                                    >
+                                      <Trash2 size={14} aria-hidden />
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
+              </div>
+            )
+          })}
         </div>
       )}
 
       {/* ================================================================= */}
       {/* MODAIS */}
       {/* ================================================================= */}
+
+      {/* Modal: Filtros da caderneta */}
+      {filtrosAbertos && (
+        <div role="dialog" aria-modal="true" aria-labelledby="modal-filtros-title" style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', background: 'oklch(0 0 0 / 0.5)', padding: 'var(--space-4)' }} onClick={e => { if (e.target === e.currentTarget) setFiltrosAbertos(false) }}>
+          <div className="card" style={{ width: '100%', maxWidth: 480, display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+              <Filter size={18} style={{ color: 'var(--color-primary)', flexShrink: 0 }} aria-hidden />
+              <h3 id="modal-filtros-title" style={{ fontWeight: 700, color: 'var(--color-text)', fontSize: 'var(--text-base)', flex: 1 }}>Filtros</h3>
+              <button onClick={() => setFiltrosAbertos(false)} style={{ color: 'var(--color-text-muted)', background: 'none', border: 'none', cursor: 'pointer' }} aria-label="Fechar filtros"><X size={18} aria-hidden /></button>
+            </div>
+            <div>
+              <label htmlFor="filtro-status" style={{ display: 'block', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginBottom: 'var(--space-2)', fontWeight: 500 }}>Status</label>
+              <select
+                id="filtro-status"
+                value={filtroStatus}
+                onChange={e => setFiltroStatus(e.target.value as typeof filtroStatus)}
+                className="input-field"
+                style={{ minHeight: 48 }}
+              >
+                <option value="todos">Todos os status</option>
+                <option value="pendente">Pendentes</option>
+                <option value="atrasada">Atrasadas</option>
+                <option value="aplicada">Aplicadas</option>
+              </select>
+            </div>
+            <div>
+              <label htmlFor="filtro-ciclo" style={{ display: 'block', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginBottom: 'var(--space-2)', fontWeight: 500 }}>Ciclo vacinal</label>
+              <select
+                id="filtro-ciclo"
+                value={filtroCiclo}
+                onChange={e => setFiltroCiclo(e.target.value as typeof filtroCiclo)}
+                className="input-field"
+                style={{ minHeight: 48 }}
+              >
+                <option value="todos">Todos os ciclos</option>
+                {CICLOS.map(c => (
+                  <option key={c.id} value={c.id}>{c.label}</option>
+                ))}
+              </select>
+            </div>
+            <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
+              <button
+                onClick={() => { setFiltroStatus('todos'); setFiltroCiclo('todos'); setFiltrosAbertos(false) }}
+                className="btn btn-ghost"
+                style={{ flex: 1 }}
+              >
+                Limpar filtros
+              </button>
+              <button
+                onClick={() => setFiltrosAbertos(false)}
+                className="btn btn-primary"
+                style={{ flex: 1 }}
+              >
+                Aplicar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal: Marcar como tomada */}
       {modal.tipo === 'marcarTomada' && (
@@ -975,8 +847,8 @@ export function VacinaMembroPage() {
             </div>
             <div style={{ background: 'var(--color-surface-offset)', borderRadius: 'var(--radius-md)', padding: 'var(--space-3)' }}>
               <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', lineHeight: 1.5 }}>
-                <strong>📅 Data passada ou hoje:</strong> o registro vai direto para o histórico.<br />
-                <strong>📆 Data futura:</strong> será criado um lembrete na seção Agenda.
+                <strong>Data passada ou hoje:</strong> o registro vai direto para o histórico.<br />
+                <strong>Data futura:</strong> será criado um lembrete na seção Agenda.
               </p>
             </div>
             <div>
