@@ -67,9 +67,16 @@ export function VacinaMembroPage() {
   }
 
   const registrosMembro = buscarRegistrosMembro(membroSelecionadoId)
-  const vacinasAplicaveis = vacinas.filter(v =>
-    calcularDosesStatus(v, registrosMembro, membro.data_nascimento).some(d => d.status !== 'nao_aplicavel')
-  )
+
+  // FIX: exclui vacinas onde TODAS as doses já estão 'aplicada'.
+  // Antes, vacinas 100% concluídas continuavam aparecendo como pendentes.
+  const vacinasAplicaveis = vacinas.filter(v => {
+    const doses = calcularDosesStatus(v, registrosMembro, membro.data_nascimento)
+    const dosesVisiveis = doses.filter(d => d.status !== 'nao_aplicavel')
+    if (dosesVisiveis.length === 0) return false
+    // Só mostra vacinas que têm ao menos 1 dose pendente (não aplicada)
+    return dosesVisiveis.some(d => d.status !== 'aplicada')
+  })
 
   function handleMarcarTomada() {
     if (!dataConfirm) { setErroConfirm('Informe a data de aplicação.'); return }
@@ -110,6 +117,8 @@ export function VacinaMembroPage() {
     setModal({ tipo: 'nenhum' })
   }
 
+  // FIX: dose só é "atrasada" se for pendente (sem registro no banco).
+  // Doses com registro existente nunca são atrasadas — são 'aplicada'.
   function isAtrasada(dose: DoseStatus) {
     return dose.status === 'pendente' && !!dose.dataRecomendada && dose.dataRecomendada < hoje
   }
@@ -174,7 +183,7 @@ export function VacinaMembroPage() {
       {/* Lista de vacinas */}
       {vacinasAplicaveis.length === 0 ? (
         <div style={{ textAlign: 'center', padding: 'var(--space-12) var(--space-8)', color: 'var(--color-text-muted)' }}>
-          <p style={{ fontSize: 'var(--text-sm)' }}>Nenhuma vacina aplicável para {membro.nome.split(' ')[0]} ainda.</p>
+          <p style={{ fontSize: 'var(--text-sm)' }}>Nenhuma vacina pendente para {membro.nome.split(' ')[0]}. ✅</p>
         </div>
       ) : (
         <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }} role="list">
@@ -319,27 +328,6 @@ export function VacinaMembroPage() {
             <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
               <button onClick={() => setModal({ tipo: 'nenhum' })} className="btn btn-ghost" style={{ flex: 1 }}>Cancelar</button>
               <button onClick={handleApagarDose} className="btn" style={{ flex: 1, background: 'var(--color-error)', color: '#fff', gap: 'var(--space-2)' }}><Trash2 size={15} aria-hidden /> Apagar</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal: lembrete vinculado a dose */}
-      {modal.tipo === 'lembreteVinculado' && (
-        <div role="dialog" aria-modal="true" aria-labelledby="modal-lem-title" style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', background: 'oklch(0 0 0 / 0.5)', padding: 'var(--space-4)' }} onClick={e => { if (e.target === e.currentTarget) setModal({ tipo: 'nenhum' }) }}>
-          <div className="card" style={{ width: '100%', maxWidth: 480, display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-              <CalendarDays size={20} style={{ color: 'var(--color-primary)', flexShrink: 0 }} aria-hidden />
-              <h3 id="modal-lem-title" style={{ fontFamily: 'var(--font-display)', fontWeight: 700, color: 'var(--color-text)', fontSize: 'var(--text-base)' }}>
-                Lembrete vinculado a uma dose
-              </h3>
-            </div>
-            <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)' }}>
-              Este lembrete está associado a uma dose já registrada. Para modificar ou remover, gerencie a dose diretamente na página de vacinas do membro.
-            </p>
-            <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
-              <button onClick={() => setModal({ tipo: 'nenhum' })} className="btn btn-ghost" style={{ flex: 1 }}>Fechar</button>
-              <Link to={`/vacinas/membro/${membroSelecionadoId}`} className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}>Ir para Vacinas</Link>
             </div>
           </div>
         </div>
