@@ -69,17 +69,26 @@ export type FaixaEtaria =
   | 'idoso'
   | 'todas'
 
+/**
+ * Shape real da tabela `vacina` no Supabase (snake_case).
+ * Retornado por GET /vacinas e GET /vacinas/:id.
+ */
 export interface Vacina {
   id: string
   nome: string
-  nomeCompleto: string
-  doses: number
-  intervaloDias?: number
-  faixaEtaria: FaixaEtaria[]
-  idadeRecomendadaDias?: number
+  nome_completo: string
+  descricao?: string
+  doses_total: number
+  idade_minima_dias?: number
+  faixa_etaria: FaixaEtaria[]
+  doencas_previstas: string[]
   obrigatoria: boolean
-  descricao: string
-  doencasProtege: string[]
+  ativo: boolean
+  fabricante_default?: string
+  intervalos_por_fabricante?: Record<string, number>
+  contabiliza_esquema?: boolean
+  created_at?: string
+  updated_at?: string
 }
 
 export type StatusDose = 'aplicada' | 'pendente' | 'atrasada' | 'nao_aplicavel'
