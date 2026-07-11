@@ -228,10 +228,12 @@ export function HistoricoPage() {
     for (const reg of registrosMembro) {
       const vacina = vacinas.find(v => v.id === reg.vacina_id)
       const isAvulsa = !vacina || reg.vacina_id === 'avulsa'
+      // fallback de nome: observações do registro ou string genérica
+      const nomeVacina = vacina?.nome ?? reg.observacoes ?? 'Vacina avulsa'
       entradas.push({
         tipo: 'aplicada',
         data: reg.data_aplicacao,
-        vacinaNome: vacina?.nome ?? reg.vacina_nome ?? 'Vacina avulsa',
+        vacinaNome: nomeVacina,
         numeroDose: reg.numero_dose,
         local: reg.local_aplicacao,
         faixas: vacina ? (vacina.faixa_etaria as string[]) : [],
@@ -300,7 +302,7 @@ export function HistoricoPage() {
     })
   }
 
-  const cicloFiltrado   = useMemo(() => aplicarFiltros(timelineCiclo),   [timelineCiclo, filtroStatus, filtroCiclo, busca])
+  const cicloFiltrado    = useMemo(() => aplicarFiltros(timelineCiclo),   [timelineCiclo, filtroStatus, filtroCiclo, busca])
   const avulsasFiltradas = useMemo(() => aplicarFiltros(timelineAvulsas), [timelineAvulsas, filtroStatus, busca])
 
   const entradaAtivaFiltrada = abaAtiva === 'ciclo' ? cicloFiltrado : avulsasFiltradas
@@ -428,8 +430,8 @@ export function HistoricoPage() {
         }}
       >
         {([
-          { id: 'ciclo' as Aba,    label: 'Vacinas de Ciclo',  icon: <CalendarCheck size={15} aria-hidden /> },
-          { id: 'avulsas' as Aba,  label: 'Vacinas Avulsas',   icon: <ClipboardList  size={15} aria-hidden /> },
+          { id: 'ciclo' as Aba,   label: 'Vacinas de Ciclo', icon: <CalendarCheck size={15} aria-hidden /> },
+          { id: 'avulsas' as Aba, label: 'Vacinas Avulsas',  icon: <ClipboardList  size={15} aria-hidden /> },
         ]).map(aba => (
           <button
             key={aba.id}
@@ -454,7 +456,6 @@ export function HistoricoPage() {
           >
             {aba.icon}
             {aba.label}
-            {/* badge de contagem */}
             {(() => {
               const total = (aba.id === 'ciclo' ? timelineCiclo : timelineAvulsas).length
               if (total === 0) return null
@@ -477,7 +478,6 @@ export function HistoricoPage() {
 
       {/* Filtros inline */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)', marginBottom: 'var(--space-5)', alignItems: 'center' }}>
-        {/* Busca */}
         <div style={{ flex: '1 1 180px', position: 'relative', minWidth: 160 }}>
           <Search size={14} style={{ position: 'absolute', left: 'var(--space-3)', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-faint)', pointerEvents: 'none' }} aria-hidden />
           <input
@@ -491,7 +491,6 @@ export function HistoricoPage() {
           />
         </div>
 
-        {/* Botões de status */}
         <button onClick={() => setFiltroStatus('todos')} style={styleBtnStatus('todos', filtroStatus === 'todos')}>
           Todos
         </button>
@@ -505,12 +504,10 @@ export function HistoricoPage() {
           Atrasadas
         </button>
 
-        {/* Dropdown de ciclo — só visível na aba de ciclo */}
         {abaAtiva === 'ciclo' && (
           <CicloDropdown value={filtroCiclo} onChange={v => setFiltroCiclo(v)} />
         )}
 
-        {/* Limpar filtros */}
         {(filtroStatus !== 'todos' || filtroCiclo !== 'todos' || busca) && (
           <button
             onClick={() => { setFiltroStatus('todos'); setFiltroCiclo('todos'); setBusca('') }}
@@ -540,7 +537,7 @@ export function HistoricoPage() {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
 
-          {/* ── ABA: VACINAS AVULSAS ── lista simples */}
+          {/* ── ABA: VACINAS AVULSAS ── */}
           {abaAtiva === 'avulsas' && (
             <>
               {atrasadas.length > 0 && (
@@ -583,23 +580,18 @@ export function HistoricoPage() {
           {/* ── ABA: VACINAS DE CICLO ── */}
           {abaAtiva === 'ciclo' && (
             <>
-              {/* Atrasadas */}
               {atrasadas.length > 0 && (
                 <section aria-label="Doses atrasadas">
                   <SectionDivider label="Atrasadas" cor="var(--color-error)" />
                   <ListaEntradas entradas={atrasadas} />
                 </section>
               )}
-
-              {/* Agendadas */}
               {agendadas.length > 0 && (
                 <section aria-label="Doses agendadas">
                   <SectionDivider label="Agendadas" cor="var(--color-primary)" />
                   <ListaEntradas entradas={agendadas} />
                 </section>
               )}
-
-              {/* Histórico aplicado por ciclo */}
               {aplicadasPorCiclo.length > 0 && (
                 <section aria-label="Histórico de doses aplicadas por ciclo">
                   <SectionDivider label="Histórico Aplicado" cor="var(--color-success)" />
@@ -609,7 +601,6 @@ export function HistoricoPage() {
                         key={grupo.id}
                         style={{ borderRadius: 'var(--radius-lg)', border: `1.5px solid ${grupo.corBorda}`, overflow: 'hidden' }}
                       >
-                        {/* Cabeçalho do ciclo */}
                         <div style={{ background: grupo.corBg, padding: 'var(--space-3) var(--space-5)', borderBottom: `1px solid ${grupo.corBorda}`, display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
                           <span style={{ width: 10, height: 10, borderRadius: '50%', background: grupo.cor, flexShrink: 0 }} aria-hidden />
                           <p style={{ fontWeight: 700, fontSize: 'var(--text-sm)', color: grupo.cor, flex: 1 }}>{grupo.label}</p>
@@ -617,8 +608,6 @@ export function HistoricoPage() {
                             {grupo.entradas.length} dose{grupo.entradas.length !== 1 ? 's' : ''}
                           </span>
                         </div>
-
-                        {/* Lista de doses */}
                         <ul style={{ listStyle: 'none', padding: 0, margin: 0 }} role="list">
                           {grupo.entradas.map((e, i) => (
                             <li
