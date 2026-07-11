@@ -12,7 +12,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { InfoCarousel } from '@/components/ui/InfoCarousel'
 import type { StatusDose } from '@/types'
 
-/* ── helpers ────────────────────────────────────────── */
+/* ── helpers ──────────────────────────────────────────────── */
 
 function formatarData(iso: string) {
   return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
@@ -51,7 +51,7 @@ const STATUS_CONFIG: Record<StatusGlobal, { label: string; className: string; ic
   atrasado: { label: 'Atrasado', className: 'badge-error',   icon: AlertTriangle  },
 }
 
-/* ── sub-components ─────────────────────────────────── */
+/* ── sub-components ────────────────────────────────────── */
 
 function SectionHeader({ icon: Icon, title, to, count }: {
   icon: typeof Users; title: string; to?: string; count?: number
@@ -87,7 +87,7 @@ function SectionHeader({ icon: Icon, title, to, count }: {
   )
 }
 
-/* ── main component ─────────────────────────────────── */
+/* ── main component ────────────────────────────────────── */
 
 export function DashboardPage() {
   const { usuario } = useAuth()
@@ -97,8 +97,8 @@ export function DashboardPage() {
 
   const statusPorMembro = useMemo(() =>
     membros.map(membro => {
-      const regsMembro = registros.filter(r => r.membroId === membro.id)
-      const doses = vacinas.flatMap(v => calcularDosesStatus(v, regsMembro, membro.dataNascimento))
+      const regsMembro = registros.filter(r => r.membro_id === membro.id)
+      const doses = vacinas.flatMap(v => calcularDosesStatus(v, regsMembro, membro.data_nascimento))
       return { membro, status: statusGlobal(doses), totalDoses: doses.filter(d => d.status !== 'nao_aplicavel').length, aplicadas: doses.filter(d => d.status === 'aplicada').length }
     }), [membros, vacinas, registros])
 
@@ -108,13 +108,13 @@ export function DashboardPage() {
 
   const proximosLembretes = useMemo(() =>
     [...lembretesPendentes]
-      .sort((a, b) => a.dataLembrete.localeCompare(b.dataLembrete))
+      .sort((a, b) => a.data_lembrete.localeCompare(b.data_lembrete))
       .slice(0, 4)
   , [lembretesPendentes])
 
   const registrosRecentes = useMemo(() =>
     [...registros]
-      .sort((a, b) => b.criadoEm.localeCompare(a.criadoEm))
+      .sort((a, b) => b.created_at.localeCompare(a.created_at))
       .slice(0, 5)
   , [registros])
 
@@ -189,7 +189,7 @@ export function DashboardPage() {
                         {membro.nome}
                       </span>
                       <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
-                        {calcularIdade(membro.dataNascimento)} · {PARENTESCO_LABEL[membro.parentesco]}
+                        {calcularIdade(membro.data_nascimento)} · {PARENTESCO_LABEL[membro.relacao]}
                       </span>
                     </div>
                     <div style={{ marginTop: 'var(--space-2)' }}>
@@ -227,9 +227,9 @@ export function DashboardPage() {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
             {proximosLembretes.map(lem => {
-              const vacina = vacinas.find(v => v.id === lem.vacinaId)
-              const membro = membros.find(m => m.id === lem.membroId)
-              const dias = diasAte(lem.dataLembrete)
+              const vacina = vacinas.find(v => v.id === lem.vacina_id)
+              const membro = membros.find(m => m.id === lem.membro_id)
+              const dias = diasAte(lem.data_lembrete)
               const urgente = dias <= 7 && dias >= 0
               const atrasado = dias < 0
               return (
@@ -245,10 +245,10 @@ export function DashboardPage() {
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <p style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--color-text)' }}>
-                      {vacina?.nome ?? 'Vacina'} — dose {lem.numeroDose}
+                      {vacina?.nome ?? 'Vacina'} — dose {lem.numero_dose}
                     </p>
                     <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
-                      {membro?.nome ?? '—'} · {formatarData(lem.dataLembrete)}
+                      {membro?.nome ?? '—'} · {formatarData(lem.data_lembrete)}
                     </p>
                   </div>
                   <span className={`badge ${atrasado ? 'badge-error' : urgente ? 'badge-warning' : 'badge-neutral'}`}>
@@ -270,8 +270,8 @@ export function DashboardPage() {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
             {registrosRecentes.map(reg => {
-              const vacina = vacinas.find(v => v.id === reg.vacinaId)
-              const membro = membros.find(m => m.id === reg.membroId)
+              const vacina = vacinas.find(v => v.id === reg.vacina_id)
+              const membro = membros.find(m => m.id === reg.membro_id)
               return (
                 <div key={reg.id} className="card"
                   style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', padding: 'var(--space-4)' }}
@@ -285,10 +285,10 @@ export function DashboardPage() {
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <p style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--color-text)' }}>
-                      {vacina?.nome ?? 'Vacina'} — dose {reg.numeroDose}
+                      {vacina?.nome ?? 'Vacina'} — dose {reg.numero_dose}
                     </p>
                     <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
-                      {membro?.nome ?? '—'} · {formatarData(reg.dataAplicacao)}
+                      {membro?.nome ?? '—'} · {formatarData(reg.data_aplicacao)}
                     </p>
                   </div>
                   <span className="badge badge-success">
