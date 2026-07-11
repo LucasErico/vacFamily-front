@@ -1,9 +1,9 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import {
   ArrowLeft, CheckCircle2, Trash2, ChevronDown, ListChecks,
-  Bell, BellOff, Plus, Search, Filter, X,
-  CalendarCheck, Syringe,
+  Bell, BellOff, Plus, Search, Syringe, X,
+  CalendarCheck, ClipboardList,
 } from 'lucide-react'
 import { useMembros, RELACAO_LABEL } from '@/contexts/MembrosContext'
 import { useVacinas, calcularDosesStatus, isAtrasada } from '@/contexts/VacinasContext'
@@ -156,13 +156,118 @@ function VacinaSkeletonRow() {
           <div className="skeleton skeleton-text" style={{ width: '55%' }} />
           <div className="skeleton skeleton-text" style={{ width: '30%' }} />
         </div>
-        <div style={{ display: 'flex', gap: 'var(--space-1)' }}>
-          <div className="skeleton" style={{ width: 16, height: 16, borderRadius: 'var(--radius-full)' }} />
-          <div className="skeleton" style={{ width: 16, height: 16, borderRadius: 'var(--radius-full)' }} />
-        </div>
         <div className="skeleton" style={{ width: 16, height: 16, borderRadius: 'var(--radius-sm)' }} />
       </div>
     </li>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Componente Dropdown de Ciclo
+// ---------------------------------------------------------------------------
+function CicloDropdown({
+  value,
+  onChange,
+}: {
+  value: CicloId | 'todos'
+  onChange: (v: CicloId | 'todos') => void
+}) {
+  const [aberto, setAberto] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setAberto(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const cicloAtual = value === 'todos' ? null : CICLOS.find(c => c.id === value)
+  const label = cicloAtual ? cicloAtual.label : 'Todos os ciclos'
+
+  return (
+    <div ref={ref} style={{ position: 'relative', flexShrink: 0 }}>
+      <button
+        onClick={() => setAberto(v => !v)}
+        className="btn btn-ghost"
+        style={{
+          minHeight: 40,
+          gap: 'var(--space-2)',
+          fontSize: 'var(--text-sm)',
+          border: cicloAtual ? `1.5px solid ${cicloAtual.cor}` : '1.5px solid var(--color-border)',
+          color: cicloAtual ? cicloAtual.cor : 'var(--color-text-muted)',
+          background: cicloAtual ? cicloAtual.corBg : 'var(--color-surface)',
+          borderRadius: 'var(--radius-full)',
+          paddingInline: 'var(--space-4)',
+        }}
+        aria-haspopup="listbox"
+        aria-expanded={aberto}
+      >
+        {cicloAtual && (
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: cicloAtual.cor, flexShrink: 0 }} aria-hidden />
+        )}
+        {label}
+        <ChevronDown size={13} style={{ transform: aberto ? 'rotate(180deg)' : 'none', transition: 'transform 150ms' }} aria-hidden />
+      </button>
+
+      {aberto && (
+        <div
+          role="listbox"
+          aria-label="Filtrar por ciclo"
+          style={{
+            position: 'absolute',
+            top: 'calc(100% + var(--space-2))',
+            right: 0,
+            zIndex: 40,
+            background: 'var(--color-surface)',
+            border: '1px solid var(--color-border)',
+            borderRadius: 'var(--radius-lg)',
+            boxShadow: 'var(--shadow-md)',
+            minWidth: 200,
+            overflow: 'hidden',
+            padding: 'var(--space-1) 0',
+          }}
+        >
+          <button
+            role="option"
+            aria-selected={value === 'todos'}
+            onClick={() => { onChange('todos'); setAberto(false) }}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 'var(--space-3)',
+              width: '100%', padding: 'var(--space-3) var(--space-4)',
+              background: value === 'todos' ? 'var(--color-surface-offset)' : 'none',
+              border: 'none', cursor: 'pointer', textAlign: 'left',
+              fontSize: 'var(--text-sm)', color: 'var(--color-text)',
+              fontWeight: value === 'todos' ? 600 : 400,
+            }}
+          >
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--color-border)', flexShrink: 0 }} aria-hidden />
+            Todos os ciclos
+          </button>
+          {CICLOS.map(c => (
+            <button
+              key={c.id}
+              role="option"
+              aria-selected={value === c.id}
+              onClick={() => { onChange(c.id); setAberto(false) }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 'var(--space-3)',
+                width: '100%', padding: 'var(--space-3) var(--space-4)',
+                background: value === c.id ? c.corBg : 'none',
+                border: 'none', cursor: 'pointer', textAlign: 'left',
+                fontSize: 'var(--text-sm)',
+                color: value === c.id ? c.cor : 'var(--color-text)',
+                fontWeight: value === c.id ? 600 : 400,
+              }}
+            >
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: c.cor, flexShrink: 0 }} aria-hidden />
+              {c.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -182,6 +287,10 @@ export function VacinaMembroPage() {
 
   const hoje = new Date().toISOString().slice(0, 10)
 
+  // --- abas ---
+  type Aba = 'ciclo' | 'avulsas'
+  const [abaAtiva, setAbaAtiva] = useState<Aba>('ciclo')
+
   // --- state geral ---
   const [membroSelecionadoId, setMembroSelecionadoId] = useState(id ?? '')
   const [seletorAberto, setSeletorAberto] = useState(false)
@@ -192,7 +301,9 @@ export function VacinaMembroPage() {
   const [filtroStatus, setFiltroStatus] = useState<'todos' | 'pendente' | 'aplicada' | 'atrasada'>('todos')
   const [busca, setBusca] = useState('')
   const [ciclosExpandidos, setCiclosExpandidos] = useState<Set<CicloId>>(new Set(CICLOS.map(c => c.id)))
-  const [filtrosAbertos, setFiltrosAbertos] = useState(false)
+
+  // --- filtros avulsas ---
+  const [filtroStatusAvulsa, setFiltroStatusAvulsa] = useState<'todos' | 'aplicada' | 'agendada'>('todos')
 
   // --- modais ---
   const [modal, setModal] = useState<ModalState>({ tipo: 'nenhum' })
@@ -288,7 +399,6 @@ export function VacinaMembroPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [aguardandoAPI, vacinas, registros, membroSelecionadoId])
 
-  // Filtrado para exibição caderneta
   const vacinasPorCicloFiltrado = useMemo(() => {
     return vacinasPorCiclo.map(grupo => ({
       ...grupo,
@@ -308,6 +418,45 @@ export function VacinaMembroPage() {
     })).filter(g => g.vacinas.length > 0)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vacinasPorCiclo, filtroCiclo, busca, filtroStatus])
+
+  // ---------------------------------------------------------------------------
+  // Registros avulsos
+  // ---------------------------------------------------------------------------
+  const registrosAvulsos = useMemo(() => {
+    return registrosMembro.filter(r => r.vacina_id === 'avulsa')
+  }, [registrosMembro])
+
+  const lembretesManuais = useMemo(() => {
+    return lembretes.filter(
+      l => l.tipo === 'manual' &&
+        (l.membro_id === membroSelecionadoId || l.membro_familiar_id === membroSelecionadoId) &&
+        l.status === 'pendente'
+    )
+  }, [lembretes, membroSelecionadoId])
+
+  const avulsasFiltradas = useMemo(() => {
+    const aplicadas = registrosAvulsos.map(r => ({
+      tipo: 'aplicada' as const,
+      id: r.id,
+      nome: r.observacoes ?? 'Vacina avulsa',
+      dose: r.numero_dose,
+      data: r.data_aplicacao,
+      local: r.local_aplicacao,
+      registroId: r.id,
+    }))
+    const agendadas = lembretesManuais.map(l => ({
+      tipo: 'agendada' as const,
+      id: l.id,
+      nome: l.titulo,
+      dose: 1,
+      data: l.data_prevista ?? '',
+      local: l.descricao ?? '',
+      registroId: '',
+    }))
+    const todas = [...aplicadas, ...agendadas].sort((a, b) => b.data.localeCompare(a.data))
+    if (filtroStatusAvulsa === 'todos') return todas
+    return todas.filter(a => a.tipo === filtroStatusAvulsa)
+  }, [registrosAvulsos, lembretesManuais, filtroStatusAvulsa])
 
   // ---------------------------------------------------------------------------
   // Ações
@@ -428,8 +577,24 @@ export function VacinaMembroPage() {
     })
   }
 
-  // Conta filtros ativos para badge no botão
-  const filtrosAtivos = [filtroCiclo !== 'todos', filtroStatus !== 'todos'].filter(Boolean).length
+  // Botões de status - estilo
+  function styleBtnStatus(s: string, ativo: boolean, cor?: string) {
+    return {
+      fontSize: 'var(--text-xs)',
+      fontWeight: ativo ? 700 : 400,
+      padding: 'var(--space-2) var(--space-3)',
+      minHeight: 36,
+      borderRadius: 'var(--radius-full)',
+      border: ativo
+        ? `1.5px solid ${cor ?? 'var(--color-primary)'}`
+        : '1.5px solid var(--color-border)',
+      background: ativo ? (cor ? `oklch(from ${cor} l c h / 0.1)` : 'var(--color-primary-highlight)') : 'var(--color-surface)',
+      color: ativo ? (cor ?? 'var(--color-primary)') : 'var(--color-text-muted)',
+      cursor: 'pointer',
+      flexShrink: 0,
+      transition: 'all 150ms',
+    } as React.CSSProperties
+  }
 
   // ---------------------------------------------------------------------------
   // Render
@@ -448,7 +613,7 @@ export function VacinaMembroPage() {
         </button>
         <div style={{ flex: 1 }} />
         <button
-          onClick={() => setModal({ tipo: 'adicionarAvulsa' })}
+          onClick={() => { setAbaAtiva('avulsas'); setModal({ tipo: 'adicionarAvulsa' }) }}
           className="btn btn-primary"
           style={{ gap: 'var(--space-2)', fontSize: 'var(--text-sm)', minHeight: 44 }}
         >
@@ -496,265 +661,342 @@ export function VacinaMembroPage() {
         )}
       </div>
 
-      {/* Título da seção */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginBottom: 'var(--space-4)' }}>
-        <Syringe size={16} style={{ color: 'var(--color-primary)' }} aria-hidden />
-        <h2 style={{ fontWeight: 700, fontSize: 'var(--text-base)', color: 'var(--color-text)' }}>Caderneta de Vacinas</h2>
+      {/* Abas */}
+      <div role="tablist" style={{ display: 'flex', gap: 0, marginBottom: 'var(--space-5)', borderBottom: '2px solid var(--color-divider)' }}>
+        {(['ciclo', 'avulsas'] as Aba[]).map(aba => (
+          <button
+            key={aba}
+            role="tab"
+            aria-selected={abaAtiva === aba}
+            onClick={() => setAbaAtiva(aba)}
+            style={{
+              padding: 'var(--space-3) var(--space-5)',
+              fontSize: 'var(--text-sm)',
+              fontWeight: abaAtiva === aba ? 700 : 400,
+              color: abaAtiva === aba ? 'var(--color-primary)' : 'var(--color-text-muted)',
+              background: 'none',
+              border: 'none',
+              borderBottom: abaAtiva === aba ? '2px solid var(--color-primary)' : '2px solid transparent',
+              marginBottom: -2,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 'var(--space-2)',
+              transition: 'all 150ms',
+            }}
+          >
+            {aba === 'ciclo' ? <Syringe size={15} aria-hidden /> : <ClipboardList size={15} aria-hidden />}
+            {aba === 'ciclo' ? 'Vacinas de Ciclo' : 'Vacinas Avulsas'}
+          </button>
+        ))}
       </div>
 
-      {/* Filtros colapsados */}
-      <div style={{ display: 'flex', gap: 'var(--space-3)', marginBottom: 'var(--space-5)', alignItems: 'center' }}>
-        <div style={{ flex: 1, position: 'relative' }}>
-          <Search size={15} style={{ position: 'absolute', left: 'var(--space-3)', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-faint)', pointerEvents: 'none' }} aria-hidden />
-          <input
-            type="search"
-            placeholder="Buscar vacina..."
-            value={busca}
-            onChange={e => setBusca(e.target.value)}
-            className="input-field"
-            style={{ paddingLeft: 'var(--space-8)', minHeight: 44, fontSize: 'var(--text-sm)' }}
-            aria-label="Buscar vacina na caderneta"
-          />
-        </div>
-        <button
-          onClick={() => setFiltrosAbertos(true)}
-          className="btn btn-ghost"
-          style={{ minHeight: 44, gap: 'var(--space-2)', fontSize: 'var(--text-sm)', flexShrink: 0, position: 'relative' }}
-          aria-label={`Filtros${filtrosAtivos > 0 ? ` — ${filtrosAtivos} ativo${filtrosAtivos > 1 ? 's' : ''}` : ''}`}
-        >
-          <Filter size={15} aria-hidden />
-          Filtros
-          {filtrosAtivos > 0 && (
-            <span style={{ position: 'absolute', top: 6, right: 6, width: 8, height: 8, borderRadius: '50%', background: 'var(--color-primary)' }} aria-hidden />
-          )}
-        </button>
-      </div>
+      {/* ===================== ABA: VACINAS DE CICLO ===================== */}
+      {abaAtiva === 'ciclo' && (
+        <>
+          {/* Filtros inline */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)', marginBottom: 'var(--space-4)', alignItems: 'center' }}>
+            {/* Busca */}
+            <div style={{ flex: '1 1 180px', position: 'relative', minWidth: 160 }}>
+              <Search size={14} style={{ position: 'absolute', left: 'var(--space-3)', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-faint)', pointerEvents: 'none' }} aria-hidden />
+              <input
+                type="search"
+                placeholder="Buscar vacina..."
+                value={busca}
+                onChange={e => setBusca(e.target.value)}
+                className="input-field"
+                style={{ paddingLeft: 'var(--space-8)', minHeight: 40, fontSize: 'var(--text-sm)' }}
+                aria-label="Buscar vacina na caderneta"
+              />
+            </div>
 
-      {/* Caderneta por ciclo */}
-      {aguardandoAPI ? (
-        <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }} role="list" aria-busy="true">
-          {Array.from({ length: 5 }).map((_, i) => <VacinaSkeletonRow key={i} />)}
-        </ul>
-      ) : vacinasPorCicloFiltrado.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: 'var(--space-12) var(--space-8)', color: 'var(--color-text-muted)' }}>
-          <CalendarCheck size={40} style={{ margin: '0 auto var(--space-3)', opacity: 0.3 }} aria-hidden />
-          <p style={{ fontWeight: 600, marginBottom: 'var(--space-2)' }}>Nenhuma vacina encontrada</p>
-          <p style={{ fontSize: 'var(--text-xs)' }}>Tente ajustar os filtros ou a busca.</p>
-        </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
-          {vacinasPorCicloFiltrado.map(({ ciclo, vacinas: vacinasCiclo }) => {
-            const pendentesNoCiclo = vacinasCiclo.filter(({ doses }) =>
-              doses.some(d => d.status !== 'aplicada')
-            )
-            const expandido = ciclosExpandidos.has(ciclo.id)
+            {/* Botões de status */}
+            <button onClick={() => setFiltroStatus('todos')} style={styleBtnStatus('todos', filtroStatus === 'todos')}>
+              Todos
+            </button>
+            <button onClick={() => setFiltroStatus('pendente')} style={styleBtnStatus('pendente', filtroStatus === 'pendente', 'var(--color-warning)')}>
+              Pendentes
+            </button>
+            <button onClick={() => setFiltroStatus('atrasada')} style={styleBtnStatus('atrasada', filtroStatus === 'atrasada', 'var(--color-error)')}>
+              Atrasadas
+            </button>
+            <button onClick={() => setFiltroStatus('aplicada')} style={styleBtnStatus('aplicada', filtroStatus === 'aplicada', 'var(--color-success)')}>
+              Aplicadas
+            </button>
 
-            return (
-              <div key={ciclo.id} style={{ borderRadius: 'var(--radius-lg)', border: `1.5px solid ${ciclo.corBorda}`, overflow: 'hidden' }}>
-                {/* Cabeçalho do ciclo */}
-                <div style={{ background: ciclo.corBg, padding: 'var(--space-4) var(--space-5)', borderBottom: expandido ? `1px solid ${ciclo.corBorda}` : 'none' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-                    <div style={{ width: 10, height: 10, borderRadius: '50%', background: ciclo.cor, flexShrink: 0 }} aria-hidden />
-                    <div style={{ flex: 1 }}>
-                      <p style={{ fontWeight: 700, fontSize: 'var(--text-sm)', color: ciclo.cor }}>{ciclo.label}</p>
-                      <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginTop: 2 }}>{ciclo.descricao}</p>
+            {/* Dropdown de ciclo */}
+            <CicloDropdown value={filtroCiclo} onChange={v => setFiltroCiclo(v)} />
+          </div>
+
+          {/* Caderneta por ciclo */}
+          {aguardandoAPI ? (
+            <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }} role="list" aria-busy="true">
+              {Array.from({ length: 5 }).map((_, i) => <VacinaSkeletonRow key={i} />)}
+            </ul>
+          ) : vacinasPorCicloFiltrado.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 'var(--space-12) var(--space-8)', color: 'var(--color-text-muted)' }}>
+              <CalendarCheck size={40} style={{ margin: '0 auto var(--space-3)', opacity: 0.3 }} aria-hidden />
+              <p style={{ fontWeight: 600, marginBottom: 'var(--space-2)' }}>Nenhuma vacina encontrada</p>
+              <p style={{ fontSize: 'var(--text-xs)' }}>Tente ajustar os filtros ou a busca.</p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
+              {vacinasPorCicloFiltrado.map(({ ciclo, vacinas: vacinasCiclo }) => {
+                const pendentesNoCiclo = vacinasCiclo.filter(({ doses }) =>
+                  doses.some(d => d.status !== 'aplicada')
+                )
+                const expandido = ciclosExpandidos.has(ciclo.id)
+
+                return (
+                  <div key={ciclo.id} style={{ borderRadius: 'var(--radius-lg)', border: `1.5px solid ${ciclo.corBorda}`, overflow: 'hidden' }}>
+                    {/* Cabeçalho do ciclo */}
+                    <div style={{ background: ciclo.corBg, padding: 'var(--space-4) var(--space-5)', borderBottom: expandido ? `1px solid ${ciclo.corBorda}` : 'none' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+                        <div style={{ width: 10, height: 10, borderRadius: '50%', background: ciclo.cor, flexShrink: 0 }} aria-hidden />
+                        <div style={{ flex: 1 }}>
+                          <p style={{ fontWeight: 700, fontSize: 'var(--text-sm)', color: ciclo.cor }}>{ciclo.label}</p>
+                          <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginTop: 2 }}>{ciclo.descricao}</p>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', flexShrink: 0 }}>
+                          {pendentesNoCiclo.length > 0 && (
+                            <button
+                              onClick={() => setModal({ tipo: 'confirmarCiclo', ciclo, vacinas: pendentesNoCiclo.map(v => v.vacina) })}
+                              style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)', fontSize: 'var(--text-xs)', fontWeight: 600, padding: 'var(--space-1) var(--space-3)', borderRadius: 'var(--radius-full)', border: `1px solid ${ciclo.cor}`, background: ciclo.corBg, color: ciclo.cor, cursor: 'pointer', minHeight: 32 }}
+                              title={`Marcar todas as ${pendentesNoCiclo.length} vacinas pendentes de ${ciclo.label} como tomadas`}
+                            >
+                              <ListChecks size={13} aria-hidden />
+                              Confirmar todas ({pendentesNoCiclo.length})
+                            </button>
+                          )}
+                          <button onClick={() => toggleCiclo(ciclo.id)} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', background: 'none', border: 'none', cursor: 'pointer', minHeight: 32 }} aria-expanded={expandido} aria-label={expandido ? `Recolher ${ciclo.label}` : `Expandir ${ciclo.label}`}>
+                            <ChevronDown size={14} style={{ transform: expandido ? 'rotate(180deg)' : 'none', transition: 'transform 150ms' }} aria-hidden />
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', flexShrink: 0 }}>
-                      {pendentesNoCiclo.length > 0 && (
-                        <button
-                          onClick={() => setModal({ tipo: 'confirmarCiclo', ciclo, vacinas: pendentesNoCiclo.map(v => v.vacina) })}
-                          style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)', fontSize: 'var(--text-xs)', fontWeight: 600, padding: 'var(--space-1) var(--space-3)', borderRadius: 'var(--radius-full)', border: `1px solid ${ciclo.cor}`, background: ciclo.corBg, color: ciclo.cor, cursor: 'pointer', minHeight: 32 }}
-                          title={`Marcar todas as ${pendentesNoCiclo.length} vacinas pendentes de ${ciclo.label} como tomadas`}
-                        >
-                          <ListChecks size={13} aria-hidden />
-                          Confirmar todas ({pendentesNoCiclo.length})
-                        </button>
-                      )}
-                      <button onClick={() => toggleCiclo(ciclo.id)} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', background: 'none', border: 'none', cursor: 'pointer', minHeight: 32 }} aria-expanded={expandido} aria-label={expandido ? `Recolher ${ciclo.label}` : `Expandir ${ciclo.label}`}>
-                        <ChevronDown size={14} style={{ transform: expandido ? 'rotate(180deg)' : 'none', transition: 'transform 150ms' }} aria-hidden />
-                      </button>
-                    </div>
-                  </div>
-                </div>
 
-                {/* Vacinas do ciclo */}
-                {expandido && (
-                  <ul style={{ listStyle: 'none', padding: 'var(--space-2) 0', background: 'var(--color-surface)' }} role="list">
-                    {vacinasCiclo.map(({ vacina, doses }) => {
-                      const todasAplicadas = doses.every(d => d.status === 'aplicada')
-                      return (
-                        <li key={vacina.id} style={{ padding: 'var(--space-4) var(--space-5)', borderBottom: '1px solid var(--color-divider)' }}>
-                          {/* Nome + doses resumo */}
-                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--space-3)', marginBottom: doses.length > 1 ? 'var(--space-3)' : 0 }}>
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
-                                <p style={{ fontWeight: 600, fontSize: 'var(--text-sm)', color: 'var(--color-text)' }}>{vacina.nome}</p>
-                                {todasAplicadas && (
-                                  <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-success)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 2 }}>
-                                    <CheckCircle2 size={12} aria-hidden /> Completa
-                                  </span>
-                                )}
-                              </div>
-                              <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginTop: 2 }}>
-                                {vacina.descricao ?? (vacina.doses_total === 1 ? 'Dose única' : `${vacina.doses_total} doses`)}
-                              </p>
-                              {vacina.doencas_previstas.length > 0 && (
-                                <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-faint)', marginTop: 2 }}>
-                                  Protege contra: {vacina.doencas_previstas.join(', ')}
-                                </p>
-                              )}
-                            </div>
-                            <div style={{ display: 'flex', gap: 'var(--space-1)', flexShrink: 0 }}>
-                              {doses.map(d => (
-                                <VacinaStatusBadge key={d.numeroDose} status={isAtrasada(d, membroDefinido.data_nascimento, hoje) ? 'atrasada' : d.status} mostrarLabel={false} />
-                              ))}
-                            </div>
-                          </div>
-
-                          {/* Detalhes de cada dose */}
-                          {doses.map(dose => {
-                            const atrasada = isAtrasada(dose, membroDefinido.data_nascimento, hoje)
-                            const statusEfetivo = atrasada ? 'atrasada' : dose.status
-                            const registro = registros.find(
-                              r => r.vacina_id === vacina.id &&
-                                (r.membro_id === membroSelecionadoId || r.membro_familiar_id === membroSelecionadoId) &&
-                                r.numero_dose === dose.numeroDose
-                            )
-                            const jaTemLembrete = temLembrete(vacina.id, dose.numeroDose)
-                            const ehFutura = dose.dataRecomendada && dose.dataRecomendada > hoje
-
-                            return (
-                              <div key={dose.numeroDose} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', padding: 'var(--space-2) 0', borderTop: '1px dashed var(--color-divider)' }}>
-                                <VacinaStatusBadge status={statusEfetivo} mostrarLabel={false} />
+                    {/* Vacinas do ciclo */}
+                    {expandido && (
+                      <div style={{ background: 'var(--color-surface)' }}>
+                        {vacinasCiclo.map(({ vacina, doses }, idx) => {
+                          const todasAplicadas = doses.every(d => d.status === 'aplicada')
+                          const isLast = idx === vacinasCiclo.length - 1
+                          return (
+                            <div
+                              key={vacina.id}
+                              style={{
+                                padding: 'var(--space-5) var(--space-5)',
+                                borderBottom: isLast ? 'none' : '2px solid var(--color-divider)',
+                                background: 'var(--color-surface)',
+                              }}
+                            >
+                              {/* Nome + status geral */}
+                              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--space-3)', marginBottom: 'var(--space-3)' }}>
                                 <div style={{ flex: 1, minWidth: 0 }}>
-                                  <p style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--color-text)' }}>
-                                    {vacina.doses_total === 1 ? 'Dose única' : `${dose.numeroDose}ª dose`}
-                                    {atrasada && <span style={{ marginLeft: 'var(--space-2)', color: 'var(--color-error)' }}>ATRASADA</span>}
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
+                                    <p style={{ fontWeight: 700, fontSize: 'var(--text-base)', color: 'var(--color-text)' }}>{vacina.nome}</p>
+                                    {todasAplicadas && (
+                                      <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-success)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 2 }}>
+                                        <CheckCircle2 size={12} aria-hidden /> Completa
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginTop: 'var(--space-1)' }}>
+                                    {vacina.descricao ?? (vacina.doses_total === 1 ? 'Dose única' : `${vacina.doses_total} doses`)}
                                   </p>
-                                  {dose.status === 'aplicada' && registro && (
-                                    <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
-                                      {formatarData(registro.data_aplicacao)}{registro.local_aplicacao ? ` · ${registro.local_aplicacao}` : ''}
-                                    </p>
-                                  )}
-                                  {dose.status !== 'aplicada' && dose.dataRecomendada && (
-                                    <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
-                                      Prevista: {formatarData(dose.dataRecomendada)}
+                                  {vacina.doencas_previstas.length > 0 && (
+                                    <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-faint)', marginTop: 'var(--space-1)' }}>
+                                      Protege contra: {vacina.doencas_previstas.join(', ')}
                                     </p>
                                   )}
                                 </div>
-                                <div style={{ display: 'flex', gap: 'var(--space-2)', flexShrink: 0 }}>
-                                  {dose.status !== 'aplicada' && (
-                                    <>
-                                      <button
-                                        onClick={() => setModal({ tipo: 'marcarTomada', dose, vacinaNome: vacina.nome })}
-                                        style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)', fontSize: 'var(--text-xs)', color: 'var(--color-success)', fontWeight: 600, padding: 'var(--space-2)', minHeight: 36, border: '1px solid var(--color-success-highlight)', borderRadius: 'var(--radius-md)', background: 'var(--color-success-highlight)' }}
-                                        aria-label={`Marcar ${dose.numeroDose}ª dose de ${vacina.nome} como tomada`}
-                                      >
-                                        <CheckCircle2 size={13} aria-hidden /> Tomada
-                                      </button>
-                                      {(ehFutura || dose.status === 'pendente') && (
-                                        <button
-                                          onClick={() => {
-                                            if (jaTemLembrete) return
-                                            setDataLembrete(dose.dataRecomendada ?? '')
-                                            setModal({ tipo: 'lembreteManual', dose, vacinaNome: vacina.nome })
-                                          }}
-                                          disabled={jaTemLembrete}
-                                          title={jaTemLembrete ? 'Lembrete já criado para esta dose' : 'Criar lembrete para esta dose'}
-                                          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 'var(--space-2)', minHeight: 36, minWidth: 36, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', background: 'none', color: jaTemLembrete ? 'var(--color-text-faint)' : 'var(--color-text-muted)', cursor: jaTemLembrete ? 'default' : 'pointer' }}
-                                          aria-label={jaTemLembrete ? 'Lembrete já criado' : `Criar lembrete para ${dose.numeroDose}ª dose de ${vacina.nome}`}
-                                        >
-                                          {jaTemLembrete ? <BellOff size={13} aria-hidden /> : <Bell size={13} aria-hidden />}
-                                        </button>
-                                      )}
-                                    </>
-                                  )}
-                                  {dose.status === 'aplicada' && registro && (
-                                    <button
-                                      onClick={() => setModal({ tipo: 'apagarDose', dose, vacinaNome: vacina.nome, registroId: registro.id })}
-                                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-error)', padding: 'var(--space-2)', minHeight: 36, minWidth: 36, border: 'none', background: 'none' }}
-                                      aria-label={`Remover registro da ${dose.numeroDose}ª dose de ${vacina.nome}`}
-                                    >
-                                      <Trash2 size={14} aria-hidden />
-                                    </button>
-                                  )}
+                                <div style={{ display: 'flex', gap: 'var(--space-1)', flexShrink: 0 }}>
+                                  {doses.map(d => (
+                                    <VacinaStatusBadge key={d.numeroDose} status={isAtrasada(d, membroDefinido.data_nascimento, hoje) ? 'atrasada' : d.status} mostrarLabel={false} />
+                                  ))}
                                 </div>
                               </div>
-                            )
-                          })}
-                        </li>
-                      )
-                    })}
-                  </ul>
-                )}
-              </div>
-            )
-          })}
-        </div>
+
+                              {/* Doses individuais */}
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+                                {doses.map(dose => {
+                                  const atrasada = isAtrasada(dose, membroDefinido.data_nascimento, hoje)
+                                  const statusEfetivo = atrasada ? 'atrasada' : dose.status
+                                  const registro = registros.find(
+                                    r => r.vacina_id === vacina.id &&
+                                      (r.membro_id === membroSelecionadoId || r.membro_familiar_id === membroSelecionadoId) &&
+                                      r.numero_dose === dose.numeroDose
+                                  )
+                                  const jaTemLembrete = temLembrete(vacina.id, dose.numeroDose)
+                                  const ehFutura = dose.dataRecomendada && dose.dataRecomendada > hoje
+
+                                  return (
+                                    <div
+                                      key={dose.numeroDose}
+                                      style={{
+                                        display: 'flex', alignItems: 'center', gap: 'var(--space-3)',
+                                        padding: 'var(--space-3) var(--space-4)',
+                                        borderRadius: 'var(--radius-md)',
+                                        background: 'var(--color-surface-offset)',
+                                        border: '1px solid var(--color-divider)',
+                                      }}
+                                    >
+                                      <VacinaStatusBadge status={statusEfetivo} mostrarLabel={false} />
+                                      <div style={{ flex: 1, minWidth: 0 }}>
+                                        <p style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--color-text)' }}>
+                                          {vacina.doses_total === 1 ? 'Dose única' : `${dose.numeroDose}ª dose`}
+                                          {atrasada && <span style={{ marginLeft: 'var(--space-2)', color: 'var(--color-error)' }}>ATRASADA</span>}
+                                        </p>
+                                        {dose.status === 'aplicada' && registro && (
+                                          <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
+                                            {formatarData(registro.data_aplicacao)}{registro.local_aplicacao ? ` · ${registro.local_aplicacao}` : ''}
+                                          </p>
+                                        )}
+                                        {dose.status !== 'aplicada' && dose.dataRecomendada && (
+                                          <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
+                                            Prevista: {formatarData(dose.dataRecomendada)}
+                                          </p>
+                                        )}
+                                      </div>
+                                      <div style={{ display: 'flex', gap: 'var(--space-2)', flexShrink: 0 }}>
+                                        {dose.status !== 'aplicada' && (
+                                          <>
+                                            <button
+                                              onClick={() => setModal({ tipo: 'marcarTomada', dose, vacinaNome: vacina.nome })}
+                                              style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)', fontSize: 'var(--text-xs)', color: 'var(--color-success)', fontWeight: 600, padding: 'var(--space-2)', minHeight: 36, border: '1px solid var(--color-success-highlight)', borderRadius: 'var(--radius-md)', background: 'var(--color-success-highlight)' }}
+                                              aria-label={`Marcar ${dose.numeroDose}ª dose de ${vacina.nome} como tomada`}
+                                            >
+                                              <CheckCircle2 size={13} aria-hidden /> Tomada
+                                            </button>
+                                            {(ehFutura || dose.status === 'pendente') && (
+                                              <button
+                                                onClick={() => {
+                                                  if (jaTemLembrete) return
+                                                  setDataLembrete(dose.dataRecomendada ?? '')
+                                                  setModal({ tipo: 'lembreteManual', dose, vacinaNome: vacina.nome })
+                                                }}
+                                                disabled={jaTemLembrete}
+                                                title={jaTemLembrete ? 'Lembrete já criado para esta dose' : 'Criar lembrete para esta dose'}
+                                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 'var(--space-2)', minHeight: 36, minWidth: 36, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', background: 'none', color: jaTemLembrete ? 'var(--color-text-faint)' : 'var(--color-text-muted)', cursor: jaTemLembrete ? 'default' : 'pointer' }}
+                                                aria-label={jaTemLembrete ? 'Lembrete já criado' : `Criar lembrete para ${dose.numeroDose}ª dose de ${vacina.nome}`}
+                                              >
+                                                {jaTemLembrete ? <BellOff size={13} aria-hidden /> : <Bell size={13} aria-hidden />}
+                                              </button>
+                                            )}
+                                          </>
+                                        )}
+                                        {dose.status === 'aplicada' && registro && (
+                                          <button
+                                            onClick={() => setModal({ tipo: 'apagarDose', dose, vacinaNome: vacina.nome, registroId: registro.id })}
+                                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-error)', padding: 'var(--space-2)', minHeight: 36, minWidth: 36, border: 'none', background: 'none' }}
+                                            aria-label={`Remover registro da ${dose.numeroDose}ª dose de ${vacina.nome}`}
+                                          >
+                                            <Trash2 size={14} aria-hidden />
+                                          </button>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ===================== ABA: VACINAS AVULSAS ===================== */}
+      {abaAtiva === 'avulsas' && (
+        <>
+          {/* Filtros de status */}
+          <div style={{ display: 'flex', gap: 'var(--space-2)', marginBottom: 'var(--space-5)', flexWrap: 'wrap' }}>
+            <button onClick={() => setFiltroStatusAvulsa('todos')} style={styleBtnStatus('todos', filtroStatusAvulsa === 'todos')}>
+              Todas
+            </button>
+            <button onClick={() => setFiltroStatusAvulsa('aplicada')} style={styleBtnStatus('aplicada', filtroStatusAvulsa === 'aplicada', 'var(--color-success)')}>
+              Aplicadas
+            </button>
+            <button onClick={() => setFiltroStatusAvulsa('agendada')} style={styleBtnStatus('agendada', filtroStatusAvulsa === 'agendada', 'var(--color-primary)')}>
+              Agendadas
+            </button>
+          </div>
+
+          {avulsasFiltradas.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 'var(--space-12) var(--space-8)', color: 'var(--color-text-muted)' }}>
+              <ClipboardList size={40} style={{ margin: '0 auto var(--space-3)', opacity: 0.3 }} aria-hidden />
+              <p style={{ fontWeight: 600, marginBottom: 'var(--space-2)' }}>Nenhuma vacina avulsa registrada</p>
+              <p style={{ fontSize: 'var(--text-xs)', marginBottom: 'var(--space-5)' }}>
+                Vacinas fora do calendário oficial — viagens, indicação médica, etc.
+              </p>
+              <button
+                onClick={() => setModal({ tipo: 'adicionarAvulsa' })}
+                className="btn btn-primary"
+                style={{ gap: 'var(--space-2)' }}
+              >
+                <Plus size={15} aria-hidden /> Registrar primeira avulsa
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+              {avulsasFiltradas.map(avulsa => (
+                <div
+                  key={avulsa.id}
+                  className="card"
+                  style={{
+                    padding: 'var(--space-4) var(--space-5)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 'var(--space-4)',
+                    borderLeft: `3.5px solid ${avulsa.tipo === 'aplicada' ? 'var(--color-success)' : 'var(--color-primary)'}`,
+                  }}
+                >
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontWeight: 600, fontSize: 'var(--text-sm)', color: 'var(--color-text)' }}>
+                      {avulsa.nome}
+                    </p>
+                    <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginTop: 'var(--space-1)' }}>
+                      {avulsa.tipo === 'aplicada' ? 'Aplicada em' : 'Agendada para'} {formatarData(avulsa.data)}
+                      {avulsa.local ? ` · ${avulsa.local}` : ''}
+                    </p>
+                  </div>
+                  <span
+                    style={{
+                      fontSize: 'var(--text-xs)', fontWeight: 700,
+                      padding: 'var(--space-1) var(--space-3)',
+                      borderRadius: 'var(--radius-full)',
+                      background: avulsa.tipo === 'aplicada' ? 'var(--color-success-highlight)' : 'var(--color-primary-highlight)',
+                      color: avulsa.tipo === 'aplicada' ? 'var(--color-success)' : 'var(--color-primary)',
+                      flexShrink: 0,
+                    }}
+                  >
+                    {avulsa.tipo === 'aplicada' ? 'Aplicada' : 'Agendada'}
+                  </span>
+                  {avulsa.tipo === 'aplicada' && avulsa.registroId && (
+                    <button
+                      onClick={() => removerRegistro(avulsa.registroId)}
+                      style={{ color: 'var(--color-error)', background: 'none', border: 'none', cursor: 'pointer', padding: 'var(--space-2)', flexShrink: 0 }}
+                      aria-label={`Remover ${avulsa.nome}`}
+                    >
+                      <Trash2 size={15} aria-hidden />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </>
       )}
 
       {/* ================================================================= */}
       {/* MODAIS */}
       {/* ================================================================= */}
-
-      {/* Modal: Filtros da caderneta */}
-      {filtrosAbertos && (
-        <div role="dialog" aria-modal="true" aria-labelledby="modal-filtros-title" style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', background: 'oklch(0 0 0 / 0.5)', padding: 'var(--space-4)' }} onClick={e => { if (e.target === e.currentTarget) setFiltrosAbertos(false) }}>
-          <div className="card" style={{ width: '100%', maxWidth: 480, display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-              <Filter size={18} style={{ color: 'var(--color-primary)', flexShrink: 0 }} aria-hidden />
-              <h3 id="modal-filtros-title" style={{ fontWeight: 700, color: 'var(--color-text)', fontSize: 'var(--text-base)', flex: 1 }}>Filtros</h3>
-              <button onClick={() => setFiltrosAbertos(false)} style={{ color: 'var(--color-text-muted)', background: 'none', border: 'none', cursor: 'pointer' }} aria-label="Fechar filtros"><X size={18} aria-hidden /></button>
-            </div>
-            <div>
-              <label htmlFor="filtro-status" style={{ display: 'block', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginBottom: 'var(--space-2)', fontWeight: 500 }}>Status</label>
-              <select
-                id="filtro-status"
-                value={filtroStatus}
-                onChange={e => setFiltroStatus(e.target.value as typeof filtroStatus)}
-                className="input-field"
-                style={{ minHeight: 48 }}
-              >
-                <option value="todos">Todos os status</option>
-                <option value="pendente">Pendentes</option>
-                <option value="atrasada">Atrasadas</option>
-                <option value="aplicada">Aplicadas</option>
-              </select>
-            </div>
-            <div>
-              <label htmlFor="filtro-ciclo" style={{ display: 'block', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginBottom: 'var(--space-2)', fontWeight: 500 }}>Ciclo vacinal</label>
-              <select
-                id="filtro-ciclo"
-                value={filtroCiclo}
-                onChange={e => setFiltroCiclo(e.target.value as typeof filtroCiclo)}
-                className="input-field"
-                style={{ minHeight: 48 }}
-              >
-                <option value="todos">Todos os ciclos</option>
-                {CICLOS.map(c => (
-                  <option key={c.id} value={c.id}>{c.label}</option>
-                ))}
-              </select>
-            </div>
-            <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
-              <button
-                onClick={() => { setFiltroStatus('todos'); setFiltroCiclo('todos'); setFiltrosAbertos(false) }}
-                className="btn btn-ghost"
-                style={{ flex: 1 }}
-              >
-                Limpar filtros
-              </button>
-              <button
-                onClick={() => setFiltrosAbertos(false)}
-                className="btn btn-primary"
-                style={{ flex: 1 }}
-              >
-                Aplicar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Modal: Marcar como tomada */}
       {modal.tipo === 'marcarTomada' && (
@@ -847,7 +1089,7 @@ export function VacinaMembroPage() {
             </div>
             <div style={{ background: 'var(--color-surface-offset)', borderRadius: 'var(--radius-md)', padding: 'var(--space-3)' }}>
               <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', lineHeight: 1.5 }}>
-                <strong>Data passada ou hoje:</strong> o registro vai direto para o histórico.<br />
+                <strong>Data passada ou hoje:</strong> o registro vai direto para a aba Avulsas.<br />
                 <strong>Data futura:</strong> será criado um lembrete na seção Agenda.
               </p>
             </div>
