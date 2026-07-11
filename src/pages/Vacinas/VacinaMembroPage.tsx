@@ -152,6 +152,11 @@ export function VacinaMembroPage() {
     )
   }
 
+  // A partir daqui membro está garantido como definido pelo guard acima.
+  // Capturamos em uma const tipada para que funções declaradas abaixo
+  // (closures) também se beneficiem do narrowing do TypeScript.
+  const membroDefinido = membro
+
   const registrosMembro = buscarRegistrosMembro(membroSelecionadoId)
 
   const aguardandoAPI = carregando || vacinas.length === 0
@@ -159,7 +164,7 @@ export function VacinaMembroPage() {
   // Mostra todas as vacinas que têm ao menos uma dose pendente/aplicável
   const vacinasAplicaveis = !aguardandoAPI
     ? vacinas.filter(v => {
-        const doses = calcularDosesStatus(v, registrosMembro, membro.data_nascimento)
+        const doses = calcularDosesStatus(v, registrosMembro, membroDefinido.data_nascimento)
         const dosesVisiveis = doses.filter(d => d.status !== 'nao_aplicavel')
         if (dosesVisiveis.length === 0) return false
         return dosesVisiveis.some(d => d.status !== 'aplicada')
@@ -218,7 +223,7 @@ export function VacinaMembroPage() {
     setConfirmandoTodas(true)
     try {
       for (const vacina of vacinasInfantisPendentes) {
-        const doses = calcularDosesStatus(vacina, registrosMembro, membro.data_nascimento)
+        const doses = calcularDosesStatus(vacina, registrosMembro, membroDefinido.data_nascimento)
         for (const dose of doses) {
           if (dose.status !== 'aplicada' && dose.status !== 'nao_aplicavel') {
             registrarDose(
@@ -291,10 +296,10 @@ export function VacinaMembroPage() {
       {/* Card do membro + seletor */}
       <div className="card" style={{ marginBottom: 'var(--space-5)', padding: 'var(--space-4) var(--space-5)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
-          <Avatar nome={membro.nome} tamanho={48} fotoUrl={membro.foto_url} />
+          <Avatar nome={membroDefinido.nome} tamanho={48} fotoUrl={membroDefinido.foto_url} />
           <div style={{ flex: 1, minWidth: 0 }}>
-            <p style={{ fontWeight: 700, color: 'var(--color-text)', fontSize: 'var(--text-base)' }}>{membro.nome}</p>
-            <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>{RELACAO_LABEL[membro.relacao]}</p>
+            <p style={{ fontWeight: 700, color: 'var(--color-text)', fontSize: 'var(--text-base)' }}>{membroDefinido.nome}</p>
+            <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>{RELACAO_LABEL[membroDefinido.relacao]}</p>
           </div>
           {outrosMembros.length > 0 && (
             <button
@@ -364,12 +369,12 @@ export function VacinaMembroPage() {
         </ul>
       ) : vacinasAplicaveis.length === 0 ? (
         <div style={{ textAlign: 'center', padding: 'var(--space-12) var(--space-8)', color: 'var(--color-text-muted)' }}>
-          <p style={{ fontSize: 'var(--text-sm)' }}>Nenhuma vacina pendente para {membro.nome.split(' ')[0]}. ✅</p>
+          <p style={{ fontSize: 'var(--text-sm)' }}>Nenhuma vacina pendente para {membroDefinido.nome.split(' ')[0]}. ✅</p>
         </div>
       ) : (
         <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }} role="list">
           {vacinasAplicaveis.map(vacina => {
-            const doses = calcularDosesStatus(vacina, registrosMembro, membro.data_nascimento)
+            const doses = calcularDosesStatus(vacina, registrosMembro, membroDefinido.data_nascimento)
               .filter(d => d.status !== 'nao_aplicavel')
             const aberto = vacinaExpandida === vacina.id
 
@@ -391,7 +396,7 @@ export function VacinaMembroPage() {
                       {doses.map(d => (
                         <VacinaStatusBadge
                           key={d.numeroDose}
-                          status={isAtrasada(d, membro.data_nascimento, hoje) ? 'atrasada' : d.status}
+                          status={isAtrasada(d, membroDefinido.data_nascimento, hoje) ? 'atrasada' : d.status}
                           mostrarLabel={false}
                         />
                       ))}
@@ -404,7 +409,7 @@ export function VacinaMembroPage() {
                       <hr className="divider" style={{ margin: 0 }} />
                       <ul style={{ listStyle: 'none', padding: 'var(--space-2) 0' }} role="list">
                         {doses.map(dose => {
-                          const atrasada = isAtrasada(dose, membro.data_nascimento, hoje)
+                          const atrasada = isAtrasada(dose, membroDefinido.data_nascimento, hoje)
                           const statusEfetivo: typeof dose.status = atrasada ? 'atrasada' : dose.status
                           const registro = registros.find(
                             r =>
@@ -479,7 +484,7 @@ export function VacinaMembroPage() {
               </h3>
             </div>
             <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
-              Vacina: <strong>{modal.vacinaNome}</strong> · Membro: <strong>{membro.nome}</strong>
+              Vacina: <strong>{modal.vacinaNome}</strong> · Membro: <strong>{membroDefinido.nome}</strong>
             </p>
             <div>
               <label htmlFor="data-confirm" style={{ display: 'block', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginBottom: 'var(--space-2)', fontWeight: 500 }}>Data de aplicação *</label>
@@ -509,7 +514,7 @@ export function VacinaMembroPage() {
               </h3>
             </div>
             <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)' }}>
-              Você está removendo o registro da <strong>{modal.dose.numeroDose}ª dose</strong> de <strong>{modal.vacinaNome}</strong> para <strong>{membro.nome}</strong>.
+              Você está removendo o registro da <strong>{modal.dose.numeroDose}ª dose</strong> de <strong>{modal.vacinaNome}</strong> para <strong>{membroDefinido.nome}</strong>.
               Esta ação não pode ser desfeita.
             </p>
             <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
