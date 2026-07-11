@@ -28,6 +28,13 @@ function calcularIdadeAnos(dataNascimento: string, hoje: string): number {
   return idade
 }
 
+/** Converte um slug de doença em texto legível. Ex: "virus_sincicial_respiratorio" → "Vírus Sincicial Respiratório" */
+function formatarDoenca(slug: string): string {
+  return slug
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, c => c.toUpperCase())
+}
+
 export type CicloId = 'pre_natal' | 'recem_nascido' | 'crianca' | 'adolescente' | 'adulto' | 'idoso'
 
 interface Ciclo {
@@ -692,7 +699,7 @@ export function VacinaMembroPage() {
                               <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginTop: 2 }}>{vacina.descricao}</p>
                               {vacina.doencas_previstas && vacina.doencas_previstas.length > 0 && (
                                 <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-faint)', marginTop: 2 }}>
-                                  Protege contra: {vacina.doencas_previstas.join(', ')}
+                                  Protege contra: {vacina.doencas_previstas.map(formatarDoenca).join(', ')}
                                 </p>
                               )}
                             </div>
