@@ -659,6 +659,13 @@ export function VacinaMembroPage() {
     )
   }
 
+  /** Busca o registro salvo de uma dose de ciclo (para exibir local_aplicacao e obter o id). */
+  function buscarRegistroDose(vacinaId: string, numeroDose: number): RegistroVacinal | undefined {
+    return registrosMembro.find(
+      r => r.vacina_id === vacinaId && r.numero_dose === numeroDose && r.vacina_id !== 'avulsa'
+    )
+  }
+
   // ---------------------------------------------------------------------------
   // JSX
   // ---------------------------------------------------------------------------
@@ -912,8 +919,10 @@ export function VacinaMembroPage() {
                                 <div>
                                   <p style={{ fontWeight: 600, fontSize: 'var(--text-sm)', color: 'var(--color-text)' }}>{vacina.nome}</p>
                                   <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginTop: 2 }}>{vacina.descricao}</p>
-                                  {vacina.protege_contra && (
-                                    <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-faint)', marginTop: 2 }}>Protege contra: {vacina.protege_contra}</p>
+                                  {vacina.doencas_previstas && vacina.doencas_previstas.length > 0 && (
+                                    <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-faint)', marginTop: 2 }}>
+                                      Protege contra: {vacina.doencas_previstas.join(', ')}
+                                    </p>
                                   )}
                                 </div>
                               </div>
@@ -925,6 +934,7 @@ export function VacinaMembroPage() {
                                   const statusEfetivo = atrasada ? 'atrasada' : dose.status
                                   const tomada = dose.status === 'aplicada'
                                   const temLembrete = temLembretePendente(vacina.id, dose.numeroDose)
+                                  const registroDose = tomada ? buscarRegistroDose(vacina.id, dose.numeroDose) : undefined
 
                                   return (
                                     <li key={dose.numeroDose} style={{
@@ -941,16 +951,16 @@ export function VacinaMembroPage() {
                                       <div style={{ flex: 1, minWidth: 0 }}>
                                         <p style={{ fontSize: 'var(--text-sm)', fontWeight: 500, color: tomada ? 'var(--color-text-muted)' : 'var(--color-text)', textDecoration: tomada ? 'line-through' : 'none' }}>
                                           {dose.numeroDose}ª dose
-                                          {dose.dataPrevista && !tomada && (
+                                          {dose.dataRecomendada && !tomada && (
                                             <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-faint)', marginLeft: 'var(--space-2)' }}>
-                                              Prevista: {formatarData(dose.dataPrevista)}
+                                              Prevista: {formatarData(dose.dataRecomendada)}
                                             </span>
                                           )}
                                         </p>
                                         {tomada && dose.dataAplicacao && (
                                           <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
                                             Tomada em {formatarData(dose.dataAplicacao)}
-                                            {dose.localAplicacao && <> · {dose.localAplicacao}</>}
+                                            {registroDose?.local_aplicacao && <> · {registroDose.local_aplicacao}</>}
                                           </p>
                                         )}
                                       </div>
@@ -974,7 +984,7 @@ export function VacinaMembroPage() {
                                                   const l = lembretes.find(x => x.membro_id === membroSelecionadoId && x.vacina_id === vacina.id && x.numero_dose === dose.numeroDose && x.status === 'pendente')
                                                   if (l) removerLembrete(l.id)
                                                 } else {
-                                                  setDataLembrete(dose.dataPrevista ?? '')
+                                                  setDataLembrete(dose.dataRecomendada ?? '')
                                                   setErroLembrete('')
                                                   setModal({ tipo: 'lembreteManual', dose, vacinaNome: vacina.nome })
                                                 }
@@ -988,7 +998,10 @@ export function VacinaMembroPage() {
                                           </>
                                         ) : (
                                           <button
-                                            onClick={() => setModal({ tipo: 'apagarDose', dose, vacinaNome: vacina.nome, registroId: dose.registroId! })}
+                                            onClick={() => {
+                                              const reg = buscarRegistroDose(vacina.id, dose.numeroDose)
+                                              if (reg) setModal({ tipo: 'apagarDose', dose, vacinaNome: vacina.nome, registroId: reg.id })
+                                            }}
                                             className="btn btn-ghost"
                                             style={{ minHeight: 32, padding: 'var(--space-1) var(--space-2)', color: 'var(--color-text-faint)' }}
                                             aria-label={`Remover registro da ${dose.numeroDose}ª dose de ${vacina.nome}`}
