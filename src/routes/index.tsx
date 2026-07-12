@@ -19,6 +19,7 @@ import { AdminLoginPage } from '@/pages/Admin/AdminLoginPage'
 import { AdminShell } from '@/pages/Admin/AdminShell'
 import { AdminOverviewPage } from '@/pages/Admin/AdminOverviewPage'
 import { AdminUsuariosPage } from '@/pages/Admin/AdminUsuariosPage'
+import { AdminVacinasPage } from '@/pages/Admin/AdminVacinasPage'
 import { AdminCardsPage } from '@/pages/Admin/AdminCardsPage'
 
 export const router = createBrowserRouter([
@@ -36,6 +37,7 @@ export const router = createBrowserRouter([
     children: [
       { index: true,      element: <AdminOverviewPage /> },
       { path: 'usuarios', element: <AdminUsuariosPage /> },
+      { path: 'vacinas',  element: <AdminVacinasPage /> },
       { path: 'cards',    element: <AdminCardsPage /> },
     ],
   },
