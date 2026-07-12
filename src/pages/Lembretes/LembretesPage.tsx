@@ -49,15 +49,16 @@ export function LembretesPage() {
   const [modalAberto, setModalAberto] = useState(false)
   const [diaSelecionado, setDiaSelecionado] = useState<string | null>(null)
 
+  // Captura o mês/ano atual uma única vez na montagem do componente
   const hoje = new Date()
-  const hojeAno = hoje.getFullYear()
-  const hojesMes = hoje.getMonth()
+  const HOJE_ANO = hoje.getFullYear()
+  const HOJE_MES = hoje.getMonth()
 
-  const [mesAtual, setMesAtual] = useState(hojesMes)
-  const [anoAtual, setAnoAtual] = useState(hojeAno)
+  const [mesAtual, setMesAtual] = useState(HOJE_MES)
+  const [anoAtual, setAnoAtual] = useState(HOJE_ANO)
 
-  // Bloqueia navegação para meses anteriores ao atual
-  const estaNoMesAtual = mesAtual === hojesMes && anoAtual === hojeAno
+  // true quando o calendário está exibindo o mês atual (mínimo navegável)
+  const estaNoMesMinimo = anoAtual < HOJE_ANO || (anoAtual === HOJE_ANO && mesAtual <= HOJE_MES)
 
   const [fMembroId, setFMembroId] = useState('')
   const [fVacinaId, setFVacinaId] = useState('')
@@ -85,7 +86,8 @@ export function LembretesPage() {
   }
 
   function mesAnterior() {
-    if (estaNoMesAtual) return // bloqueado
+    // Bloqueia qualquer tentativa de voltar para mês igual ou anterior ao atual
+    if (estaNoMesMinimo) return
     if (mesAtual === 0) { setMesAtual(11); setAnoAtual(a => a - 1) }
     else setMesAtual(m => m - 1)
     setDiaSelecionado(null)
@@ -209,7 +211,7 @@ export function LembretesPage() {
     )
   }
 
-  const hojeKey = `${hojeAno}-${String(hojesMes + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`
+  const hojeKey = `${HOJE_ANO}-${String(HOJE_MES + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`
 
   return (
     <div style={{ maxWidth: 640, margin: '0 auto', paddingBottom: 'var(--space-8)' }}>
@@ -235,11 +237,11 @@ export function LembretesPage() {
             onClick={mesAnterior}
             className="theme-toggle"
             aria-label="Mês anterior"
-            disabled={estaNoMesAtual}
+            disabled={estaNoMesMinimo}
+            aria-disabled={estaNoMesMinimo}
             style={{
-              opacity: estaNoMesAtual ? 0.3 : 1,
-              cursor: estaNoMesAtual ? 'not-allowed' : 'pointer',
-              pointerEvents: estaNoMesAtual ? 'none' : 'auto',
+              opacity: estaNoMesMinimo ? 0.25 : 1,
+              cursor: estaNoMesMinimo ? 'not-allowed' : 'pointer',
             }}
           >
             <ChevronLeft size={18} aria-hidden />
@@ -275,9 +277,8 @@ export function LembretesPage() {
             const isSelecionado = key === diaSelecionado
             const temPendente = eventosPorDia[key]?.some(l => l.status === 'pendente')
             const temAtrasado = eventosPorDia[key]?.some(l => l.status === 'pendente' && isAtrasado(obterData(l)))
-            const temConcluido = eventosPorDia[key]?.every(l => l.status === 'concluido')
 
-            // Cor de destaque do dia com evento
+            // Cor de destaque conforme prioridade: atrasado > pendente > concluído
             const eventoColor = temAtrasado
               ? 'var(--color-error)'
               : temPendente
@@ -290,7 +291,7 @@ export function LembretesPage() {
               ? 'var(--color-primary-highlight)'
               : 'var(--color-success-highlight)'
 
-            // Prioridade de estilos: selecionado > hoje > com evento > normal
+            // Prioridade de estilos: selecionado > evento+hoje > só hoje > só evento > normal
             let bgDia: string
             let colorDia: string
             let borderDia: string
@@ -301,7 +302,7 @@ export function LembretesPage() {
               colorDia   = '#fff'
               borderDia  = '1.5px solid transparent'
               fontWeight = 700
-            } else if (isHoje && temEvento) {
+            } else if (temEvento && isHoje) {
               bgDia      = eventoHighlight
               colorDia   = eventoColor
               borderDia  = `1.5px solid ${eventoColor}`
@@ -312,10 +313,11 @@ export function LembretesPage() {
               borderDia  = '1.5px solid var(--color-primary)'
               fontWeight = 700
             } else if (temEvento) {
+              // Dia inteiro destacado — fundo cheio com cor do tipo de evento
               bgDia      = eventoHighlight
               colorDia   = eventoColor
-              borderDia  = '1.5px solid transparent'
-              fontWeight = 600
+              borderDia  = `1.5px solid ${eventoColor}44`
+              fontWeight = 700
             } else {
               bgDia      = 'transparent'
               colorDia   = 'var(--color-text)'
@@ -323,7 +325,6 @@ export function LembretesPage() {
               fontWeight = 400
             }
 
-            // Pequeno contador de eventos no canto (só quando há múltiplos)
             const qtdEventos = eventosPorDia[key]?.length ?? 0
 
             return (
@@ -355,40 +356,19 @@ export function LembretesPage() {
                 }}
               >
                 <span>{dia}</span>
-                {temEvento && qtdEventos > 1 && (
+                {/* Contador de múltiplos eventos, discreto abaixo do número */}
+                {temEvento && qtdEventos > 1 && !isSelecionado && (
                   <span
                     aria-hidden
                     style={{
                       fontSize: 9,
                       fontWeight: 700,
-                      color: isSelecionado ? 'rgba(255,255,255,0.85)' : eventoColor,
+                      color: eventoColor,
                       lineHeight: 1,
+                      opacity: 0.8,
                     }}
                   >
                     {qtdEventos}
-                  </span>
-                )}
-                {temEvento && qtdEventos === 1 && (
-                  <span
-                    aria-hidden
-                    style={{
-                      width: 4, height: 4,
-                      borderRadius: 'var(--radius-full)',
-                      background: isSelecionado ? 'rgba(255,255,255,0.7)' : eventoColor,
-                      flexShrink: 0,
-                    }}
-                  />
-                )}
-                {/* Badge de concluído (check) quando todos os eventos do dia estão concluídos */}
-                {temConcluido && !isSelecionado && (
-                  <span
-                    aria-hidden
-                    style={{
-                      position: 'absolute', top: 2, right: 3,
-                      fontSize: 8, color: 'var(--color-success)', fontWeight: 800, lineHeight: 1,
-                    }}
-                  >
-                    ✓
                   </span>
                 )}
               </button>
