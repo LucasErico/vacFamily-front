@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { useNavigate, useLocation, Link } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { useA11y } from '@/contexts/AccessibilityContext'
 import { Syringe, Eye, EyeOff, Sun, Moon, Accessibility, Loader2 } from 'lucide-react'
@@ -9,8 +9,6 @@ export function LoginPage() {
   const { login, backAquecendo } = useAuth()
   const { theme, toggleTheme } = useA11y()
   const navigate = useNavigate()
-  const location = useLocation()
-  const from = (location.state as { from?: { pathname: string } })?.from?.pathname ?? '/'
 
   const [email, setEmail]               = useState('')
   const [senha, setSenha]               = useState('')
@@ -27,7 +25,8 @@ export function LoginPage() {
     const result = await login(email, senha)
     setCarregando(false)
     if (result.ok) {
-      navigate(from, { replace: true })
+      // Sempre inicia pela página de início ao fazer login
+      navigate('/', { replace: true })
     } else {
       setErro(result.erro ?? 'Erro ao fazer login.')
     }
