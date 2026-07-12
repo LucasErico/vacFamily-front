@@ -2,8 +2,8 @@
  * adminStorage
  * Camada de acesso a dados do painel admin.
  *
- * Cards: consome a API REST /conteudo (banco remoto).
- * Snapshot de usuários: mantido em sessionStorage (somente leitura local).
+ * Cards:    consome a API REST /conteudo (banco remoto).
+ * Usuários: consome a API REST /admin/usuarios (CRUD completo).
  *
  * IMPORTANTE: cores dos cards devem ser HEX (não CSS vars), pois
  * são usadas em style={{ background: card.cor }} — CSS vars não
@@ -28,6 +28,21 @@ export interface PerfilAdmin {
   email: string
   criadoEm: string
   membros: number
+  admin?: boolean
+}
+
+export interface CreateUsuarioPayload {
+  nome: string
+  email: string
+  senha: string
+  admin?: boolean
+}
+
+export interface UpdateUsuarioPayload {
+  nome?: string
+  email?: string
+  senha?: string
+  admin?: boolean
 }
 
 // ── Cards de conteúdo (API remota) ────────────────────────────
@@ -69,7 +84,42 @@ export async function deleteCard(id: string): Promise<void> {
   await apiFetch(`/conteudo/${id}`, { method: 'DELETE' })
 }
 
-// ── Snapshot de usuários (sessionStorage local) ───────────────
+// ── Usuários (API remota — CRUD completo) ─────────────────────
+
+/** Lista todos os usuários do sistema */
+export async function getUsuariosAdmin(): Promise<PerfilAdmin[]> {
+  const res = await apiFetch<{ usuarios: PerfilAdmin[] }>('/admin/usuarios')
+  return res.usuarios
+}
+
+/** Cria um novo usuário */
+export async function createUsuario(data: CreateUsuarioPayload): Promise<PerfilAdmin> {
+  const res = await apiFetch<{ usuario: PerfilAdmin }>('/admin/usuarios', {
+    method: 'POST',
+    body: data,
+  })
+  return res.usuario
+}
+
+/** Edita nome, email, senha e/ou flag admin de um usuário existente */
+export async function updateUsuario(
+  id: string,
+  data: UpdateUsuarioPayload
+): Promise<void> {
+  await apiFetch(`/admin/usuarios/${id}`, {
+    method: 'PUT',
+    body: data,
+  })
+}
+
+/** Remove um usuário */
+export async function deleteUsuario(id: string): Promise<void> {
+  await apiFetch(`/admin/usuarios/${id}`, { method: 'DELETE' })
+}
+
+// ── Snapshot local de usuários (sessionStorage) ───────────────
+// Mantido para compatibilidade com código legado que usa snapshot.
+// Prefira as funções da API acima para operações reais.
 
 const KEY_USUARIOS = 'vacfamily_usuarios_snapshot'
 
