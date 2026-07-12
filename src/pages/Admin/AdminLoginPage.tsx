@@ -1,42 +1,68 @@
 /**
  * AdminLoginPage
- * Tela de login exclusiva do painel admin.
+ * Login do painel admin usando e-mail + senha reais (mesma API /auth/login).
+ * O token JWT é salvo na chave 'vf_token' do sessionStorage — a mesma usada
+ * pelo apiFetch — para que as rotas protegidas do back recebam o Bearer token.
+ *
  * Acesso somente via URL: /admin/login
  * Não há link público para esta página.
  */
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ShieldCheck, Eye, EyeOff } from 'lucide-react'
+import { ShieldCheck, Eye, EyeOff, Loader2 } from 'lucide-react'
+import { apiFetch, setToken } from '@/services/api'
 
-// Credenciais do admin — futuramente viraro env vars / backend
-const ADMIN_PASS = 'vacfamily@admin2026'
+const ADMIN_SESSION_KEY = 'vacfamily_admin_session'
 
-const ADMIN_KEY = 'vacfamily_admin_session'
-export function setAdminSession() { sessionStorage.setItem(ADMIN_KEY, '1') }
-export function clearAdminSession() { sessionStorage.removeItem(ADMIN_KEY) }
-export function isAdminLoggedIn() { return sessionStorage.getItem(ADMIN_KEY) === '1' }
+export function setAdminSession(token: string) {
+  setToken(token)  // injeta no apiFetch
+  try { sessionStorage.setItem(ADMIN_SESSION_KEY, '1') } catch { /* noop */ }
+}
+
+export function clearAdminSession() {
+  try {
+    sessionStorage.removeItem(ADMIN_SESSION_KEY)
+    sessionStorage.removeItem('vf_token')
+  } catch { /* noop */ }
+}
+
+export function isAdminLoggedIn() {
+  try { return sessionStorage.getItem(ADMIN_SESSION_KEY) === '1' } catch { return false }
+}
+
+interface LoginResponse {
+  status: string
+  access_token: string
+  usuario: { id: string; email: string; nome: string }
+}
 
 export function AdminLoginPage() {
   const navigate = useNavigate()
-  const [senha, setSenha] = useState('')
+  const [email, setEmail]     = useState('')
+  const [senha, setSenha]     = useState('')
   const [mostrar, setMostrar] = useState(false)
-  const [erro, setErro] = useState('')
+  const [erro, setErro]       = useState('')
   const [loading, setLoading] = useState(false)
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setErro('')
     setLoading(true)
-    setTimeout(() => {
-      if (senha === ADMIN_PASS) {
-        setAdminSession()
-        navigate('/admin', { replace: true })
-      } else {
-        setErro('Senha incorreta.')
-        setSenha('')
-      }
+
+    try {
+      const res = await apiFetch<LoginResponse>('/auth/login', {
+        method: 'POST',
+        body: { email, senha },
+      })
+
+      setAdminSession(res.access_token)
+      navigate('/admin', { replace: true })
+    } catch (err) {
+      setErro(err instanceof Error ? err.message : 'Erro ao autenticar')
+      setSenha('')
+    } finally {
       setLoading(false)
-    }, 400)
+    }
   }
 
   return (
@@ -60,7 +86,8 @@ export function AdminLoginPage() {
         gap: 'var(--space-6)',
         alignItems: 'center',
       }}>
-        {/* Logo */}
+
+        {/* Ícone */}
         <div style={{
           width: 56, height: 56,
           borderRadius: 'var(--radius-xl)',
@@ -85,13 +112,40 @@ export function AdminLoginPage() {
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+        <form
+          onSubmit={handleSubmit}
+          style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}
+        >
+          {/* E-mail */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-            <label
-              htmlFor="admin-senha"
-              style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--color-text)' }}
-            >
-              Senha de acesso
+            <label htmlFor="admin-email" style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--color-text)' }}>
+              E-mail
+            </label>
+            <input
+              id="admin-email"
+              type="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              placeholder="admin@vacfamily.com"
+              autoComplete="username"
+              required
+              style={{
+                width: '100%',
+                padding: 'var(--space-3)',
+                borderRadius: 'var(--radius-md)',
+                border: `1.5px solid ${erro ? 'var(--color-error)' : 'var(--color-border)'}`,
+                background: 'var(--color-bg)',
+                color: 'var(--color-text)',
+                fontSize: 'var(--text-sm)',
+                outline: 'none',
+              }}
+            />
+          </div>
+
+          {/* Senha */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+            <label htmlFor="admin-senha" style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--color-text)' }}>
+              Senha
             </label>
             <div style={{ position: 'relative' }}>
               <input
@@ -99,7 +153,7 @@ export function AdminLoginPage() {
                 type={mostrar ? 'text' : 'password'}
                 value={senha}
                 onChange={e => setSenha(e.target.value)}
-                placeholder="Digite a senha"
+                placeholder="••••••••"
                 autoComplete="current-password"
                 required
                 style={{
@@ -111,7 +165,6 @@ export function AdminLoginPage() {
                   color: 'var(--color-text)',
                   fontSize: 'var(--text-sm)',
                   outline: 'none',
-                  transition: 'border-color var(--transition)',
                 }}
               />
               <button
@@ -137,11 +190,12 @@ export function AdminLoginPage() {
 
           <button
             type="submit"
-            disabled={loading || !senha}
+            disabled={loading || !email || !senha}
             className="btn btn-primary"
-            style={{ width: '100%', justifyContent: 'center' }}
+            style={{ width: '100%', justifyContent: 'center', display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}
           >
-            {loading ? 'Verificando...' : 'Entrar'}
+            {loading && <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} aria-hidden />}
+            {loading ? 'Entrando...' : 'Entrar'}
           </button>
         </form>
       </div>

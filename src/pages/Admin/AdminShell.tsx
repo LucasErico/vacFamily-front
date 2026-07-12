@@ -2,6 +2,9 @@
  * AdminShell
  * Layout base do painel admin. Verifica sessão e redireciona
  * para /admin/login se não autenticado.
+ *
+ * A sessão agora é um JWT real (setado pelo AdminLoginPage via setToken),
+ * então todas as requisições do painel já enviam Bearer token automaticamente.
  */
 import { useEffect } from 'react'
 import { Outlet, useNavigate, NavLink } from 'react-router-dom'
@@ -9,9 +12,9 @@ import { LayoutDashboard, Users, Newspaper, LogOut, ShieldCheck } from 'lucide-r
 import { isAdminLoggedIn, clearAdminSession } from './AdminLoginPage'
 
 const adminNav = [
-  { to: '/admin',         label: 'Visão geral',  icon: LayoutDashboard, end: true },
-  { to: '/admin/usuarios', label: 'Usuários',     icon: Users },
-  { to: '/admin/cards',    label: 'Cards de info', icon: Newspaper },
+  { to: '/admin',          label: 'Visão geral',   icon: LayoutDashboard, end: true },
+  { to: '/admin/usuarios', label: 'Usuários',      icon: Users },
+  { to: '/admin/cards',    label: 'Cards de info',  icon: Newspaper },
 ]
 
 export function AdminShell() {
