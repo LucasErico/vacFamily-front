@@ -1,112 +1,41 @@
 /**
  * ForgotPasswordPage — /esqueci-senha
  *
- * Fluxo em 2 etapas:
- *  1. Usuário informa o e-mail cadastrado
- *  2. Usuário digita a nova senha → POST /auth/reset-password { email, nova_senha }
- *
- * Obs.: fluxo simplificado para testes. Em produção o Supabase envia um
- * link mágico e o access_token chega via hash na URL.
+ * Envia o e-mail de recuperação via POST /auth/forgot-password.
+ * O Supabase dispara um link mágico para /reset-password com o
+ * access_token no hash da URL.
  */
 import { useState, type FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { Syringe, Eye, EyeOff, ArrowLeft, Mail, ShieldCheck } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { Syringe, ArrowLeft, Mail, CheckCircle } from 'lucide-react'
 import { apiFetch } from '@/services/api'
 
-type Etapa = 'email' | 'senha'
-
 export function ForgotPasswordPage() {
-  const navigate = useNavigate()
-  const [etapa, setEtapa] = useState<Etapa>('email')
-
-  // Etapa 1
   const [email, setEmail] = useState('')
   const [erroEmail, setErroEmail] = useState('')
-  const [carregandoEmail, setCarregandoEmail] = useState(false)
+  const [carregando, setCarregando] = useState(false)
+  const [enviado, setEnviado] = useState(false)
 
-  // Etapa 2
-  const [novaSenha, setNovaSenha] = useState('')
-  const [confirmarSenha, setConfirmarSenha] = useState('')
-  const [mostrarSenha, setMostrarSenha] = useState(false)
-  const [mostrarConfirmar, setMostrarConfirmar] = useState(false)
-  const [erroReset, setErroReset] = useState('')
-  const [carregandoReset, setCarregandoReset] = useState(false)
-  const [sucesso, setSucesso] = useState(false)
-
-  // ── Etapa 1: confirmar e-mail ──────────────────────────
-  async function handleAvancar(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!email.trim()) { setErroEmail('Informe seu e-mail.'); return }
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     if (!emailRegex.test(email)) { setErroEmail('E-mail inválido.'); return }
     setErroEmail('')
-    setCarregandoEmail(true)
+    setCarregando(true)
     try {
-      // Sinaliza ao backend para iniciar o fluxo (fire-and-forget —
-      // não bloqueamos se falhar, pois a etapa 2 faz a operação real)
       await apiFetch('/auth/forgot-password', {
         method: 'POST',
         body: { email: email.trim().toLowerCase() },
       })
-    } catch { /* ignora — não vaza se email existe */ }
-    finally { setCarregandoEmail(false) }
-    setEtapa('senha')
-  }
-
-  // ── Etapa 2: redefinir senha ───────────────────────────
-  async function handleReset(e: FormEvent) {
-    e.preventDefault()
-    if (novaSenha.length < 8) { setErroReset('A senha deve ter ao menos 8 caracteres.'); return }
-    if (novaSenha !== confirmarSenha) { setErroReset('As senhas não coincidem.'); return }
-    setErroReset('')
-    setCarregandoReset(true)
-    try {
-      await apiFetch('/auth/reset-password', {
-        method: 'POST',
-        body: {
-          email: email.trim().toLowerCase(),
-          nova_senha: novaSenha,
-        },
-      })
-      setSucesso(true)
-      setTimeout(() => navigate('/login'), 2500)
-    } catch (err) {
-      const msg = (err as Error).message ?? ''
-      if (msg.includes('não encontrado') || msg.includes('not found') || msg.includes('404')) {
-        setErroReset('E-mail não encontrado. Verifique e tente novamente.')
-      } else {
-        setErroReset('Erro ao redefinir a senha. Tente novamente.')
-      }
-    } finally {
-      setCarregandoReset(false)
-    }
-  }
-
-  // ── Tela de sucesso ──────────────────────────────
-  if (sucesso) {
-    return (
-      <AuthLayout titulo="Senha redefinida!" subtitulo="Você será redirecionado para o login.">
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'var(--space-4)', padding: 'var(--space-8)' }}>
-          <div style={{
-            width: 64, height: 64, borderRadius: '50%',
-            background: 'var(--color-success-highlight)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            <ShieldCheck size={32} color="var(--color-success)" aria-hidden />
-          </div>
-          <p style={{ textAlign: 'center', color: 'var(--color-text-muted)', fontSize: 'var(--text-sm)' }}>
-            Senha alterada com sucesso! Redirecionando…
-          </p>
-        </div>
-      </AuthLayout>
-    )
+    } catch { /* ignora — não vaza se e-mail existe */ }
+    finally { setCarregando(false) }
+    setEnviado(true)
   }
 
   return (
-    <AuthLayout titulo="Recuperar acesso" subtitulo="Vamos redefinir sua senha">
+    <AuthLayout titulo="Recuperar acesso" subtitulo="Redefinir senha por e-mail">
       <div className="card">
-
-        {/* Cabeçalho com botão voltar */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-6)' }}>
           <Link
             to="/login"
@@ -120,19 +49,13 @@ export function ForgotPasswordPage() {
           >
             <ArrowLeft size={16} aria-hidden />
           </Link>
-          <div>
-            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--text-lg)', fontWeight: 700, color: 'var(--color-text)' }}>
-              {etapa === 'email' ? 'Esqueci minha senha' : 'Nova senha'}
-            </h2>
-            <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginTop: 2 }}>
-              Etapa {etapa === 'email' ? '1' : '2'} de 2
-            </p>
-          </div>
+          <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--text-lg)', fontWeight: 700, color: 'var(--color-text)' }}>
+            Esqueci minha senha
+          </h2>
         </div>
 
-        {/* ── Etapa 1: e-mail ── */}
-        {etapa === 'email' && (
-          <form onSubmit={handleAvancar} noValidate style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+        {!enviado ? (
+          <form onSubmit={handleSubmit} noValidate style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
             <div style={{
               display: 'flex', gap: 'var(--space-3)', alignItems: 'flex-start',
               padding: 'var(--space-3) var(--space-4)',
@@ -141,7 +64,7 @@ export function ForgotPasswordPage() {
             }}>
               <Mail size={16} style={{ color: 'var(--color-primary)', marginTop: 2, flexShrink: 0 }} aria-hidden />
               <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text)', lineHeight: 1.5 }}>
-                Informe o e-mail da sua conta para continuar.
+                Enviaremos um link para redefinir sua senha.
               </p>
             </div>
 
@@ -162,94 +85,41 @@ export function ForgotPasswordPage() {
               )}
             </div>
 
-            <button type="submit" disabled={carregandoEmail} className="btn btn-primary" style={{ width: '100%' }}>
-              {carregandoEmail ? 'Verificando…' : 'Continuar'}
+            <button type="submit" disabled={carregando} className="btn btn-primary" style={{ width: '100%' }}>
+              {carregando ? 'Enviando…' : 'Enviar link de recuperação'}
             </button>
           </form>
-        )}
-
-        {/* ── Etapa 2: nova senha ── */}
-        {etapa === 'senha' && (
-          <form onSubmit={handleReset} noValidate style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'var(--space-4)', padding: 'var(--space-6) 0', textAlign: 'center' }}>
             <div style={{
-              padding: 'var(--space-3) var(--space-4)',
-              background: 'var(--color-surface-offset)',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 'var(--text-sm)',
-              color: 'var(--color-text-muted)',
+              width: 56, height: 56, borderRadius: '50%',
+              background: 'var(--color-success-highlight)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
-              Redefinindo senha para{' '}
-              <strong style={{ color: 'var(--color-text)' }}>{email}</strong>
-              {' '}·{' '}
-              <button
-                type="button"
-                onClick={() => { setEtapa('email'); setErroReset(''); setNovaSenha(''); setConfirmarSenha('') }}
-                style={{ color: 'var(--color-primary)', fontWeight: 600, fontSize: 'inherit', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-              >
-                Alterar
-              </button>
+              <CheckCircle size={28} color="var(--color-success)" aria-hidden />
             </div>
-
-            {/* Nova senha */}
             <div>
-              <label htmlFor="nova-senha" style={labelStyle}>Nova senha</label>
-              <div style={{ position: 'relative' }}>
-                <input
-                  id="nova-senha"
-                  type={mostrarSenha ? 'text' : 'password'}
-                  autoComplete="new-password"
-                  value={novaSenha}
-                  onChange={e => setNovaSenha(e.target.value)}
-                  placeholder="Mínimo 8 caracteres"
-                  className="input-field"
-                  style={{ paddingRight: 'var(--space-12)' }}
-                />
-                <button type="button" onClick={() => setMostrarSenha(v => !v)} aria-label={mostrarSenha ? 'Ocultar senha' : 'Mostrar senha'} style={showBtnStyle}>
-                  {mostrarSenha ? <EyeOff size={18} aria-hidden /> : <Eye size={18} aria-hidden />}
-                </button>
-              </div>
+              <p style={{ fontWeight: 600, color: 'var(--color-text)', marginBottom: 'var(--space-1)' }}>
+                Verifique seu e-mail
+              </p>
+              <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)', maxWidth: '30ch', margin: '0 auto' }}>
+                Se <strong>{email}</strong> estiver cadastrado, você receberá um link em instantes.
+              </p>
             </div>
-
-            {/* Confirmar senha */}
-            <div>
-              <label htmlFor="confirmar-senha" style={labelStyle}>Confirmar senha</label>
-              <div style={{ position: 'relative' }}>
-                <input
-                  id="confirmar-senha"
-                  type={mostrarConfirmar ? 'text' : 'password'}
-                  autoComplete="new-password"
-                  value={confirmarSenha}
-                  onChange={e => setConfirmarSenha(e.target.value)}
-                  placeholder="Repita a nova senha"
-                  className="input-field"
-                  style={{ paddingRight: 'var(--space-12)' }}
-                />
-                <button type="button" onClick={() => setMostrarConfirmar(v => !v)} aria-label={mostrarConfirmar ? 'Ocultar confirmação' : 'Mostrar confirmação'} style={showBtnStyle}>
-                  {mostrarConfirmar ? <EyeOff size={18} aria-hidden /> : <Eye size={18} aria-hidden />}
-                </button>
-              </div>
-            </div>
-
-            {erroReset && (
-              <p role="alert" style={erroBlockStyle}>{erroReset}</p>
-            )}
-
             <button
-              type="submit"
-              disabled={carregandoReset || novaSenha.length < 8 || !confirmarSenha}
-              className="btn btn-primary"
-              style={{ width: '100%' }}
+              type="button"
+              onClick={() => setEnviado(false)}
+              style={{ color: 'var(--color-primary)', fontWeight: 600, fontSize: 'var(--text-sm)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
             >
-              {carregandoReset ? 'Salvando…' : 'Redefinir senha'}
+              Tentar outro e-mail
             </button>
-          </form>
+          </div>
         )}
       </div>
     </AuthLayout>
   )
 }
 
-// ── Layout compartilhado ───────────────────────────────
 function AuthLayout({ titulo, subtitulo, children }: { titulo: string; subtitulo: string; children: React.ReactNode }) {
   return (
     <div style={{ minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 'var(--space-4)', background: 'var(--color-bg)' }}>
@@ -279,14 +149,4 @@ const labelStyle: React.CSSProperties = {
 }
 const erroInlineStyle: React.CSSProperties = {
   fontSize: 'var(--text-xs)', color: 'var(--color-error)', marginTop: 'var(--space-1)',
-}
-const erroBlockStyle: React.CSSProperties = {
-  fontSize: 'var(--text-sm)', color: 'var(--color-error)',
-  background: 'var(--color-error-highlight)',
-  padding: 'var(--space-3) var(--space-4)', borderRadius: 'var(--radius-md)',
-}
-const showBtnStyle: React.CSSProperties = {
-  position: 'absolute', right: 'var(--space-3)', top: '50%', transform: 'translateY(-50%)',
-  color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center',
-  minWidth: '44px', minHeight: '44px', justifyContent: 'center',
 }

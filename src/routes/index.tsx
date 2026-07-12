@@ -13,6 +13,7 @@ import { HistoricoPage } from '@/pages/Historico/HistoricoPage'
 import { LoginPage } from '@/pages/Auth/LoginPage'
 import { RegisterPage } from '@/pages/Auth/RegisterPage'
 import { ForgotPasswordPage } from '@/pages/Auth/ForgotPasswordPage'
+import { ResetPasswordPage } from '@/pages/Auth/ResetPasswordPage'
 import { VerifyEmailPage } from '@/pages/Auth/VerifyEmailPage'
 import { AdminLoginPage } from '@/pages/Admin/AdminLoginPage'
 import { AdminShell } from '@/pages/Admin/AdminShell'
@@ -24,9 +25,10 @@ export const router = createBrowserRouter([
   { path: '/login',           element: <LoginPage /> },
   { path: '/cadastro',        element: <RegisterPage /> },
   { path: '/esqueci-senha',   element: <ForgotPasswordPage /> },
+  { path: '/reset-password',  element: <ResetPasswordPage /> },
   { path: '/verificar-email', element: <VerifyEmailPage /> },
 
-  // ── Painel admin ──────────────────────────────────────────
+  // ── Painel admin ───────────────────────────────────────────────────
   { path: '/admin/login', element: <AdminLoginPage /> },
   {
     path: '/admin',
