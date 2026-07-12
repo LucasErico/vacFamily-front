@@ -4,7 +4,7 @@
  * Integrado com o backend real:
  *  POST /auth/register  { nome, email, senha, data_nascimento }
  *  - requiresVerification true  → navega para /verificar-email
- *  - requiresVerification false → já logado, navega para /
+ *  - requiresVerification false → navega para /login (usuário faz login manualmente)
  */
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
@@ -95,7 +95,9 @@ export function RegisterPage() {
         state: { email: email.trim().toLowerCase(), dataNascimento, nome: nome.trim(), sexo },
       })
     } else {
-      navigate('/', { replace: true })
+      // Redireciona para login para o usuário autenticar manualmente
+      // (garante que o fluxo de criação de membro titular rode no login)
+      navigate('/login', { replace: true, state: { cadastroSucesso: true } })
     }
   }
 
