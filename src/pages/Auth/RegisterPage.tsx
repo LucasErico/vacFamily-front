@@ -10,6 +10,7 @@ import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { Syringe, Eye, EyeOff } from 'lucide-react'
+import type { Sexo } from '@/types'
 
 // ── Lógica de força de senha ─────────────────────────────────
 interface ForcaSenha {
@@ -47,7 +48,6 @@ function avaliarSenha(senha: string): ForcaSenha {
   return { nivel, label: NIVEIS[nivel].label, cor: NIVEIS[nivel].cor, sugestoes }
 }
 
-// ── Data máxima = hoje (não permite datas futuras) ────────────
 const hoje = new Date().toISOString().slice(0, 10)
 
 export function RegisterPage() {
@@ -57,6 +57,7 @@ export function RegisterPage() {
   const [nome, setNome]                         = useState('')
   const [email, setEmail]                       = useState('')
   const [dataNascimento, setDataNascimento]     = useState('')
+  const [sexo, setSexo]                         = useState<Sexo | ''>('')
   const [senha, setSenha]                       = useState('')
   const [confirmar, setConfirmar]               = useState('')
   const [mostrarSenha, setMostrarSenha]         = useState(false)
@@ -69,7 +70,7 @@ export function RegisterPage() {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    if (!nome.trim() || !email.trim() || !dataNascimento || !senha || !confirmar) {
+    if (!nome.trim() || !email.trim() || !dataNascimento || !sexo || !senha || !confirmar) {
       setErro('Preencha todos os campos.'); return
     }
     if (dataNascimento > hoje) {
@@ -81,7 +82,7 @@ export function RegisterPage() {
 
     setErro('')
     setCarregando(true)
-    const result = await register(nome.trim(), email.trim().toLowerCase(), senha, dataNascimento)
+    const result = await register(nome.trim(), email.trim().toLowerCase(), senha, dataNascimento, sexo)
     setCarregando(false)
 
     if (!result.ok) {
@@ -91,7 +92,7 @@ export function RegisterPage() {
 
     if (result.requiresVerification) {
       navigate('/verificar-email', {
-        state: { email: email.trim().toLowerCase(), dataNascimento, nome: nome.trim() },
+        state: { email: email.trim().toLowerCase(), dataNascimento, nome: nome.trim(), sexo },
       })
     } else {
       navigate('/', { replace: true })
@@ -144,18 +145,35 @@ export function RegisterPage() {
                 className="input-field" />
             </div>
 
-            {/* Data de nascimento */}
-            <div>
-              <label htmlFor="data-nascimento" style={labelStyle}>Data de nascimento</label>
-              <input
-                id="data-nascimento"
-                type="date"
-                autoComplete="bday"
-                value={dataNascimento}
-                onChange={e => setDataNascimento(e.target.value)}
-                max={hoje}
-                className="input-field"
-              />
+            {/* Data de nascimento + Sexo (lado a lado) */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
+              <div>
+                <label htmlFor="data-nascimento" style={labelStyle}>Data de nascimento</label>
+                <input
+                  id="data-nascimento"
+                  type="date"
+                  autoComplete="bday"
+                  value={dataNascimento}
+                  onChange={e => setDataNascimento(e.target.value)}
+                  max={hoje}
+                  className="input-field"
+                />
+              </div>
+              <div>
+                <label htmlFor="sexo" style={labelStyle}>Sexo biológico</label>
+                <select
+                  id="sexo"
+                  value={sexo}
+                  onChange={e => setSexo(e.target.value as Sexo)}
+                  className="input-field"
+                  style={{ cursor: 'pointer' }}
+                >
+                  <option value="" disabled>Selecione</option>
+                  <option value="M">Masculino</option>
+                  <option value="F">Feminino</option>
+                  <option value="outro">Outro</option>
+                </select>
+              </div>
             </div>
 
             {/* Senha + medidor */}

@@ -6,24 +6,20 @@
  * Criação automática de membro titular:
  *   Após qualquer login bem-sucedido, se o usuário ainda não possui
  *   nenhum membro cadastrado, cria automaticamente um membro com:
- *     nome  = usuario.nome
- *     relacao = 'outro'
- *     data_nascimento = fornecida no cadastro (salva em sessionStorage
- *                       como 'vf_reg_dob' e removida após o uso)
- *   Isso garante que todo usuário tenha pelo menos um membro próprio
- *   desde o primeiro acesso, inclusive após o fluxo de verificação
- *   de e-mail.
+ *     relacao         = 'outro'
+ *     sexo            = fornecido no cadastro
+ *     tipo_calendario = inferido pela data de nascimento
+ *     data_nascimento = fornecida no cadastro
+ *   Dados temporários ficam em sessionStorage e são removidos após uso.
  */
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react'
-import type { Usuario } from '@/types'
+import type { Sexo, TipoCalendario, Usuario } from '@/types'
 import { apiFetch, setToken, clearToken, getToken, wakeUpBack } from '@/services/api'
 
-const SESSION_KEY = 'vf_session'
-/** Chave temporária para preservar a data de nascimento entre cadastro e
- *  verificação de e-mail. Removida logo após a criação do membro. */
-const DOB_KEY = 'vf_reg_dob'
-/** Chave temporária para preservar o nome entre cadastro e verificação. */
-const NOME_KEY = 'vf_reg_nome'
+const SESSION_KEY  = 'vf_session'
+const DOB_KEY      = 'vf_reg_dob'
+const NOME_KEY     = 'vf_reg_nome'
+const SEXO_KEY     = 'vf_reg_sexo'
 
 function lerSessao(): Usuario | null {
   try {
@@ -37,6 +33,20 @@ function salvarSessao(u: Usuario | null) {
     if (u) sessionStorage.setItem(SESSION_KEY, JSON.stringify(u))
     else sessionStorage.removeItem(SESSION_KEY)
   } catch { /* noop */ }
+}
+
+/** Infere o tipo_calendario pela idade calculada a partir da data de nascimento. */
+function inferirTipoCalendario(dataNascimento: string): TipoCalendario {
+  const hoje = new Date()
+  const nasc = new Date(dataNascimento)
+  const idadeAnos = hoje.getFullYear() - nasc.getFullYear()
+    - (hoje < new Date(hoje.getFullYear(), nasc.getMonth(), nasc.getDate()) ? 1 : 0)
+
+  if (idadeAnos < 1)  return 'infantil'
+  if (idadeAnos < 10) return 'infantil'
+  if (idadeAnos < 20) return 'adolescente'
+  if (idadeAnos < 60) return 'adulto'
+  return 'idoso'
 }
 
 interface LoginResponse {
@@ -60,6 +70,7 @@ interface AuthContextValue {
     email: string,
     senha: string,
     dataNascimento: string,
+    sexo: Sexo,
   ) => Promise<{ ok: boolean; requiresVerification?: boolean; erro?: string }>
   logout: () => void
 }
@@ -67,18 +78,19 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null)
 
 /**
- * Cria o membro titular do usuário se ainda não existir nenhum membro.
- * Silencioso em caso de falha — não interrompe o fluxo de autenticação.
+ * Cria o membro titular se o usuário ainda não tiver nenhum membro.
+ * Silencioso em caso de falha — nunca interrompe o fluxo de autenticação.
  */
 async function criarMembroTitularSeNecessario(
   nome: string,
   dataNascimento: string,
+  sexo: Sexo,
 ): Promise<void> {
+  if (!dataNascimento) return // sem data não é possível criar
   try {
-    // Verifica se já há membros cadastrados
     const res = await apiFetch<{ membros?: unknown[] } | unknown[]>('/membros')
     const membros = Array.isArray(res) ? res : ((res as { membros?: unknown[] }).membros ?? [])
-    if (membros.length > 0) return // titular já existe, nada a fazer
+    if (membros.length > 0) return
 
     await apiFetch('/membros', {
       method: 'POST',
@@ -86,23 +98,21 @@ async function criarMembroTitularSeNecessario(
         nome,
         relacao: 'outro',
         data_nascimento: dataNascimento,
+        sexo,
+        tipo_calendario: inferirTipoCalendario(dataNascimento),
       },
     })
   } catch {
-    // Fire-and-forget: falhas não bloqueiam o login
+    // fire-and-forget
   }
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [usuario, setUsuario] = useState<Usuario | null>(lerSessao)
 
-  // Acorda o back no Render assim que o app é carregado.
   useEffect(() => { wakeUpBack() }, [])
-
-  // Sincroniza sessionStorage
   useEffect(() => { salvarSessao(usuario) }, [usuario])
 
-  // Ao montar, se há token mas não há usuário em memória, busca /auth/me
   useEffect(() => {
     if (!usuario && getToken()) {
       apiFetch<{ status: string; usuario: Usuario }>('/auth/me')
@@ -121,20 +131,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setToken(data.access_token)
       setUsuario(data.usuario)
 
-      // Cria membro titular automaticamente se necessário.
-      // A data de nascimento pode ter sido salva durante o cadastro
-      // (fluxo com verificação de e-mail). O nome vem do próprio usuário.
+      // Recupera dados do cadastro recente (fluxo com verificação de e-mail)
       const dob  = sessionStorage.getItem(DOB_KEY)  ?? ''
       const nome = sessionStorage.getItem(NOME_KEY) ?? data.usuario.nome ?? ''
+      const sexo = (sessionStorage.getItem(SEXO_KEY) ?? 'outro') as Sexo
+
       if (dob) {
-        await criarMembroTitularSeNecessario(nome, dob)
+        await criarMembroTitularSeNecessario(nome, dob, sexo)
         sessionStorage.removeItem(DOB_KEY)
         sessionStorage.removeItem(NOME_KEY)
-      } else {
-        // Login comum (sem cadastro recente): ainda verifica e cria se
-        // o usuário não tiver membros (ex.: conta criada antes desta feature)
-        await criarMembroTitularSeNecessario(data.usuario.nome ?? nome, '')
+        sessionStorage.removeItem(SEXO_KEY)
       }
+      // Login comum sem dados de cadastro recente: não tenta criar membro
+      // (evita 400 por falta de data_nascimento)
 
       return { ok: true }
     } catch (err) {
@@ -147,6 +156,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     email: string,
     senha: string,
     dataNascimento: string,
+    sexo: Sexo,
   ) {
     try {
       const data = await apiFetch<RegisterResponse>('/auth/register', {
@@ -155,10 +165,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       })
 
       if (data.requiresVerification) {
-        // Salva dob e nome para usar após o login pós-verificação
         try {
-          sessionStorage.setItem(DOB_KEY, dataNascimento)
+          sessionStorage.setItem(DOB_KEY,  dataNascimento)
           sessionStorage.setItem(NOME_KEY, nome)
+          sessionStorage.setItem(SEXO_KEY, sexo)
         } catch { /* noop */ }
         return { ok: true, requiresVerification: true }
       }
@@ -166,8 +176,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (data.access_token && data.usuario) {
         setToken(data.access_token)
         setUsuario(data.usuario)
-        // Registro sem verificação: cria membro titular diretamente
-        await criarMembroTitularSeNecessario(nome, dataNascimento)
+        await criarMembroTitularSeNecessario(nome, dataNascimento, sexo)
       }
 
       return { ok: true, requiresVerification: false }
