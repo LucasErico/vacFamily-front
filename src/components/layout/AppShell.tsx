@@ -1,4 +1,4 @@
-import { Outlet } from 'react-router-dom'
+import { Outlet, useLocation } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { TopBar } from './TopBar'
 import { BottomNav } from './BottomNav'
@@ -8,6 +8,12 @@ import { TourFAB } from '@/components/ui/TourFAB'
 
 export function AppShell() {
   const [showTour, setShowTour] = useState(false)
+  const { pathname } = useLocation()
+
+  // Rola ao topo sempre que a rota muda
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'instant' })
+  }, [pathname])
 
   // Dispara automaticamente na 1ª visita após login
   useEffect(() => {
