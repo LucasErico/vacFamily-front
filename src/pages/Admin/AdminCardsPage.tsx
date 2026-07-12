@@ -1,19 +1,21 @@
 /**
  * AdminCardsPage — /admin/cards
  * CRUD completo dos cards do carrossel do Dashboard.
+ * Dados vindos da API remota via adminStorage (apiFetch).
  *
  * Cores em HEX (não CSS vars) — obrigatório para funcionar
  * no background inline do carrossel.
  */
-import { useState, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import {
   Plus, Pencil, Trash2, Eye, EyeOff, Newspaper,
   ShieldCheck, Syringe, Bell, Users, Info,
   Heart, Baby, Star, Stethoscope, Activity,
   ClipboardList, CalendarCheck, AlertTriangle, BookOpen, Smile,
+  Loader2,
 } from 'lucide-react'
 import {
-  getCards, createCard, updateCard, deleteCard,
+  getCardsAdmin, createCard, updateCard, deleteCard,
   type CardConteudo,
 } from '@/services/adminStorage'
 
@@ -44,7 +46,7 @@ const ICONE_OPTIONS = [
   { label: 'Coração',       value: 'Heart',         icon: <Heart         size={16} aria-hidden /> },
   { label: 'Bebê',          value: 'Baby',          icon: <Baby          size={16} aria-hidden /> },
   { label: 'Estrela',       value: 'Star',          icon: <Star          size={16} aria-hidden /> },
-  { label: 'Estetoscópio',  value: 'Stethoscope',   icon: <Stethoscope   size={16} aria-hidden /> },
+  { label: 'Etetoscópio',  value: 'Stethoscope',   icon: <Stethoscope   size={16} aria-hidden /> },
   { label: 'Atividade',     value: 'Activity',      icon: <Activity      size={16} aria-hidden /> },
   { label: 'Prancheta',     value: 'ClipboardList', icon: <ClipboardList size={16} aria-hidden /> },
   { label: 'Calendário ok', value: 'CalendarCheck', icon: <CalendarCheck size={16} aria-hidden /> },
@@ -59,51 +61,103 @@ interface FormState {
   cor: string
   icone: string
   ativo: boolean
+  ordem: number
 }
 
 const FORM_INICIAL: FormState = {
-  titulo: '', descricao: '', cor: '#01696f', icone: 'ShieldCheck', ativo: true,
+  titulo: '', descricao: '', cor: '#01696f', icone: 'ShieldCheck', ativo: true, ordem: 0,
 }
 
 export function AdminCardsPage() {
-  const [cards, setCards] = useState<CardConteudo[]>(() =>
-    getCards().sort((a, b) => a.ordem - b.ordem)
-  )
+  const [cards, setCards]       = useState<CardConteudo[]>([])
+  const [loading, setLoading]   = useState(true)
+  const [erro, setErro]         = useState<string | null>(null)
+  const [saving, setSaving]     = useState(false)
   const [editando, setEditando] = useState<string | null>(null)
-  const [form, setForm] = useState<FormState>(FORM_INICIAL)
+  const [form, setForm]         = useState<FormState>(FORM_INICIAL)
 
-  function reload() { setCards(getCards().sort((a, b) => a.ordem - b.ordem)) }
+  // ── Carrega cards da API ──────────────────────────────────
+  const reload = useCallback(async () => {
+    setLoading(true)
+    setErro(null)
+    try {
+      const data = await getCardsAdmin()
+      setCards(data)
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : 'Erro ao carregar cards')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
 
-  function abrirNovo() { setForm(FORM_INICIAL); setEditando('novo') }
+  useEffect(() => { reload() }, [reload])
+
+  // ── Abrir formulário ────────────────────────────────────────
+  function abrirNovo() {
+    setForm({ ...FORM_INICIAL, ordem: cards.length })
+    setEditando('novo')
+  }
 
   function abrirEdicao(card: CardConteudo) {
-    setForm({ titulo: card.titulo, descricao: card.descricao, cor: card.cor, icone: card.icone, ativo: card.ativo })
+    setForm({
+      titulo: card.titulo,
+      descricao: card.descricao,
+      cor: card.cor,
+      icone: card.icone,
+      ativo: card.ativo,
+      ordem: card.ordem,
+    })
     setEditando(card.id)
   }
 
-  function handleSave() {
+  // ── Salvar (criar ou atualizar) ────────────────────────────
+  async function handleSave() {
     if (!form.titulo.trim() || !form.descricao.trim()) return
-    if (editando === 'novo') createCard(form)
-    else if (editando) updateCard(editando, form)
-    setEditando(null)
-    reload()
+    setSaving(true)
+    try {
+      if (editando === 'novo') {
+        await createCard(form)
+      } else if (editando) {
+        await updateCard(editando, form)
+      }
+      setEditando(null)
+      await reload()
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : 'Erro ao salvar card')
+    } finally {
+      setSaving(false)
+    }
   }
 
-  function handleDelete(id: string) {
-    if (!confirm('Excluir este card?')) return
-    deleteCard(id)
-    reload()
+  // ── Excluir ──────────────────────────────────────────────────
+  async function handleDelete(id: string) {
+    if (!confirm('Excluir este card? Esta ação não pode ser desfeita.')) return
+    try {
+      await deleteCard(id)
+      await reload()
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : 'Erro ao excluir card')
+    }
   }
 
-  function toggleAtivo(id: string, ativo: boolean) {
-    updateCard(id, { ativo: !ativo })
-    reload()
+  // ── Toggle ativo ────────────────────────────────────────────
+  async function toggleAtivo(card: CardConteudo) {
+    // Otimismo: atualiza UI imediatamente, reverte se falhar
+    setCards(prev => prev.map(c => c.id === card.id ? { ...c, ativo: !c.ativo } : c))
+    try {
+      await updateCard(card.id, { ativo: !card.ativo })
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : 'Erro ao atualizar card')
+      setCards(prev => prev.map(c => c.id === card.id ? { ...c, ativo: card.ativo } : c))
+    }
   }
 
   const totalAtivos = useMemo(() => cards.filter(c => c.ativo).length, [cards])
 
+  // ── Render ─────────────────────────────────────────────────
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
+
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 'var(--space-4)', flexWrap: 'wrap' }}>
         <div>
@@ -117,17 +171,40 @@ export function AdminCardsPage() {
             Cards do carrossel
           </h1>
           <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)' }}>
-            {totalAtivos} ativo{totalAtivos !== 1 ? 's' : ''} de {cards.length} total
+            {loading ? 'Carregando...' : `${totalAtivos} ativo${totalAtivos !== 1 ? 's' : ''} de ${cards.length} total`}
           </p>
         </div>
         <button
           onClick={abrirNovo}
+          disabled={loading}
           className="btn btn-primary"
           style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}
         >
           <Plus size={16} aria-hidden /> Novo card
         </button>
       </div>
+
+      {/* Erro */}
+      {erro && (
+        <div role="alert" style={{
+          padding: 'var(--space-3) var(--space-4)',
+          borderRadius: 'var(--radius-md)',
+          background: 'var(--color-error-highlight)',
+          color: 'var(--color-error)',
+          fontSize: 'var(--text-sm)',
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        }}>
+          <span>{erro}</span>
+          <button onClick={() => setErro(null)} aria-label="Fechar erro" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', fontSize: '1.1rem', lineHeight: 1 }}>×</button>
+        </div>
+      )}
+
+      {/* Loading inicial */}
+      {loading && cards.length === 0 && (
+        <div style={{ display: 'flex', justifyContent: 'center', padding: 'var(--space-12)', color: 'var(--color-text-muted)' }}>
+          <Loader2 size={28} style={{ animation: 'spin 1s linear infinite' }} aria-label="Carregando" />
+        </div>
+      )}
 
       {/* Formulário inline */}
       {editando !== null && (
@@ -164,8 +241,7 @@ export function AdminCardsPage() {
             />
           </Field>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)' }}
-          >
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)' }}>
             {/* Seletor de cor com preview */}
             <Field label="Cor de fundo">
               <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
@@ -200,18 +276,24 @@ export function AdminCardsPage() {
             </Field>
           </div>
 
-          {/* Preview ao vivo do card */}
+          <Field label="Ordem">
+            <input
+              type="number"
+              min={0}
+              value={form.ordem}
+              onChange={e => setForm(f => ({ ...f, ordem: Number(e.target.value) }))}
+              style={{ ...inputStyle, width: 100 }}
+            />
+          </Field>
+
+          {/* Preview ao vivo */}
           <div style={{
-            borderRadius: '12px',
-            padding: '16px',
+            borderRadius: '12px', padding: '16px',
             background: form.cor,
-            display: 'flex',
-            gap: '12px',
-            alignItems: 'flex-start',
+            display: 'flex', gap: '12px', alignItems: 'flex-start',
           }}>
             <div style={{
-              width: 42, height: 42,
-              borderRadius: '10px',
+              width: 42, height: 42, borderRadius: '10px',
               background: 'rgba(255,255,255,0.20)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               color: '#fff', flexShrink: 0,
@@ -238,20 +320,22 @@ export function AdminCardsPage() {
           </label>
 
           <div style={{ display: 'flex', gap: 'var(--space-3)', justifyContent: 'flex-end' }}>
-            <button onClick={() => setEditando(null)} className="btn btn-ghost">Cancelar</button>
+            <button onClick={() => setEditando(null)} disabled={saving} className="btn btn-ghost">Cancelar</button>
             <button
               onClick={handleSave}
-              disabled={!form.titulo.trim() || !form.descricao.trim()}
+              disabled={saving || !form.titulo.trim() || !form.descricao.trim()}
               className="btn btn-primary"
+              style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', minWidth: 80 }}
             >
-              Salvar
+              {saving ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} aria-hidden /> : null}
+              {saving ? 'Salvando...' : 'Salvar'}
             </button>
           </div>
         </div>
       )}
 
       {/* Lista de cards */}
-      {cards.length === 0 ? (
+      {!loading && cards.length === 0 && !erro && (
         <div style={{
           display: 'flex', flexDirection: 'column', alignItems: 'center',
           gap: 'var(--space-3)', padding: 'var(--space-12) var(--space-4)',
@@ -260,7 +344,9 @@ export function AdminCardsPage() {
           <Newspaper size={36} style={{ color: 'var(--color-text-faint)' }} aria-hidden />
           <p style={{ fontSize: 'var(--text-sm)' }}>Nenhum card criado ainda.</p>
         </div>
-      ) : (
+      )}
+
+      {cards.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
           {cards.map(card => (
             <div
@@ -275,13 +361,21 @@ export function AdminCardsPage() {
                 transition: 'opacity 180ms ease',
               }}
             >
+              {/* Indicador de cor */}
               <div style={{
-                width: 12, height: 40,
-                borderRadius: '999px',
-                background: card.cor,
-                flexShrink: 0,
+                width: 12, height: 40, borderRadius: '999px',
+                background: card.cor, flexShrink: 0,
               }} aria-hidden />
 
+              {/* Ordem */}
+              <span style={{
+                fontSize: 'var(--text-xs)', color: 'var(--color-text-faint)',
+                fontVariantNumeric: 'tabular-nums', minWidth: 20, textAlign: 'center', flexShrink: 0,
+              }}>
+                #{card.ordem + 1}
+              </span>
+
+              {/* Conteúdo */}
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--color-text)' }}>
                   {card.titulo}
@@ -294,11 +388,12 @@ export function AdminCardsPage() {
                 </p>
               </div>
 
+              {/* Ações */}
               <div style={{ display: 'flex', gap: 'var(--space-1)', flexShrink: 0 }}>
                 <IconBtn
                   icon={card.ativo ? <Eye size={15} aria-hidden /> : <EyeOff size={15} aria-hidden />}
                   label={card.ativo ? 'Desativar' : 'Ativar'}
-                  onClick={() => toggleAtivo(card.id, card.ativo)}
+                  onClick={() => toggleAtivo(card)}
                 />
                 <IconBtn
                   icon={<Pencil size={15} aria-hidden />}
