@@ -35,7 +35,7 @@ function formatarDoenca(slug: string): string {
     .replace(/\b\w/g, c => c.toUpperCase())
 }
 
-export type CicloId = 'pre_natal' | 'recem_nascido' | 'crianca' | 'adolescente' | 'adulto' | 'idoso'
+export type CicloId = 'pre_natal' | 'recem_nascido' | 'crianca' | 'adolescente' | 'adulto' | 'idoso' | 'intermitente'
 
 interface Ciclo {
   id: CicloId
@@ -91,6 +91,13 @@ const CICLOS: Ciclo[] = [
     faixas: ['idoso'], cor: '#7a39bb',
     corBg: 'oklch(from #7a39bb l c h / 0.08)', corBorda: 'oklch(from #7a39bb l c h / 0.22)',
     idadeMinAnos: 60, idadeMaxAnos: 120,
+  },
+  {
+    id: 'intermitente', label: 'Especiais / Campanhas',
+    descricao: 'Vacinas de campanha e condições especiais, indicadas a todos independente de faixa etária.',
+    faixas: ['intermitente'], cor: '#5b6a82',
+    corBg: 'oklch(from #5b6a82 l c h / 0.08)', corBorda: 'oklch(from #5b6a82 l c h / 0.22)',
+    idadeMinAnos: 0, idadeMaxAnos: 120,
   },
 ]
 
@@ -181,7 +188,7 @@ function CicloDropdown({
         border: '1px solid var(--color-border)',
         borderRadius: 'var(--radius-lg)',
         boxShadow: 'var(--shadow-md)',
-        maxHeight: 280,
+        maxHeight: 320,
         overflowY: 'auto',
         padding: 'var(--space-1) 0',
       }}
@@ -294,8 +301,12 @@ function styleBtnStatus(_s: string, ativo: boolean, cor?: string): React.CSSProp
 /**
  * Retorna true quando o ciclo já foi superado pelo membro — ou seja,
  * o botão "Confirmar todas" deve ser exibido.
+ *
+ * O ciclo intermitente NUNCA é considerado encerrado por idade:
+ * campanhas e condições especiais são sempre pertinentes.
  */
 function cicloPrecedeMembro(ciclo: Ciclo, idadeAnos: number): boolean {
+  if (ciclo.id === 'intermitente') return false
   if (ciclo.id === 'pre_natal') return true
   return idadeAnos >= ciclo.idadeMaxAnos
 }
@@ -499,7 +510,6 @@ export function VacinaMembroPage() {
     if (!dataLembrete) { setErroLembrete('Informe a data do lembrete.'); return }
     if (modal.tipo !== 'lembreteManual') return
 
-    // Guarda referência antes de fechar o modal
     const { dose, vacinaNome } = modal
 
     setSalvandoLembrete(true)
@@ -513,8 +523,6 @@ export function VacinaMembroPage() {
         automatico: false,
         numero_dose: dose.numeroDose,
       })
-      // Fecha o modal somente após o await resolver para que lembretesMembroSet
-      // já esteja atualizado no próximo render e o botão apareça travado
       setModal({ tipo: 'nenhum' })
       setDataLembrete('')
       setBannerMsg(`🔔 Lembrete criado para ${vacinaNome} — dose ${dose.numeroDose}. Confira na Agenda.`)

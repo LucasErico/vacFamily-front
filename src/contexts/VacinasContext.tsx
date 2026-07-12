@@ -14,6 +14,7 @@
  *
  * isAtrasada (VacinaMembroPage):
  *   Dose pendente com dataRecomendada passada + membro com < IDADE_MAX_RETROATIVA_DIAS.
+ *   Vacinas intermitentes nunca são marcadas como atrasadas.
  */
 import {
   createContext, useContext, useState, useCallback,
@@ -31,14 +32,18 @@ export const IDADE_MAX_RETROATIVA_DIAS = 730
  * Mapeamento de tipo_calendario do membro → faixas etárias permitidas nas vacinas.
  * Uma vacina só é exibida ao membro se sua faixa_etaria tiver ao menos
  * uma interseção com as faixas permitidas para o tipo de calendário.
+ *
+ * 'intermitente' é incluído em TODOS os tipos de calendário:
+ * vacinas intermitentes (campanhas, condições especiais) são visíveis
+ * a toda a população, independente de faixa etária ou ciclo de vida.
  */
 const FAIXAS_POR_CALENDARIO: Record<TipoCalendario, FaixaEtaria[]> = {
-  infantil:    ['recem_nascido', 'crianca', 'todas'],
-  adolescente: ['adolescente', 'adulto', 'todas'],
-  adulto:      ['adulto', 'todas'],
-  gestante:    ['gestante', 'adulto', 'todas'],
-  idoso:       ['idoso', 'adulto', 'todas'],
-  especial:    ['recem_nascido', 'crianca', 'adolescente', 'adulto', 'gestante', 'idoso', 'todas'],
+  infantil:    ['recem_nascido', 'crianca', 'todas', 'intermitente'],
+  adolescente: ['adolescente', 'adulto', 'todas', 'intermitente'],
+  adulto:      ['adulto', 'todas', 'intermitente'],
+  gestante:    ['gestante', 'adulto', 'todas', 'intermitente'],
+  idoso:       ['idoso', 'adulto', 'todas', 'intermitente'],
+  especial:    ['recem_nascido', 'crianca', 'adolescente', 'adulto', 'gestante', 'idoso', 'todas', 'intermitente'],
 }
 
 /** Retorna true se a vacina é compatível com o tipo de calendário do membro. */
@@ -128,6 +133,7 @@ export function calcularDosesStatus(
  *  1. status === 'pendente'
  *  2. dataRecomendada já passou
  *  3. membro tem < IDADE_MAX_RETROATIVA_DIAS
+ *  4. vacina NÃO é intermitente (campanhas não têm vínculo de data/idade)
  */
 export function isAtrasada(
   dose: DoseStatus,
@@ -137,6 +143,8 @@ export function isAtrasada(
   if (dose.status !== 'pendente') return false
   if (!dose.dataRecomendada) return false
   if (dose.dataRecomendada >= hoje) return false
+  // Vacinas intermitentes nunca são "atrasadas" — não têm vínculo de data com idade
+  if (dose.vacina.faixa_etaria.includes('intermitente')) return false
   return calcularIdadeEmDias(dataNascimento) <= IDADE_MAX_RETROATIVA_DIAS
 }
 
