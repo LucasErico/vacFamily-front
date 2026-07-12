@@ -2,24 +2,13 @@
  * ForgotPasswordPage — /esqueci-senha
  *
  * Fluxo em 2 etapas:
- *  1. Usuário informa o email cadastrado → back envia código de 6 dígitos
- *  2. Usuário digita o código + nova senha → back valida e redefine
- *
- * TODO (back-end):
- *  - Etapa 1: POST /auth/forgot-password  { email }
- *    Retorna: 200 OK (sempre, para não vazar se email existe)
- *  - Etapa 2: POST /auth/reset-password   { email, code, novaSenha }
- *    Retorna: 200 OK → redirecionar para /login
- *             400     → código inválido / expirado
- *
- * Segurança:
- *  - Código expira em 15 min no back-end
- *  - Código é hash (bcrypt) no banco, nunca plain text
- *  - Rate limiting no back: max 3 tentativas por email / 10 min
+ *  1. Usuário informa o email cadastrado → POST /auth/forgot-password
+ *  2. Usuário digita o código de 6 dígitos + nova senha → POST /auth/reset-password
  */
 import { useState, useRef, type FormEvent, type KeyboardEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Syringe, Eye, EyeOff, ArrowLeft, Mail, ShieldCheck } from 'lucide-react'
+import { apiFetch } from '@/services/api'
 
 type Etapa = 'email' | 'codigo'
 
@@ -42,7 +31,7 @@ export function ForgotPasswordPage() {
 
   const digitRefs = useRef<(HTMLInputElement | null)[]>([])
 
-  // ── Etapa 1: enviar email ──────────────────────────────────
+  // ── Etapa 1: enviar e-mail ─────────────────────────────
   async function handleEnviarEmail(e: FormEvent) {
     e.preventDefault()
     if (!email.trim()) { setErroEmail('Informe seu e-mail.'); return }
@@ -50,15 +39,22 @@ export function ForgotPasswordPage() {
     if (!emailRegex.test(email)) { setErroEmail('E-mail inválido.'); return }
     setErroEmail('')
     setCarregandoEmail(true)
-
-    // TODO: await api.post('/auth/forgot-password', { email })
-    await new Promise(r => setTimeout(r, 1000)) // mock delay
-
-    setCarregandoEmail(false)
+    try {
+      await apiFetch('/auth/forgot-password', {
+        method: 'POST',
+        body: { email: email.trim().toLowerCase() },
+      })
+    } catch {
+      // O backend sempre retorna 200 para não vazar se o e-mail existe.
+      // Qualquer erro de rede é ignorado silenciosamente — avançamos
+      // para a etapa 2 de qualquer forma.
+    } finally {
+      setCarregandoEmail(false)
+    }
     setEtapa('codigo')
   }
 
-  // ── Etapa 2: inputs de dígito ──────────────────────────────
+  // ── Etapa 2: inputs de dígito ───────────────────────────
   function handleDigit(index: number, value: string) {
     const digit = value.replace(/\D/g, '').slice(-1)
     const next = [...codigo]
@@ -83,7 +79,7 @@ export function ForgotPasswordPage() {
     digitRefs.current[Math.min(text.length, 5)]?.focus()
   }
 
-  // ── Etapa 2: confirmar reset ───────────────────────────────
+  // ── Etapa 2: confirmar reset ───────────────────────────
   async function handleReset(e: FormEvent) {
     e.preventDefault()
     const codigoCompleto = codigo.join('')
@@ -91,19 +87,29 @@ export function ForgotPasswordPage() {
     if (novaSenha.length < 8) { setErroReset('A nova senha deve ter ao menos 8 caracteres.'); return }
     setErroReset('')
     setCarregandoReset(true)
-
-    // TODO: await api.post('/auth/reset-password', { email, code: codigoCompleto, novaSenha })
-    // Mock: código 123456 é válido
-    await new Promise(r => setTimeout(r, 1000))
-    if (codigoCompleto !== '123456') {
-      setErroReset('Código inválido ou expirado. Verifique e tente novamente.')
+    try {
+      await apiFetch('/auth/reset-password', {
+        method: 'POST',
+        body: {
+          email: email.trim().toLowerCase(),
+          code: codigoCompleto,
+          nova_senha: novaSenha,
+        },
+      })
+      setSucesso(true)
+      setTimeout(() => navigate('/login'), 2500)
+    } catch (err) {
+      const msg = (err as Error).message ?? ''
+      if (msg.includes('expirado') || msg.includes('expired')) {
+        setErroReset('Código expirado. Solicite um novo código.')
+      } else if (msg.includes('inválido') || msg.includes('invalid') || msg.includes('400')) {
+        setErroReset('Código inválido. Verifique e tente novamente.')
+      } else {
+        setErroReset('Erro ao redefinir a senha. Tente novamente.')
+      }
+    } finally {
       setCarregandoReset(false)
-      return
     }
-
-    setCarregandoReset(false)
-    setSucesso(true)
-    setTimeout(() => navigate('/login'), 2500)
   }
 
   if (sucesso) {
@@ -207,7 +213,7 @@ export function ForgotPasswordPage() {
               {' '}·{' '}
               <button
                 type="button"
-                onClick={() => setEtapa('email')}
+                onClick={() => { setEtapa('email'); setCodigo(['','','','','','']); setErroReset('') }}
                 style={{ color: 'var(--color-primary)', fontWeight: 600, fontSize: 'inherit', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
               >
                 Alterar e-mail
@@ -248,9 +254,6 @@ export function ForgotPasswordPage() {
                   />
                 ))}
               </div>
-              <p style={{ textAlign: 'center', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginTop: 'var(--space-2)' }}>
-                (Mock: use <strong>123456</strong> para testar)
-              </p>
             </div>
 
             {/* Nova senha */}
@@ -290,6 +293,17 @@ export function ForgotPasswordPage() {
             >
               {carregandoReset ? 'Redefinindo…' : 'Redefinir senha'}
             </button>
+
+            <p style={{ textAlign: 'center', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
+              Não recebeu o código?{' '}
+              <button
+                type="button"
+                onClick={() => handleEnviarEmail({ preventDefault: () => {} } as FormEvent)}
+                style={{ color: 'var(--color-primary)', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 'inherit' }}
+              >
+                Reenviar
+              </button>
+            </p>
           </form>
         )}
       </div>
