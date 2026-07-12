@@ -53,6 +53,11 @@ export function vacinaCompativel(vacina: Vacina, tipoCalendario: TipoCalendario)
   return vacina.faixa_etaria.some(f => faixasPermitidas.includes(f))
 }
 
+/** Retorna true se a vacina é do tipo intermitente (campanha / condição especial). */
+function isVacinaIntermitente(vacina: Vacina): boolean {
+  return Array.isArray(vacina.faixa_etaria) && vacina.faixa_etaria.includes('intermitente')
+}
+
 function calcularIdadeEmDias(dataNascimento: string): number {
   const nasc = new Date(dataNascimento)
   const hoje = new Date()
@@ -65,8 +70,12 @@ function calcularStatusDose(
   registros: RegistroVacinal[],
   idadeEmDias: number,
 ): StatusDose {
-  const idadeMin = vacina.idade_minima_dias ?? 0
-  if (idadeEmDias < idadeMin - 30) return 'nao_aplicavel'
+  // Vacinas intermitentes não têm vínculo de idade com o membro:
+  // campanhas e condições especiais são sempre aplicáveis, independente da idade.
+  if (!isVacinaIntermitente(vacina)) {
+    const idadeMin = vacina.idade_minima_dias ?? 0
+    if (idadeEmDias < idadeMin - 30) return 'nao_aplicavel'
+  }
 
   const registro = registros.find(
     r => r.vacina_id === vacina.id && r.numero_dose === numeroDose,
@@ -89,6 +98,7 @@ export function calcularDosesStatus(
 ): DoseStatus[] {
   const idadeEmDias = calcularIdadeEmDias(dataNascimento)
   const hoje = new Date().toISOString().slice(0, 10)
+  const intermitente = isVacinaIntermitente(vacina)
 
   // Se o calendário foi informado e a vacina não é compatível, todas as doses
   // ficam 'nao_aplicavel' — elas serão filtradas antes de exibir ao usuário.
@@ -107,11 +117,21 @@ export function calcularDosesStatus(
     const registro = registros.find(
       r => r.vacina_id === vacina.id && r.numero_dose === numeroDose,
     )
-    const idadeMin = vacina.idade_minima_dias ?? 0
-    const dataRecomendadaDias = idadeMin + i * intervaloDias
-    const dataRecomendada = new Date(
-      new Date(dataNascimento).getTime() + dataRecomendadaDias * 86400000,
-    ).toISOString().slice(0, 10)
+
+    // Vacinas intermitentes não têm data recomendada vinculada à idade do membro.
+    // Usamos hoje como referência para não exibir datas baseadas em nascimento.
+    let dataRecomendada: string
+    if (intermitente) {
+      dataRecomendada = new Date(
+        new Date(hoje).getTime() + i * intervaloDias * 86400000,
+      ).toISOString().slice(0, 10)
+    } else {
+      const idadeMin = vacina.idade_minima_dias ?? 0
+      const dataRecomendadaDias = idadeMin + i * intervaloDias
+      dataRecomendada = new Date(
+        new Date(dataNascimento).getTime() + dataRecomendadaDias * 86400000,
+      ).toISOString().slice(0, 10)
+    }
 
     const isHistorico = status === 'aplicada' && (registro?.data_aplicacao ?? '') <= hoje
 
