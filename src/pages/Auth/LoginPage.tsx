@@ -2,22 +2,22 @@ import { useState, type FormEvent } from 'react'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import { useA11y } from '@/contexts/AccessibilityContext'
-import { Syringe, Eye, EyeOff, Sun, Moon, Accessibility } from 'lucide-react'
+import { Syringe, Eye, EyeOff, Sun, Moon, Accessibility, Loader2 } from 'lucide-react'
 import { AccessibilityPanel } from '@/components/ui/AccessibilityPanel'
 
 export function LoginPage() {
-  const { login } = useAuth()
+  const { login, backAquecendo } = useAuth()
   const { theme, toggleTheme } = useA11y()
   const navigate = useNavigate()
   const location = useLocation()
   const from = (location.state as { from?: { pathname: string } })?.from?.pathname ?? '/'
 
-  const [email, setEmail]                   = useState('')
-  const [senha, setSenha]                   = useState('')
-  const [mostrarSenha, setMostrarSenha]     = useState(false)
-  const [erro, setErro]                     = useState('')
-  const [carregando, setCarregando]         = useState(false)
-  const [painelAberto, setPainelAberto]     = useState(false)
+  const [email, setEmail]               = useState('')
+  const [senha, setSenha]               = useState('')
+  const [mostrarSenha, setMostrarSenha] = useState(false)
+  const [erro, setErro]                 = useState('')
+  const [carregando, setCarregando]     = useState(false)
+  const [painelAberto, setPainelAberto] = useState(false)
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -32,6 +32,8 @@ export function LoginPage() {
       setErro(result.erro ?? 'Erro ao fazer login.')
     }
   }
+
+  const bloqueado = carregando || backAquecendo
 
   return (
     <div style={{
@@ -56,6 +58,44 @@ export function LoginPage() {
       {painelAberto && <AccessibilityPanel onClose={() => setPainelAberto(false)} />}
 
       <div style={{ width: '100%', maxWidth: '420px' }}>
+        {/* Banner de aquecimento do servidor — visível durante cold start do Render */}
+        <div
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          style={{
+            overflow: 'hidden',
+            maxHeight: backAquecendo ? 72 : 0,
+            opacity: backAquecendo ? 1 : 0,
+            marginBottom: backAquecendo ? 'var(--space-4)' : 0,
+            transition: 'max-height 300ms ease, opacity 300ms ease, margin 300ms ease',
+          }}
+        >
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 'var(--space-3)',
+            padding: 'var(--space-3) var(--space-4)',
+            background: 'var(--color-primary-highlight)',
+            borderRadius: 'var(--radius-md)',
+            border: '1px solid var(--color-primary)',
+          }}>
+            <Loader2
+              size={16}
+              aria-hidden
+              style={{
+                color: 'var(--color-primary)',
+                flexShrink: 0,
+                animation: 'spin 1s linear infinite',
+              }}
+            />
+            <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text)', lineHeight: 1.4 }}>
+              <strong>Conectando ao servidor…</strong>{' '}
+              <span style={{ color: 'var(--color-text-muted)' }}>
+                O servidor está acordando, aguarde alguns segundos.
+              </span>
+            </p>
+          </div>
+        </div>
+
         <div style={{ textAlign: 'center', marginBottom: 'var(--space-8)' }}>
           <div style={{
             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
@@ -130,9 +170,19 @@ export function LoginPage() {
               }}>{erro}</p>
             )}
 
-            <button type="submit" disabled={carregando} className="btn btn-primary"
-              style={{ width: '100%', marginTop: 'var(--space-2)' }}>
-              {carregando ? 'Entrando…' : 'Entrar'}
+            <button
+              type="submit"
+              disabled={bloqueado}
+              className="btn btn-primary"
+              style={{ width: '100%', marginTop: 'var(--space-2)' }}
+              aria-busy={bloqueado}
+            >
+              {backAquecendo
+                ? 'Aguardando servidor…'
+                : carregando
+                  ? 'Entrando…'
+                  : 'Entrar'
+              }
             </button>
           </form>
 
@@ -142,6 +192,9 @@ export function LoginPage() {
           </p>
         </div>
       </div>
+
+      {/* Keyframe para o spinner — injetado inline para evitar dependência de CSS global */}
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
   )
 }
