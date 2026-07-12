@@ -57,8 +57,8 @@ function SectionHeader({ icon: Icon, title, to, count }: {
   icon: typeof Users; title: string; to?: string; count?: number
 }) {
   return (
-    <div className="flex items-center justify-between mb-3">
-      <div className="flex items-center gap-2">
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-3)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
         <Icon size={18} style={{ color: 'var(--color-primary)' }} aria-hidden />
         <h2 style={{
           fontFamily: 'var(--font-display)',
@@ -77,10 +77,9 @@ function SectionHeader({ icon: Icon, title, to, count }: {
       {to && (
         <Link
           to={to}
-          className="flex items-center gap-1 btn btn-sm btn-ghost"
-          style={{ minHeight: 32, padding: '0 var(--space-3)' }}
+          style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', textDecoration: 'none', padding: '0 var(--space-2)', minHeight: 32 }}
         >
-          Ver todos <ChevronRight size={14} aria-hidden />
+          Ver todos <ChevronRight size={13} aria-hidden />
         </Link>
       )}
     </div>
@@ -99,7 +98,12 @@ export function DashboardPage() {
     membros.map(membro => {
       const regsMembro = registros.filter(r => r.membro_id === membro.id)
       const doses = vacinas.flatMap(v => calcularDosesStatus(v, regsMembro, membro.data_nascimento))
-      return { membro, status: statusGlobal(doses), totalDoses: doses.filter(d => d.status !== 'nao_aplicavel').length, aplicadas: doses.filter(d => d.status === 'aplicada').length }
+      return {
+        membro,
+        status: statusGlobal(doses),
+        totalDoses: doses.filter(d => d.status !== 'nao_aplicavel').length,
+        aplicadas: doses.filter(d => d.status === 'aplicada').length,
+      }
     }), [membros, vacinas, registros])
 
   const totalAtrasados  = statusPorMembro.filter(s => s.status === 'atrasado').length
@@ -120,45 +124,95 @@ export function DashboardPage() {
   , [registros])
 
   const primeiroNome = usuario?.nome?.split(' ')[0] ?? 'Usuário'
+  const hojeStr = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
 
-      {/* Saudação */}
-      <div>
+      {/* ── Hero / Saudação ─────────────────────────────── */}
+      <div style={{
+        borderRadius: 'var(--radius-xl)',
+        background: 'linear-gradient(135deg, var(--color-primary-highlight) 0%, var(--color-surface) 60%)',
+        padding: 'var(--space-6) var(--space-6) var(--space-5)',
+        border: '1px solid var(--color-primary-highlight)',
+        position: 'relative',
+        overflow: 'hidden',
+      }}>
+        {/* Detalhe decorativo */}
+        <div aria-hidden style={{
+          position: 'absolute', top: -24, right: -24,
+          width: 120, height: 120,
+          borderRadius: 'var(--radius-full)',
+          background: 'var(--color-primary-highlight)',
+          opacity: 0.5,
+        }} />
+        <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginBottom: 'var(--space-1)', textTransform: 'capitalize' }}>
+          {hojeStr}
+        </p>
         <h1 style={{
           fontFamily: 'var(--font-display)',
-          fontSize: 'var(--text-lg)',
+          fontSize: 'var(--text-xl)',
           fontWeight: 800,
           color: 'var(--color-text)',
-          marginBottom: 'var(--space-1)',
+          lineHeight: 1.15,
+          marginBottom: 'var(--space-2)',
         }}>
           Olá, {primeiroNome} 👋
         </h1>
-        <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)' }}>
+        <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)', maxWidth: 320 }}>
           Veja o resumo vacinal da sua família
         </p>
+
+        {/* Alerta rápido de atrasados */}
+        {totalAtrasados > 0 && (
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 'var(--space-2)',
+            marginTop: 'var(--space-4)',
+            padding: 'var(--space-2) var(--space-3)',
+            borderRadius: 'var(--radius-full)',
+            background: 'var(--color-error-highlight)',
+            border: '1px solid var(--color-error)',
+          }}>
+            <AlertTriangle size={13} style={{ color: 'var(--color-error)', flexShrink: 0 }} aria-hidden />
+            <span style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--color-error)' }}>
+              {totalAtrasados} membro{totalAtrasados !== 1 ? 's' : ''} com doses atrasadas
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Carrossel de informações */}
       <InfoCarousel />
 
-      {/* KPI Cards */}
+      {/* ── KPI Cards ───────────────────────────────────── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 'var(--space-3)' }}>
-        <KpiCard value={membros.length} label="Membros" icon={Users}
-          color="var(--color-primary)" highlight="var(--color-primary-subtle)" />
-        <KpiCard value={totalEmDia} label="Em dia" icon={ShieldCheck}
-          color="var(--color-success)" highlight="var(--color-success-highlight)" />
+        <KpiCard
+          value={membros.length}
+          label="Membros"
+          icon={Users}
+          color="var(--color-primary)"
+          highlight="var(--color-primary-highlight)"
+        />
+        <KpiCard
+          value={totalEmDia}
+          label="Em dia"
+          icon={ShieldCheck}
+          color="var(--color-success)"
+          highlight="var(--color-success-highlight)"
+        />
         <KpiCard
           value={totalAtrasados}
           label={totalAtrasados === 1 ? 'Atrasado' : 'Atrasados'}
           icon={AlertTriangle}
           color={totalAtrasados > 0 ? 'var(--color-error)' : 'var(--color-text-faint)'}
           highlight={totalAtrasados > 0 ? 'var(--color-error-highlight)' : 'var(--color-surface-offset)'}
+          urgent={totalAtrasados > 0}
         />
       </div>
 
-      {/* Status por membro */}
+      {/* ── Status por membro ───────────────────────────── */}
       <section aria-labelledby="membros-heading">
         <SectionHeader icon={Users} title="Status por membro" to="/membros" count={membros.length} />
         {membros.length === 0 ? (
@@ -170,22 +224,32 @@ export function DashboardPage() {
               const cfg = STATUS_CONFIG[status]
               const StatusIcon = cfg.icon
               const pct = totalDoses > 0 ? Math.round((aplicadas / totalDoses) * 100) : 0
+              const barColor = status === 'atrasado'
+                ? 'var(--color-error)'
+                : status === 'pendente'
+                ? 'var(--color-primary)'
+                : 'var(--color-success)'
               return (
                 <Link key={membro.id} to={`/membros/${membro.id}`}
                   className="card card-hover"
                   style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', padding: 'var(--space-4)', textDecoration: 'none' }}
                 >
+                  {/* Avatar */}
                   <div style={{
-                    width: 40, height: 40, borderRadius: 'var(--radius-full)',
+                    width: 42, height: 42,
+                    borderRadius: 'var(--radius-full)',
                     background: 'var(--color-primary-highlight)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    flexShrink: 0, fontFamily: 'var(--font-display)', fontWeight: 700,
-                    fontSize: 'var(--text-sm)', color: 'var(--color-primary)',
+                    flexShrink: 0,
+                    fontFamily: 'var(--font-display)', fontWeight: 700,
+                    fontSize: 'var(--text-base)', color: 'var(--color-primary)',
+                    border: `2px solid ${barColor}22`,
                   }} aria-hidden>
                     {membro.nome.charAt(0).toUpperCase()}
                   </div>
+
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', flexWrap: 'wrap', marginBottom: 'var(--space-1)' }}>
                       <span style={{ fontWeight: 600, fontSize: 'var(--text-sm)', color: 'var(--color-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {membro.nome}
                       </span>
@@ -193,19 +257,23 @@ export function DashboardPage() {
                         {calcularIdade(membro.data_nascimento)} · {PARENTESCO_LABEL[membro.relacao]}
                       </span>
                     </div>
-                    <div style={{ marginTop: 'var(--space-2)' }}>
-                      <div style={{ height: 4, background: 'var(--color-surface-offset)', borderRadius: 'var(--radius-full)', overflow: 'hidden' }}>
+                    {/* Barra de progresso mais alta e colorida */}
+                    <div style={{ marginTop: 'var(--space-1)' }}>
+                      <div style={{ height: 6, background: 'var(--color-surface-offset)', borderRadius: 'var(--radius-full)', overflow: 'hidden' }}>
                         <div style={{
-                          height: '100%', width: `${pct}%`,
-                          background: status === 'atrasado' ? 'var(--color-error)' : status === 'pendente' ? 'var(--color-accent)' : 'var(--color-success)',
-                          borderRadius: 'var(--radius-full)', transition: 'width 0.4s ease',
+                          height: '100%',
+                          width: `${pct}%`,
+                          background: barColor,
+                          borderRadius: 'var(--radius-full)',
+                          transition: 'width 0.5s cubic-bezier(0.16,1,0.3,1)',
                         }} />
                       </div>
                       <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-faint)', marginTop: 2, display: 'block' }}>
-                        {aplicadas}/{totalDoses} doses aplicadas
+                        {aplicadas}/{totalDoses} doses aplicadas · {pct}%
                       </span>
                     </div>
                   </div>
+
                   <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 'var(--space-1)' }}>
                     <span className={`badge ${cfg.className}`}>
                       <StatusIcon size={10} aria-hidden />{cfg.label}
@@ -219,7 +287,7 @@ export function DashboardPage() {
         )}
       </section>
 
-      {/* Próximos Lembretes */}
+      {/* ── Próximos Lembretes ───────────────────────────── */}
       <section aria-labelledby="lembretes-heading">
         <SectionHeader icon={Bell} title="Próximos lembretes" to="/agenda" count={totalPendentes} />
         {proximosLembretes.length === 0 ? (
@@ -235,15 +303,33 @@ export function DashboardPage() {
               const urgente = dias <= 7 && dias >= 0
               const atrasado = dias < 0
               return (
-                <div key={lem.id} className="card"
-                  style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', padding: 'var(--space-4)' }}
+                <div
+                  key={lem.id}
+                  className="card"
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 'var(--space-3)',
+                    padding: 'var(--space-4)',
+                    borderLeft: atrasado
+                      ? '3px solid var(--color-error)'
+                      : urgente
+                      ? '3px solid var(--color-warning)'
+                      : '3px solid transparent',
+                  }}
                 >
                   <div style={{
                     width: 36, height: 36, borderRadius: 'var(--radius-md)',
-                    background: atrasado ? 'var(--color-error-highlight)' : urgente ? 'var(--color-warning-highlight)' : 'var(--color-primary-subtle)',
+                    background: atrasado
+                      ? 'var(--color-error-highlight)'
+                      : urgente
+                      ? 'var(--color-warning-highlight)'
+                      : 'var(--color-primary-highlight)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                   }}>
-                    <Calendar size={16} style={{ color: atrasado ? 'var(--color-error)' : urgente ? 'var(--color-warning)' : 'var(--color-primary)' }} aria-hidden />
+                    <Calendar
+                      size={16}
+                      style={{ color: atrasado ? 'var(--color-error)' : urgente ? 'var(--color-warning)' : 'var(--color-primary)' }}
+                      aria-hidden
+                    />
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <p style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--color-text)' }}>
@@ -263,7 +349,7 @@ export function DashboardPage() {
         )}
       </section>
 
-      {/* Registros Recentes */}
+      {/* ── Registros Recentes ──────────────────────────── */}
       <section aria-labelledby="recentes-heading">
         <SectionHeader icon={TrendingUp} title="Registros recentes" to="/vacinas" count={registros.length} />
         {registrosRecentes.length === 0 ? (
@@ -307,20 +393,36 @@ export function DashboardPage() {
   )
 }
 
-function KpiCard({ value, label, icon: Icon, color, highlight }: {
-  value: number; label: string; icon: typeof Users; color: string; highlight: string
+function KpiCard({ value, label, icon: Icon, color, highlight, urgent }: {
+  value: number; label: string; icon: typeof Users
+  color: string; highlight: string; urgent?: boolean
 }) {
   return (
-    <div className="card" style={{ padding: 'var(--space-4)', textAlign: 'center' }}>
+    <div
+      className="card"
+      style={{
+        padding: 'var(--space-4)',
+        textAlign: 'center',
+        boxShadow: urgent ? `0 0 0 2px ${color}33, var(--shadow-sm)` : 'var(--shadow-sm)',
+        transition: 'box-shadow 300ms ease',
+      }}
+    >
       <div style={{
-        width: 36, height: 36, borderRadius: 'var(--radius-md)',
+        width: 38, height: 38,
+        borderRadius: 'var(--radius-md)',
         background: highlight,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         margin: '0 auto var(--space-2)',
       }}>
-        <Icon size={18} style={{ color }} aria-hidden />
+        <Icon size={19} style={{ color }} aria-hidden />
       </div>
-      <p style={{ fontSize: 'var(--text-lg)', fontWeight: 800, fontFamily: 'var(--font-display)', color: 'var(--color-text)', lineHeight: 1 }}>
+      <p style={{
+        fontSize: 'var(--text-xl)',
+        fontWeight: 800,
+        fontFamily: 'var(--font-display)',
+        color: urgent ? color : 'var(--color-text)',
+        lineHeight: 1,
+      }}>
         {value}
       </p>
       <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginTop: 'var(--space-1)' }}>

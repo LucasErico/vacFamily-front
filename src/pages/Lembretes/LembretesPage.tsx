@@ -50,8 +50,14 @@ export function LembretesPage() {
   const [diaSelecionado, setDiaSelecionado] = useState<string | null>(null)
 
   const hoje = new Date()
-  const [mesAtual, setMesAtual] = useState(hoje.getMonth())
-  const [anoAtual, setAnoAtual] = useState(hoje.getFullYear())
+  const hojeAno = hoje.getFullYear()
+  const hojesMes = hoje.getMonth()
+
+  const [mesAtual, setMesAtual] = useState(hojesMes)
+  const [anoAtual, setAnoAtual] = useState(hojeAno)
+
+  // Bloqueia navegação para meses anteriores ao atual
+  const estaNoMesAtual = mesAtual === hojesMes && anoAtual === hojeAno
 
   const [fMembroId, setFMembroId] = useState('')
   const [fVacinaId, setFVacinaId] = useState('')
@@ -79,6 +85,7 @@ export function LembretesPage() {
   }
 
   function mesAnterior() {
+    if (estaNoMesAtual) return // bloqueado
     if (mesAtual === 0) { setMesAtual(11); setAnoAtual(a => a - 1) }
     else setMesAtual(m => m - 1)
     setDiaSelecionado(null)
@@ -202,7 +209,7 @@ export function LembretesPage() {
     )
   }
 
-  const hojeKey = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`
+  const hojeKey = `${hojeAno}-${String(hojesMes + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`
 
   return (
     <div style={{ maxWidth: 640, margin: '0 auto', paddingBottom: 'var(--space-8)' }}>
@@ -222,8 +229,19 @@ export function LembretesPage() {
       </div>
 
       <div className="card" style={{ marginBottom: 'var(--space-5)', padding: 'var(--space-4)' }}>
+        {/* Cabeçalho do calendário */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-4)' }}>
-          <button onClick={mesAnterior} className="theme-toggle" aria-label="Mês anterior">
+          <button
+            onClick={mesAnterior}
+            className="theme-toggle"
+            aria-label="Mês anterior"
+            disabled={estaNoMesAtual}
+            style={{
+              opacity: estaNoMesAtual ? 0.3 : 1,
+              cursor: estaNoMesAtual ? 'not-allowed' : 'pointer',
+              pointerEvents: estaNoMesAtual ? 'none' : 'auto',
+            }}
+          >
             <ChevronLeft size={18} aria-hidden />
           </button>
           <p style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 'var(--text-base)', color: 'var(--color-text)' }}>
@@ -234,6 +252,7 @@ export function LembretesPage() {
           </button>
         </div>
 
+        {/* Cabeçalho dias da semana */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 2, marginBottom: 'var(--space-2)' }}>
           {DIAS_SEMANA.map(d => (
             <div key={d} style={{ textAlign: 'center', fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--color-text-muted)', padding: 'var(--space-1) 0' }}>
@@ -242,6 +261,7 @@ export function LembretesPage() {
           ))}
         </div>
 
+        {/* Grade de dias */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 2 }}>
           {Array.from({ length: primeiroDiaSemana }).map((_, i) => (
             <div key={`vazio-${i}`} />
@@ -255,31 +275,65 @@ export function LembretesPage() {
             const isSelecionado = key === diaSelecionado
             const temPendente = eventosPorDia[key]?.some(l => l.status === 'pendente')
             const temAtrasado = eventosPorDia[key]?.some(l => l.status === 'pendente' && isAtrasado(obterData(l)))
+            const temConcluido = eventosPorDia[key]?.every(l => l.status === 'concluido')
 
-            let bgDia = 'transparent'
-            let colorDia = 'var(--color-text)'
-            let borderDia = '1.5px solid transparent'
-
-            if (isSelecionado) {
-              bgDia = 'var(--color-primary)'
-              colorDia = '#fff'
-            } else if (isHoje) {
-              borderDia = '1.5px solid var(--color-primary)'
-              colorDia = 'var(--color-primary)'
-            }
-
-            const dotColor = temAtrasado
+            // Cor de destaque do dia com evento
+            const eventoColor = temAtrasado
               ? 'var(--color-error)'
               : temPendente
               ? 'var(--color-primary)'
               : 'var(--color-success)'
+
+            const eventoHighlight = temAtrasado
+              ? 'var(--color-error-highlight)'
+              : temPendente
+              ? 'var(--color-primary-highlight)'
+              : 'var(--color-success-highlight)'
+
+            // Prioridade de estilos: selecionado > hoje > com evento > normal
+            let bgDia: string
+            let colorDia: string
+            let borderDia: string
+            let fontWeight: number
+
+            if (isSelecionado) {
+              bgDia      = eventoColor
+              colorDia   = '#fff'
+              borderDia  = '1.5px solid transparent'
+              fontWeight = 700
+            } else if (isHoje && temEvento) {
+              bgDia      = eventoHighlight
+              colorDia   = eventoColor
+              borderDia  = `1.5px solid ${eventoColor}`
+              fontWeight = 700
+            } else if (isHoje) {
+              bgDia      = 'transparent'
+              colorDia   = 'var(--color-primary)'
+              borderDia  = '1.5px solid var(--color-primary)'
+              fontWeight = 700
+            } else if (temEvento) {
+              bgDia      = eventoHighlight
+              colorDia   = eventoColor
+              borderDia  = '1.5px solid transparent'
+              fontWeight = 600
+            } else {
+              bgDia      = 'transparent'
+              colorDia   = 'var(--color-text)'
+              borderDia  = '1.5px solid transparent'
+              fontWeight = 400
+            }
+
+            // Pequeno contador de eventos no canto (só quando há múltiplos)
+            const qtdEventos = eventosPorDia[key]?.length ?? 0
 
             return (
               <button
                 key={key}
                 onClick={() => handleDiaClick(dia)}
                 disabled={!temEvento}
-                aria-label={`${dia} de ${MESES[mesAtual]}${temEvento ? `, ${eventosPorDia[key].length} evento(s)` : ''}`}
+                aria-label={`${dia} de ${MESES[mesAtual]}${
+                  temEvento ? `, ${qtdEventos} evento${qtdEventos !== 1 ? 's' : ''}` : ''
+                }`}
                 aria-pressed={isSelecionado}
                 style={{
                   position: 'relative',
@@ -287,35 +341,62 @@ export function LembretesPage() {
                   flexDirection: 'column',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: 2,
-                  padding: 'var(--space-2) var(--space-1)',
+                  gap: 1,
+                  padding: 'var(--space-1)',
                   borderRadius: 'var(--radius-md)',
                   border: borderDia,
                   background: bgDia,
                   color: colorDia,
                   cursor: temEvento ? 'pointer' : 'default',
-                  minHeight: 40,
+                  minHeight: 44,
                   fontSize: 'var(--text-xs)',
-                  fontWeight: isHoje || isSelecionado ? 700 : 400,
+                  fontWeight,
+                  transition: 'background 150ms ease, color 150ms ease, border-color 150ms ease',
                 }}
               >
-                {dia}
-                {temEvento && (
+                <span>{dia}</span>
+                {temEvento && qtdEventos > 1 && (
                   <span
                     aria-hidden
                     style={{
-                      width: 5, height: 5,
+                      fontSize: 9,
+                      fontWeight: 700,
+                      color: isSelecionado ? 'rgba(255,255,255,0.85)' : eventoColor,
+                      lineHeight: 1,
+                    }}
+                  >
+                    {qtdEventos}
+                  </span>
+                )}
+                {temEvento && qtdEventos === 1 && (
+                  <span
+                    aria-hidden
+                    style={{
+                      width: 4, height: 4,
                       borderRadius: 'var(--radius-full)',
-                      background: isSelecionado ? 'rgba(255,255,255,0.8)' : dotColor,
+                      background: isSelecionado ? 'rgba(255,255,255,0.7)' : eventoColor,
                       flexShrink: 0,
                     }}
                   />
+                )}
+                {/* Badge de concluído (check) quando todos os eventos do dia estão concluídos */}
+                {temConcluido && !isSelecionado && (
+                  <span
+                    aria-hidden
+                    style={{
+                      position: 'absolute', top: 2, right: 3,
+                      fontSize: 8, color: 'var(--color-success)', fontWeight: 800, lineHeight: 1,
+                    }}
+                  >
+                    ✓
+                  </span>
                 )}
               </button>
             )
           })}
         </div>
 
+        {/* Detalhe do dia selecionado */}
         {diaSelecionado && eventosDiaSelecionado.length > 0 && (
           <div style={{ marginTop: 'var(--space-4)', borderTop: '1px solid var(--color-divider)', paddingTop: 'var(--space-4)' }}>
             <p style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 'var(--space-3)' }}>
@@ -364,6 +445,7 @@ export function LembretesPage() {
         )}
       </div>
 
+      {/* Filtros */}
       <div style={{ display: 'flex', gap: 'var(--space-2)', marginBottom: 'var(--space-5)', overflowX: 'auto', paddingBottom: 2 }} role="group" aria-label="Filtrar lembretes">
         {FILTROS.map(f => (
           <button
@@ -437,6 +519,7 @@ export function LembretesPage() {
         </div>
       )}
 
+      {/* Modal novo lembrete */}
       {modalAberto && (
         <div
           style={{

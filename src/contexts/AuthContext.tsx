@@ -10,15 +10,27 @@
  *   O register() SEMPRE salva DOB/NOME/SEXO em sessionStorage.
  *   O login() lê essas chaves após autenticar e cria o membro se
  *   o usuário ainda não tiver nenhum, depois limpa as chaves.
+ *
+ * logout():
+ *   Limpa o JWT, os caches de membros/vacinas/registros e o dado de
+ *   sessão do usuário — garantindo que ao relogar a UI parta do zero
+ *   e o router redirecione para /login via RequireAuth.
  */
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react'
 import type { Sexo, TipoCalendario, Usuario } from '@/types'
 import { apiFetch, setToken, clearToken, getToken, wakeUpBack } from '@/services/api'
 
-const SESSION_KEY = 'vf_session'
-const DOB_KEY     = 'vf_reg_dob'
-const NOME_KEY    = 'vf_reg_nome'
-const SEXO_KEY    = 'vf_reg_sexo'
+const SESSION_KEY   = 'vf_session'
+const DOB_KEY       = 'vf_reg_dob'
+const NOME_KEY      = 'vf_reg_nome'
+const SEXO_KEY      = 'vf_reg_sexo'
+
+/** Chaves de cache que devem ser limpas ao fazer logout. */
+const CACHE_KEYS = [
+  'vf_membros_cache',
+  'vf_vacinas_cache',
+  'vf_registros_cache',
+]
 
 function lerSessao(): Usuario | null {
   try {
@@ -188,7 +200,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   function logout() {
+    // 1. Invalida o JWT
     clearToken()
+    // 2. Limpa todos os caches de dados do usuário
+    CACHE_KEYS.forEach(k => {
+      try { sessionStorage.removeItem(k) } catch { /* noop */ }
+    })
+    // 3. Limpa a sessão persistida
+    salvarSessao(null)
+    // 4. Dispara re-render — RequireAuth detecta !isAuthenticated e
+    //    redireciona para /login automaticamente
     setUsuario(null)
   }
 
