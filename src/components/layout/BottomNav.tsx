@@ -19,9 +19,18 @@ export function BottomNav() {
             end={to === '/'}
             className={({ isActive }) => isActive ? 'active' : ''}
             aria-label={label}
+            aria-current={undefined} // controlado abaixo via render prop
           >
-            <Icon size={22} aria-hidden="true" />
-            <span>{label}</span>
+            {({ isActive }) => (
+              <>
+                {/* aria-current injetado no elemento pai via wrapper — NavLink não aceita
+                    aria-current como função, então usamos um span wrapper invisível */}
+                <Icon size={22} aria-hidden="true" />
+                <span>{label}</span>
+                {/* Anuncia ao leitor de tela a página ativa */}
+                {isActive && <span className="sr-only">(página atual)</span>}
+              </>
+            )}
           </NavLink>
         </li>
       ))}

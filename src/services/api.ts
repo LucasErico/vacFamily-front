@@ -1,7 +1,9 @@
 /**
  * api.ts — cliente HTTP central
- * Todas as chamadas ao backend passam por aqui.
- * O JWT é lido de sessionStorage (chave vf_token) e injetado automaticamente.
+ * - JWT injetado automaticamente via sessionStorage (chave vf_token)
+ * - wakeUpBack(): acorda o back no Render free tier, retorna Promise<boolean>
+ * - apiFetch(): retry automático (até 3×, backoff 1s/2s) para erros de rede
+ *   causados pelo cold start do Render (~30s)
  */
 
 const BASE_URL = import.meta.env.VITE_API_URL ?? 'https://vacfamily-back.onrender.com'
@@ -22,21 +24,37 @@ export function clearToken(): void {
 
 /**
  * Acorda o back no Render (free tier hiberna após inatividade).
- * Fire-and-forget: não bloqueia nada, não falha se offline.
+ * Retorna true se o back respondeu, false se ainda dormindo/offline.
+ * Timeout de 35s para cobrir o cold start típico do Render.
  */
-export function wakeUpBack(): void {
-  fetch(`${BASE_URL}/health`, { method: 'GET' }).catch(() => { /* noop — offline ou back dormindo */ })
+export async function wakeUpBack(): Promise<boolean> {
+  try {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 35_000)
+    const res = await fetch(`${BASE_URL}/health`, {
+      method: 'GET',
+      signal: controller.signal,
+    })
+    clearTimeout(timeout)
+    return res.ok
+  } catch {
+    return false
+  }
 }
+
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
 interface ApiOptions extends Omit<RequestInit, 'body'> {
   body?: unknown
+  /** Número máximo de tentativas em caso de erro de rede. Padrão: 3 */
+  retries?: number
 }
 
 export async function apiFetch<T = unknown>(
   path: string,
   options: ApiOptions = {},
 ): Promise<T> {
-  const { body, headers: extraHeaders, ...rest } = options
+  const { body, headers: extraHeaders, retries = 3, ...rest } = options
   const token = getToken()
 
   const headers: Record<string, string> = {
@@ -45,31 +63,54 @@ export async function apiFetch<T = unknown>(
   }
   if (token) headers['Authorization'] = `Bearer ${token}`
 
-  const res = await fetch(`${BASE_URL}${path}`, {
-    ...rest,
-    headers,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  })
-
-  if (!res.ok) {
-    let message = `Erro ${res.status}`
+  let attempt = 0
+  while (attempt < retries) {
     try {
-      const err = await res.json()
-      // Back retorna { errors: { campo: [msg] } } nos 400 do Zod
-      if (err.errors && typeof err.errors === 'object') {
-        const primeiroCampo = Object.keys(err.errors)[0]
-        const msgs = err.errors[primeiroCampo]
-        message = Array.isArray(msgs) && msgs.length > 0
-          ? `${primeiroCampo}: ${msgs[0]}`
-          : message
-      } else {
-        message = err.message ?? err.erro ?? message
+      const res = await fetch(`${BASE_URL}${path}`, {
+        ...rest,
+        headers,
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+      })
+
+      if (!res.ok) {
+        let message = `Erro ${res.status}`
+        try {
+          const err = await res.json()
+          if (err.errors && typeof err.errors === 'object') {
+            const primeiroCampo = Object.keys(err.errors)[0]
+            const msgs = err.errors[primeiroCampo]
+            message = Array.isArray(msgs) && msgs.length > 0
+              ? `${primeiroCampo}: ${msgs[0]}`
+              : message
+          } else {
+            message = err.message ?? err.erro ?? message
+          }
+        } catch { /* ignora body não-JSON */ }
+        throw new Error(message)
       }
-    } catch { /* ignora body não-JSON */ }
-    throw new Error(message)
+
+      // 204 No Content
+      if (res.status === 204) return undefined as T
+      return res.json() as Promise<T>
+
+    } catch (err) {
+      const isNetworkError = err instanceof TypeError && (
+        (err as TypeError).message.includes('fetch') ||
+        (err as TypeError).message.includes('network') ||
+        (err as TypeError).message.includes('Failed')
+      )
+
+      // Só faz retry em erros de rede (cold start), não em erros HTTP (4xx/5xx)
+      const isHttpError = err instanceof Error &&
+        /^Erro (4|5)\d{2}/.test((err as Error).message)
+
+      attempt++
+      if (!isNetworkError || isHttpError || attempt >= retries) throw err
+
+      // Backoff: 1s na 1ª tentativa, 2s na 2ª
+      await sleep(attempt * 1_000)
+    }
   }
 
-  // 204 No Content
-  if (res.status === 204) return undefined as T
-  return res.json() as Promise<T>
+  throw new Error('Sem resposta do servidor após várias tentativas.')
 }

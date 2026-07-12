@@ -50,9 +50,15 @@ export function Sidebar() {
               to={to}
               end={to === '/'}
               className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}
+              aria-current={undefined} // controlado via render prop abaixo
             >
-              <Icon size={18} aria-hidden />
-              {label}
+              {({ isActive }) => (
+                <>
+                  <Icon size={18} aria-hidden />
+                  {label}
+                  {isActive && <span className="sr-only">(página atual)</span>}
+                </>
+              )}
             </NavLink>
           ))}
         </nav>
