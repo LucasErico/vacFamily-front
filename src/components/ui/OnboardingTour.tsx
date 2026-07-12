@@ -20,29 +20,29 @@ const SLIDES = [
   {
     icon: <Users size={36} aria-hidden />,
     title: 'Família',
-    desc: 'Cadastre todos os membros da sua família — filhos, cônjuge, pais. Cada membro terá seu próprio perfil vacinal independente.',
+    desc: 'Cadastre os membros da família — filhos, cônjuge, pais. Cada perfil tem seus dados de nascimento, sexo e relação de parentesco.',
   },
   {
     icon: <Syringe size={36} aria-hidden />,
     title: 'Vacinas',
-    desc: 'Veja o calendário vacinal de cada membro e registre doses aplicadas. O sistema identifica vacinas em atraso e próximas doses automaticamente.',
+    desc: 'Registre doses aplicadas para cada membro. O sistema identifica automaticamente vacinas em atraso e gera lembretes de reforço com base nas regras do calendário vacinal.',
   },
   {
     icon: <CalendarDays size={36} aria-hidden />,
     title: 'Agenda',
-    desc: 'Acompanhe os lembretes de vacinas futuras. O app gera alertas de reforço automaticamente com base nas vacinas já registradas.',
+    desc: 'Visualize lembretes em um calendário mensal. Dias com eventos ficam destacados — clique em qualquer dia para ver detalhes. Reforços automáticos e lembretes manuais ficam listados abaixo.',
   },
   {
     icon: <ClipboardList size={36} aria-hidden />,
     title: 'Histórico',
-    desc: 'Consulte o histórico completo de vacinas de cada membro da família, com datas e detalhes de cada dose aplicada.',
+    desc: 'Consulte a linha do tempo vacinal de cada membro, organizada por ciclo de vida (Infância, Adolescência, Adulto…). Filtre por ciclo ou busque pelo nome da vacina.',
   },
   {
     icon: (
       <div aria-hidden style={{ fontSize: 36, lineHeight: 1 }}>✅</div>
     ),
     title: 'Tudo pronto!',
-    desc: 'Agora você já conhece o VacFamily. Comece cadastrando os membros da sua família e registrando as primeiras vacinas.',
+    desc: 'Comece cadastrando os membros da família e registrando as primeiras vacinas. Use o painel de acessibilidade (ícone ♿) para ajustar tema, fonte e leitura em voz alta.',
   },
 ]
 
