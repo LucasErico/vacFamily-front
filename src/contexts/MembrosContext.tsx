@@ -2,9 +2,10 @@
  * MembrosContext — CRUD real via API backend
  * Endpoints: GET|POST /membros  |  GET|PUT|DELETE /membros/:id
  *
- * O backend usa snake_case. Este contexto abstrai essa diferença:
- * o form passa um CriarMembroPayload (já em snake_case) e
- * o contexto envia diretamente para a API.
+ * Cache stale-while-revalidate em sessionStorage (chave vf_membros_cache):
+ *   - Exibe dado cacheado imediatamente ao montar (zero flash de lista vazia)
+ *   - Revalida em segundo plano e atualiza a UI quando a resposta chega
+ *   - Cache é inválido ao fazer logout (clearToken limpa a sessão)
  */
 import {
   createContext, useContext, useState, useCallback,
@@ -13,6 +14,19 @@ import {
 import type { MembroFamiliar, CriarMembroPayload, Relacao } from '@/types'
 import { apiFetch } from '@/services/api'
 import { useAuth } from './AuthContext'
+
+const CACHE_KEY = 'vf_membros_cache'
+
+function lerCache(): MembroFamiliar[] {
+  try {
+    const raw = sessionStorage.getItem(CACHE_KEY)
+    return raw ? (JSON.parse(raw) as MembroFamiliar[]) : []
+  } catch { return [] }
+}
+
+function salvarCache(membros: MembroFamiliar[]) {
+  try { sessionStorage.setItem(CACHE_KEY, JSON.stringify(membros)) } catch { /* noop */ }
+}
 
 interface MembrosContextValue {
   membros: MembroFamiliar[]
@@ -28,7 +42,9 @@ const MembrosContext = createContext<MembrosContextValue | null>(null)
 
 export function MembrosProvider({ children }: { children: ReactNode }) {
   const { isAuthenticated } = useAuth()
-  const [membros, setMembros] = useState<MembroFamiliar[]>([])
+
+  // Inicializa com cache para evitar flash de lista vazia
+  const [membros, setMembros] = useState<MembroFamiliar[]>(lerCache)
   const [carregando, setCarregando] = useState(false)
 
   const recarregar = useCallback(async () => {
@@ -36,9 +52,11 @@ export function MembrosProvider({ children }: { children: ReactNode }) {
     setCarregando(true)
     try {
       const res = await apiFetch<{ membros: MembroFamiliar[] }>('/membros')
-      setMembros(Array.isArray(res) ? res : (res.membros ?? []))
+      const lista = Array.isArray(res) ? res : (res.membros ?? [])
+      setMembros(lista)
+      salvarCache(lista)
     } catch {
-      // mantém estado atual em caso de erro de rede
+      // Rede indisponível: mantém o cache atual (já carregado no estado)
     } finally {
       setCarregando(false)
     }
@@ -49,10 +67,14 @@ export function MembrosProvider({ children }: { children: ReactNode }) {
   const adicionarMembro = useCallback(async (dados: CriarMembroPayload) => {
     const res = await apiFetch<{ membro: MembroFamiliar } | MembroFamiliar>('/membros', {
       method: 'POST',
-      body: dados, // já em snake_case
+      body: dados,
     })
     const novo = 'membro' in res ? res.membro : res
-    setMembros(prev => [...prev, novo])
+    setMembros(prev => {
+      const lista = [...prev, novo]
+      salvarCache(lista)
+      return lista
+    })
     return novo
   }, [])
 
@@ -65,12 +87,20 @@ export function MembrosProvider({ children }: { children: ReactNode }) {
       body: dados,
     })
     const atualizado = 'membro' in res ? res.membro : res
-    setMembros(prev => prev.map(m => m.id === id ? atualizado : m))
+    setMembros(prev => {
+      const lista = prev.map(m => m.id === id ? atualizado : m)
+      salvarCache(lista)
+      return lista
+    })
   }, [])
 
   const removerMembro = useCallback(async (id: string) => {
     await apiFetch(`/membros/${id}`, { method: 'DELETE' })
-    setMembros(prev => prev.filter(m => m.id !== id))
+    setMembros(prev => {
+      const lista = prev.filter(m => m.id !== id)
+      salvarCache(lista)
+      return lista
+    })
   }, [])
 
   const buscarMembro = useCallback(

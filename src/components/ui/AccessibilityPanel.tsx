@@ -1,10 +1,14 @@
 /**
  * AccessibilityPanel
  * Painel lateral: reset, contraste, fonte, TTS, visão de cores.
- * Tema removido daqui — fica exclusivamente na TopBar.
- * Cabeçalho fixo + corpo com scroll interno + botão voltar ao topo.
+ *
+ * Acessibilidade (WCAG 2.1):
+ *   - role="dialog" + aria-modal="true" + aria-label
+ *   - Trap de foco real: Tab/Shift+Tab cicla apenas entre elementos focusáveis do painel
+ *   - Foco inicial no botão de fechar ao abrir
+ *   - Escape fecha o painel e devolve foco ao elemento que o abriu
  */
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useCallback } from 'react'
 import {
   X, ZoomIn, Volume2, VolumeX,
   Contrast, Type, Eye, RotateCcw,
@@ -31,6 +35,16 @@ const COLOR_BLIND_OPTIONS: { value: ColorBlindMode; label: string; desc: string 
   { value: 'acromatopsia', label: 'Acromatopsia', desc: 'Não distingue cores' },
 ]
 
+/** Retorna todos os elementos focusáveis dentro de um container. */
+function getFocusable(container: HTMLElement): HTMLElement[] {
+  return Array.from(
+    container.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), ' +
+      'textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    ),
+  ).filter(el => !el.closest('[hidden]') && getComputedStyle(el).display !== 'none')
+}
+
 export function AccessibilityPanel({ onClose }: Props) {
   const {
     altoContraste, fontScale, ttsAtivo, colorBlindMode,
@@ -38,20 +52,62 @@ export function AccessibilityPanel({ onClose }: Props) {
     setColorBlindMode, resetA11y,
   } = useA11y()
 
-  const panelRef = useRef<HTMLDivElement>(null)
+  const panelRef  = useRef<HTMLDivElement>(null)
+  const closeRef  = useRef<HTMLButtonElement>(null)
+  // Guarda o elemento que tinha foco antes de abrir o painel
+  const triggerRef = useRef<HTMLElement | null>(null)
+
   const {
     ref: bodyRef,
     visible: showScrollTop,
     scrollToTop,
   } = useScrollTop<HTMLDivElement>({ threshold: 80 })
 
-  useEffect(() => {
-    panelRef.current?.focus()
-    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    document.addEventListener('keydown', handleKey)
-    return () => document.removeEventListener('keydown', handleKey)
+  // Trap de foco: Tab/Shift+Tab cicla apenas dentro do painel
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      onClose()
+      return
+    }
+    if (e.key !== 'Tab' || !panelRef.current) return
+
+    const focusable = getFocusable(panelRef.current)
+    if (focusable.length === 0) return
+
+    const first = focusable[0]
+    const last  = focusable[focusable.length - 1]
+
+    if (e.shiftKey) {
+      // Shift+Tab no primeiro → vai para o último
+      if (document.activeElement === first) {
+        e.preventDefault()
+        last.focus()
+      }
+    } else {
+      // Tab no último → volta para o primeiro
+      if (document.activeElement === last) {
+        e.preventDefault()
+        first.focus()
+      }
+    }
   }, [onClose])
 
+  useEffect(() => {
+    // Salva o elemento que abriu o painel para devolver foco ao fechar
+    triggerRef.current = document.activeElement as HTMLElement
+
+    // Foco inicial no botão fechar
+    closeRef.current?.focus()
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+      // Devolve foco ao elemento disparador
+      triggerRef.current?.focus()
+    }
+  }, [handleKeyDown])
+
+  // Fecha ao clicar fora do painel
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
       if (panelRef.current && !panelRef.current.contains(e.target as Node)) onClose()
@@ -122,6 +178,7 @@ export function AccessibilityPanel({ onClose }: Props) {
             Acessibilidade
           </h2>
           <button
+            ref={closeRef}
             className="theme-toggle"
             onClick={onClose}
             aria-label="Fechar painel de acessibilidade"

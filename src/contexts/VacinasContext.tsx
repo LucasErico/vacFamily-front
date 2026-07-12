@@ -1,20 +1,15 @@
 /**
  * VacinasContext
  *
+ * Cache stale-while-revalidate em sessionStorage:
+ *   vf_vacinas_cache   — lista pública de vacinas (imutável por sessão)
+ *   vf_registros_cache — registros vacinais dos membros
+ *
  * Fontes de dado:
  *   GET /vacinas                     → lista de vacinas do banco (tabela pública)
  *   GET /registros/membro/:membroId  → registros vacinais do membro
  *   POST /registros/membro/:membroId → registrar dose
  *   DELETE /registros/:id            → remover registro
- *
- * Regras de status:
- *   - dose com registro (data passada)  → 'aplicada'  → Histórico
- *   - dose sem registro                 → 'pendente'
- *   - dose fora da faixa etária        → 'nao_aplicavel'
- *
- * isAtrasada (VacinaMembroPage):
- *   Dose pendente com dataRecomendada passada + membro com < IDADE_MAX_RETROATIVA_DIAS.
- *   Vacinas intermitentes nunca são marcadas como atrasadas.
  */
 import {
   createContext, useContext, useState, useCallback,
@@ -25,18 +20,33 @@ import { apiFetch } from '@/services/api'
 import { useAuth } from './AuthContext'
 import { useMembros } from './MembrosContext'
 
-/** Limite (dias) até o qual doses passadas sem registro são 'atrasadas'. ~2 anos. */
 export const IDADE_MAX_RETROATIVA_DIAS = 730
 
-/**
- * Mapeamento de tipo_calendario do membro → faixas etárias permitidas nas vacinas.
- * Uma vacina só é exibida ao membro se sua faixa_etaria tiver ao menos
- * uma interseção com as faixas permitidas para o tipo de calendário.
- *
- * 'intermitente' é incluído em TODOS os tipos de calendário:
- * vacinas intermitentes (campanhas, condições especiais) são visíveis
- * a toda a população, independente de faixa etária ou ciclo de vida.
- */
+const VACINAS_CACHE_KEY   = 'vf_vacinas_cache'
+const REGISTROS_CACHE_KEY = 'vf_registros_cache'
+
+function lerCacheVacinas(): Vacina[] {
+  try {
+    const raw = sessionStorage.getItem(VACINAS_CACHE_KEY)
+    return raw ? (JSON.parse(raw) as Vacina[]) : []
+  } catch { return [] }
+}
+
+function lerCacheRegistros(): RegistroVacinal[] {
+  try {
+    const raw = sessionStorage.getItem(REGISTROS_CACHE_KEY)
+    return raw ? (JSON.parse(raw) as RegistroVacinal[]) : []
+  } catch { return [] }
+}
+
+function salvarCacheVacinas(v: Vacina[]) {
+  try { sessionStorage.setItem(VACINAS_CACHE_KEY, JSON.stringify(v)) } catch { /* noop */ }
+}
+
+function salvarCacheRegistros(r: RegistroVacinal[]) {
+  try { sessionStorage.setItem(REGISTROS_CACHE_KEY, JSON.stringify(r)) } catch { /* noop */ }
+}
+
 const FAIXAS_POR_CALENDARIO: Record<TipoCalendario, FaixaEtaria[]> = {
   infantil:    ['recem_nascido', 'crianca', 'todas', 'intermitente'],
   adolescente: ['adolescente', 'adulto', 'todas', 'intermitente'],
@@ -46,14 +56,12 @@ const FAIXAS_POR_CALENDARIO: Record<TipoCalendario, FaixaEtaria[]> = {
   especial:    ['recem_nascido', 'crianca', 'adolescente', 'adulto', 'gestante', 'idoso', 'todas', 'intermitente'],
 }
 
-/** Retorna true se a vacina é compatível com o tipo de calendário do membro. */
 export function vacinaCompativel(vacina: Vacina, tipoCalendario: TipoCalendario): boolean {
   if (!Array.isArray(vacina.faixa_etaria) || vacina.faixa_etaria.length === 0) return true
   const faixasPermitidas = FAIXAS_POR_CALENDARIO[tipoCalendario] ?? ['todas']
   return vacina.faixa_etaria.some(f => faixasPermitidas.includes(f))
 }
 
-/** Retorna true se a vacina é do tipo intermitente (campanha / condição especial). */
 function isVacinaIntermitente(vacina: Vacina): boolean {
   return Array.isArray(vacina.faixa_etaria) && vacina.faixa_etaria.includes('intermitente')
 }
@@ -70,13 +78,10 @@ function calcularStatusDose(
   registros: RegistroVacinal[],
   idadeEmDias: number,
 ): StatusDose {
-  // Vacinas intermitentes não têm vínculo de idade com o membro:
-  // campanhas e condições especiais são sempre aplicáveis, independente da idade.
   if (!isVacinaIntermitente(vacina)) {
     const idadeMin = vacina.idade_minima_dias ?? 0
     if (idadeEmDias < idadeMin - 30) return 'nao_aplicavel'
   }
-
   const registro = registros.find(
     r => r.vacina_id === vacina.id && r.numero_dose === numeroDose,
   )
@@ -84,12 +89,6 @@ function calcularStatusDose(
   return 'pendente'
 }
 
-/**
- * Calcula o status de cada dose de uma vacina para um membro.
- *
- * @param tipoCalendario - tipo_calendario do membro. Se informado, doses de vacinas
- *   incompatíveis com o calendário retornam 'nao_aplicavel' automaticamente.
- */
 export function calcularDosesStatus(
   vacina: Vacina,
   registros: RegistroVacinal[],
@@ -99,12 +98,7 @@ export function calcularDosesStatus(
   const idadeEmDias = calcularIdadeEmDias(dataNascimento)
   const hoje = new Date().toISOString().slice(0, 10)
   const intermitente = isVacinaIntermitente(vacina)
-
-  // Se o calendário foi informado e a vacina não é compatível, todas as doses
-  // ficam 'nao_aplicavel' — elas serão filtradas antes de exibir ao usuário.
   const incompativel = tipoCalendario != null && !vacinaCompativel(vacina, tipoCalendario)
-
-  // Tenta obter o intervalo padrão entre doses (em dias) via intervalos_por_fabricante
   const intervaloDias = vacina.intervalos_por_fabricante
     ? (Object.values(vacina.intervalos_por_fabricante)[0] ?? 30)
     : 30
@@ -117,9 +111,6 @@ export function calcularDosesStatus(
     const registro = registros.find(
       r => r.vacina_id === vacina.id && r.numero_dose === numeroDose,
     )
-
-    // Vacinas intermitentes não têm data recomendada vinculada à idade do membro.
-    // Usamos hoje como referência para não exibir datas baseadas em nascimento.
     let dataRecomendada: string
     if (intermitente) {
       dataRecomendada = new Date(
@@ -132,9 +123,7 @@ export function calcularDosesStatus(
         new Date(dataNascimento).getTime() + dataRecomendadaDias * 86400000,
       ).toISOString().slice(0, 10)
     }
-
     const isHistorico = status === 'aplicada' && (registro?.data_aplicacao ?? '') <= hoje
-
     return {
       vacinaId: vacina.id,
       vacina,
@@ -147,14 +136,6 @@ export function calcularDosesStatus(
   })
 }
 
-/**
- * Determina se uma dose pendente deve ser exibida como 'atrasada'.
- * Só marca como atrasada se:
- *  1. status === 'pendente'
- *  2. dataRecomendada já passou
- *  3. membro tem < IDADE_MAX_RETROATIVA_DIAS
- *  4. vacina NÃO é intermitente (campanhas não têm vínculo de data/idade)
- */
 export function isAtrasada(
   dose: DoseStatus,
   dataNascimento: string,
@@ -163,7 +144,6 @@ export function isAtrasada(
   if (dose.status !== 'pendente') return false
   if (!dose.dataRecomendada) return false
   if (dose.dataRecomendada >= hoje) return false
-  // Vacinas intermitentes nunca são "atrasadas" — não têm vínculo de data com idade
   if (dose.vacina.faixa_etaria.includes('intermitente')) return false
   return calcularIdadeEmDias(dataNascimento) <= IDADE_MAX_RETROATIVA_DIAS
 }
@@ -188,21 +168,36 @@ export function VacinasProvider({ children }: { children: ReactNode }) {
   const { isAuthenticated } = useAuth()
   const { membros } = useMembros()
 
-  const [vacinas, setVacinas] = useState<Vacina[]>([])
-  const [registros, setRegistros] = useState<RegistroVacinal[]>([])
+  // Inicializa com cache
+  const [vacinas, setVacinas]     = useState<Vacina[]>(lerCacheVacinas)
+  const [registros, setRegistros] = useState<RegistroVacinal[]>(lerCacheRegistros)
   const [carregando, setCarregando] = useState(false)
 
-  // String estável para evitar loop infinito no useEffect
   const membrosIds = membros.map(m => m.id).join(',')
 
-  // Carrega vacinas do banco (público, sem auth)
+  // Carrega vacinas do banco (público, sem auth) — só se cache vazio
   useEffect(() => {
+    if (vacinas.length > 0) {
+      // Cache já tem dados: revalida em segundo plano sem bloquear UI
+      apiFetch<{ vacinas: Vacina[] }>('/vacinas')
+        .then(res => {
+          const lista = Array.isArray(res) ? res : (res.vacinas ?? [])
+          setVacinas(lista)
+          salvarCacheVacinas(lista)
+        })
+        .catch(() => { /* mantém cache */ })
+      return
+    }
     apiFetch<{ vacinas: Vacina[] }>('/vacinas')
-      .then(res => setVacinas(Array.isArray(res) ? res : (res.vacinas ?? [])))
+      .then(res => {
+        const lista = Array.isArray(res) ? res : (res.vacinas ?? [])
+        setVacinas(lista)
+        salvarCacheVacinas(lista)
+      })
       .catch(() => { /* mantém lista vazia */ })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Carrega registros de todos os membros em paralelo
   const recarregar = useCallback(async () => {
     if (!isAuthenticated || !membrosIds) return
     setCarregando(true)
@@ -215,8 +210,10 @@ export function VacinasProvider({ children }: { children: ReactNode }) {
             .catch(() => [] as RegistroVacinal[])
         )
       )
-      setRegistros(resultados.flat())
-    } catch { /* mantém estado offline */ } finally {
+      const lista = resultados.flat()
+      setRegistros(lista)
+      salvarCacheRegistros(lista)
+    } catch { /* mantém cache */ } finally {
       setCarregando(false)
     }
   }, [isAuthenticated, membrosIds])
@@ -228,32 +225,31 @@ export function VacinasProvider({ children }: { children: ReactNode }) {
     gerarLembrete?: GerarLembreteReforcoFn,
   ) => {
     const payload: Record<string, unknown> = {
-      vacina_id: dados.vacina_id,
-      numero_dose: Number(dados.numero_dose),
+      vacina_id:      dados.vacina_id,
+      numero_dose:    Number(dados.numero_dose),
       data_aplicacao: dados.data_aplicacao,
     }
-    if (dados.local_aplicacao) payload.local_aplicacao = dados.local_aplicacao
-    if (dados.fabricante)      payload.fabricante      = dados.fabricante
-    if (dados.lote)            payload.lote            = dados.lote
-    if (dados.dose_zero != null) payload.dose_zero     = dados.dose_zero
-    if (dados.observacoes)     payload.observacoes     = dados.observacoes
+    if (dados.local_aplicacao)  payload.local_aplicacao = dados.local_aplicacao
+    if (dados.fabricante)       payload.fabricante      = dados.fabricante
+    if (dados.lote)             payload.lote            = dados.lote
+    if (dados.dose_zero != null) payload.dose_zero      = dados.dose_zero
+    if (dados.observacoes)      payload.observacoes     = dados.observacoes
 
     const res = await apiFetch<{ registro: RegistroVacinal } | RegistroVacinal>(
       `/registros/membro/${dados.membro_id}`,
       { method: 'POST', body: payload },
     )
     const novo = 'registro' in res ? res.registro : res
-
     const novoNormalizado: RegistroVacinal = {
       ...novo,
       membro_id: (novo as unknown as Record<string, unknown>).membro_familiar_id as string ?? novo.membro_id ?? dados.membro_id,
     }
+    setRegistros(prev => {
+      const lista = [...prev, novoNormalizado]
+      salvarCacheRegistros(lista)
+      return lista
+    })
 
-    setRegistros(prev => [...prev, novoNormalizado])
-
-    // Só gera lembrete de reforço se a dose foi APLICADA (data passada).
-    // Doses agendadas (data futura) não disparam lembrete para a dose seguinte —
-    // o lembrete da própria dose já foi criado em RegistrarVacinaPage.
     if (gerarLembrete) {
       const vacina = vacinas.find(v => v.id === dados.vacina_id)
       if (vacina && dados.numero_dose < vacina.doses_total) {
@@ -271,7 +267,11 @@ export function VacinasProvider({ children }: { children: ReactNode }) {
 
   const removerRegistro = useCallback(async (id: string) => {
     await apiFetch(`/registros/${id}`, { method: 'DELETE' })
-    setRegistros(prev => prev.filter(r => r.id !== id))
+    setRegistros(prev => {
+      const lista = prev.filter(r => r.id !== id)
+      salvarCacheRegistros(lista)
+      return lista
+    })
   }, [])
 
   const buscarRegistrosMembro = useCallback(
