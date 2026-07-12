@@ -2,7 +2,7 @@
  * RegisterPage — /cadastro
  *
  * Integrado com o backend real:
- *  POST /auth/register  { nome, email, senha }
+ *  POST /auth/register  { nome, email, senha, data_nascimento }
  *  - requiresVerification true  → navega para /verificar-email
  *  - requiresVerification false → já logado, navega para /
  */
@@ -47,26 +47,33 @@ function avaliarSenha(senha: string): ForcaSenha {
   return { nivel, label: NIVEIS[nivel].label, cor: NIVEIS[nivel].cor, sugestoes }
 }
 
+// ── Data máxima = hoje (não permite datas futuras) ────────────
+const hoje = new Date().toISOString().slice(0, 10)
+
 export function RegisterPage() {
   const { register } = useAuth()
   const navigate = useNavigate()
 
-  const [nome, setNome]                     = useState('')
-  const [email, setEmail]                   = useState('')
-  const [senha, setSenha]                   = useState('')
-  const [confirmar, setConfirmar]           = useState('')
-  const [mostrarSenha, setMostrarSenha]     = useState(false)
+  const [nome, setNome]                         = useState('')
+  const [email, setEmail]                       = useState('')
+  const [dataNascimento, setDataNascimento]     = useState('')
+  const [senha, setSenha]                       = useState('')
+  const [confirmar, setConfirmar]               = useState('')
+  const [mostrarSenha, setMostrarSenha]         = useState(false)
   const [mostrarConfirmar, setMostrarConfirmar] = useState(false)
-  const [erro, setErro]                     = useState('')
-  const [carregando, setCarregando]         = useState(false)
+  const [erro, setErro]                         = useState('')
+  const [carregando, setCarregando]             = useState(false)
 
   const forca = senha ? avaliarSenha(senha) : null
   const senhasDiferem = confirmar && senha !== confirmar
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    if (!nome.trim() || !email.trim() || !senha || !confirmar) {
+    if (!nome.trim() || !email.trim() || !dataNascimento || !senha || !confirmar) {
       setErro('Preencha todos os campos.'); return
+    }
+    if (dataNascimento > hoje) {
+      setErro('A data de nascimento não pode ser futura.'); return
     }
     if (senha.length < 8) { setErro('A senha deve ter ao menos 8 caracteres.'); return }
     if (senha !== confirmar) { setErro('As senhas não coincidem.'); return }
@@ -74,7 +81,7 @@ export function RegisterPage() {
 
     setErro('')
     setCarregando(true)
-    const result = await register(nome.trim(), email.trim().toLowerCase(), senha)
+    const result = await register(nome.trim(), email.trim().toLowerCase(), senha, dataNascimento)
     setCarregando(false)
 
     if (!result.ok) {
@@ -83,7 +90,9 @@ export function RegisterPage() {
     }
 
     if (result.requiresVerification) {
-      navigate('/verificar-email', { state: { email: email.trim().toLowerCase() } })
+      navigate('/verificar-email', {
+        state: { email: email.trim().toLowerCase(), dataNascimento, nome: nome.trim() },
+      })
     } else {
       navigate('/', { replace: true })
     }
@@ -118,6 +127,7 @@ export function RegisterPage() {
           </h2>
 
           <form onSubmit={handleSubmit} noValidate style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+
             {/* Nome */}
             <div>
               <label htmlFor="nome" style={labelStyle}>Nome completo</label>
@@ -132,6 +142,20 @@ export function RegisterPage() {
               <input id="email" type="email" autoComplete="email" value={email}
                 onChange={e => setEmail(e.target.value)} placeholder="seu@email.com"
                 className="input-field" />
+            </div>
+
+            {/* Data de nascimento */}
+            <div>
+              <label htmlFor="data-nascimento" style={labelStyle}>Data de nascimento</label>
+              <input
+                id="data-nascimento"
+                type="date"
+                autoComplete="bday"
+                value={dataNascimento}
+                onChange={e => setDataNascimento(e.target.value)}
+                max={hoje}
+                className="input-field"
+              />
             </div>
 
             {/* Senha + medidor */}
