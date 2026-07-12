@@ -49,7 +49,17 @@ interface Ciclo {
   idadeMaxAnos: number
 }
 
+// ATENÇÃO: a ordem deste array define a ordem de renderização na caderneta
+// e no histórico. 'intermitente' é listado primeiro pois campanhas e condições
+// especiais são relevantes a todos os membros independente de faixa etária.
 const CICLOS: Ciclo[] = [
+  {
+    id: 'intermitente', label: 'Especiais / Campanhas',
+    descricao: 'Vacinas de campanha e condições especiais, indicadas a todos independente de faixa etária.',
+    faixas: ['intermitente'], cor: '#5b6a82',
+    corBg: 'oklch(from #5b6a82 l c h / 0.08)', corBorda: 'oklch(from #5b6a82 l c h / 0.22)',
+    idadeMinAnos: 0, idadeMaxAnos: 120,
+  },
   {
     id: 'pre_natal', label: 'Pré-Natal',
     descricao: 'Vacinas indicadas durante a gestação para proteger mãe e bebê.',
@@ -91,13 +101,6 @@ const CICLOS: Ciclo[] = [
     faixas: ['idoso'], cor: '#7a39bb',
     corBg: 'oklch(from #7a39bb l c h / 0.08)', corBorda: 'oklch(from #7a39bb l c h / 0.22)',
     idadeMinAnos: 60, idadeMaxAnos: 120,
-  },
-  {
-    id: 'intermitente', label: 'Especiais / Campanhas',
-    descricao: 'Vacinas de campanha e condições especiais, indicadas a todos independente de faixa etária.',
-    faixas: ['intermitente'], cor: '#5b6a82',
-    corBg: 'oklch(from #5b6a82 l c h / 0.08)', corBorda: 'oklch(from #5b6a82 l c h / 0.22)',
-    idadeMinAnos: 0, idadeMaxAnos: 120,
   },
 ]
 
