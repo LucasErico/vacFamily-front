@@ -62,6 +62,8 @@ export function LembretesProvider({ children }: { children: ReactNode }) {
       descricao: raw.descricao as string | undefined,
       data_prevista,
       automatico: (raw.automatico as boolean) ?? false,
+      // Inclui numero_dose no payload para que o backend persista e retorne o campo
+      numero_dose: raw.numero_dose as number | undefined,
     }
 
     const res = await apiFetch<{ lembrete: Lembrete } | Lembrete>('/lembretes', {
@@ -69,6 +71,12 @@ export function LembretesProvider({ children }: { children: ReactNode }) {
       body: payload,
     })
     const novo = normalizarLembrete('lembrete' in res ? res.lembrete : res)
+
+    // Garante que numero_dose fica no objeto local mesmo se o backend não retornar o campo
+    if (novo.numero_dose == null && payload.numero_dose != null) {
+      novo.numero_dose = payload.numero_dose
+    }
+
     setLembretes(prev => [...prev, novo])
     return novo
   }, [])

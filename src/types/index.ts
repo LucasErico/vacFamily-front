@@ -131,6 +131,7 @@ export interface Lembrete {
   // Aliases de compatibilidade temporária no front
   membro_id?: string
   data_lembrete?: string
+  /** Número da dose associada ao lembrete — enviado no payload e retornado pelo backend */
   numero_dose?: number
 }
 
@@ -142,6 +143,8 @@ export interface CriarLembretePayload {
   descricao?: string
   data_prevista: string
   automatico?: boolean
+  /** Número da dose para identificar lembrete único por vacina+dose+membro */
+  numero_dose?: number
 }
 
 export interface DoseStatus {

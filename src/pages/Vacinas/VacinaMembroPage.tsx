@@ -114,6 +114,7 @@ function lembreteVacinal(
     titulo: `Dose ${numeroDose} — lembrete automático`,
     data_prevista: dataPrevista,
     automatico: true,
+    numero_dose: numeroDose,
   }
 }
 
@@ -293,12 +294,6 @@ function styleBtnStatus(_s: string, ativo: boolean, cor?: string): React.CSSProp
 /**
  * Retorna true quando o ciclo já foi superado pelo membro — ou seja,
  * o botão "Confirmar todas" deve ser exibido.
- *
- * Regras:
- * - pre_natal: sempre precedeu o membro atual (a gestação já passou),
- *   pois a faixa 'gestante' não é derivada da idade e o ciclo nunca
- *   seria encerrado pela comparação de idadeMaxAnos (50 anos).
- * - demais ciclos: a idade do membro já superou a idade máxima do ciclo.
  */
 function cicloPrecedeMembro(ciclo: Ciclo, idadeAnos: number): boolean {
   if (ciclo.id === 'pre_natal') return true
@@ -425,8 +420,9 @@ export function VacinaMembroPage() {
       (mId, vId, nDose, dataProxima) => { adicionarLembrete(lembreteVacinal(vId, mId, nDose, dataProxima)) }
     )
     const lembreteExistente = lembretes.find(l =>
-      l.membro_id === membroSelecionadoId && l.vacina_id === modal.dose.vacinaId &&
-      l.numero_dose === modal.dose.numeroDose && l.status === 'pendente'
+      (l.membro_id ?? l.membro_familiar_id) === membroSelecionadoId &&
+      l.vacina_id === modal.dose.vacinaId &&
+      temLembretePendente(modal.dose.vacinaId, modal.dose.numeroDose)
     )
     if (lembreteExistente) removerLembrete(lembreteExistente.id)
     setModal({ tipo: 'nenhum' }); setDataConfirm(hoje); setLocalConfirm(''); setErroConfirm('')
@@ -476,29 +472,48 @@ export function VacinaMembroPage() {
     if (!dataLembrete) { setErroLembrete('Informe a data do lembrete.'); return }
     if (modal.tipo !== 'lembreteManual') return
 
+    // Guarda referência antes de fechar o modal
+    const { dose, vacinaNome } = modal
+
     setSalvandoLembrete(true)
     try {
       await adicionarLembrete({
-        vacina_id: modal.dose.vacinaId,
+        vacina_id: dose.vacinaId,
         membro_familiar_id: membroSelecionadoId,
         tipo: 'manual',
-        titulo: `${modal.vacinaNome} — dose ${modal.dose.numeroDose}`,
+        titulo: `${vacinaNome} — dose ${dose.numeroDose}`,
         data_prevista: dataLembrete,
         automatico: false,
+        numero_dose: dose.numeroDose,
       })
-    } finally {
-      setSalvandoLembrete(false)
       setModal({ tipo: 'nenhum' })
       setDataLembrete('')
-      setBannerMsg(`🔔 Lembrete criado para ${modal.vacinaNome} — dose ${modal.dose.numeroDose}. Confira na Agenda.`)
+      setBannerMsg(`🔔 Lembrete criado para ${vacinaNome} — dose ${dose.numeroDose}. Confira na Agenda.`)
+    } catch {
+      setErroLembrete('Não foi possível salvar o lembrete. Tente novamente.')
+    } finally {
+      setSalvandoLembrete(false)
     }
   }
 
-  function temLembretePendente(vacinaId: string, numeroDose: number) {
-    return lembretes.some(l =>
-      l.membro_id === membroSelecionadoId && l.vacina_id === vacinaId &&
-      l.numero_dose === numeroDose && l.status === 'pendente'
-    )
+  /**
+   * Detecta lembrete pendente para uma vacina+dose+membro.
+   * Estratégia dupla para máxima compatibilidade:
+   *  1. Compara por numero_dose (campo novo, enviado no payload)
+   *  2. Fallback: compara por título ("NomeVacina — dose N") para lembretes
+   *     criados antes da inclusão do campo numero_dose
+   */
+  function temLembretePendente(vacinaId: string, numeroDose: number): boolean {
+    return lembretes.some(l => {
+      if (l.status !== 'pendente') return false
+      const membroOk = (l.membro_id ?? l.membro_familiar_id) === membroSelecionadoId
+      if (!membroOk) return false
+      if (l.vacina_id !== vacinaId) return false
+      // Estratégia 1: campo numero_dose disponível no objeto
+      if (l.numero_dose != null) return l.numero_dose === numeroDose
+      // Estratégia 2: fallback por título "... dose N"
+      return l.titulo.toLowerCase().includes(`dose ${numeroDose}`)
+    })
   }
 
   function buscarRegistroDose(vacinaId: string, numeroDose: number): RegistroVacinal | undefined {
@@ -760,14 +775,8 @@ export function VacinaMembroPage() {
                                         >
                                           <CheckCircle2 size={13} aria-hidden /> Tomada
                                         </button>
-                                        {/*
-                                          Botão lembrete:
-                                          - temLembrete=false → Bell (sino limpo), botão ativo → clique abre modal para criar
-                                          - temLembrete=true  → BellOff (sino riscado), botão desativado com tooltip informando que já existe
-                                        */}
                                         <button
                                           onClick={() => {
-                                            if (temLembrete) return
                                             setDataLembrete(dose.dataRecomendada ?? '')
                                             setErroLembrete('')
                                             setModal({ tipo: 'lembreteManual', dose, vacinaNome: vacina.nome })
