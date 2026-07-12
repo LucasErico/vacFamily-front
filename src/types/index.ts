@@ -67,6 +67,7 @@ export type FaixaEtaria =
   | 'adulto'
   | 'gestante'
   | 'idoso'
+  | 'intermitente'
   | 'todas'
 
 /**
