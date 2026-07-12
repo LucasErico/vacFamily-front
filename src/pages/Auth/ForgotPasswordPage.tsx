@@ -2,15 +2,18 @@
  * ForgotPasswordPage — /esqueci-senha
  *
  * Fluxo em 2 etapas:
- *  1. Usuário informa o email cadastrado → POST /auth/forgot-password
- *  2. Usuário digita o código de 6 dígitos + nova senha → POST /auth/reset-password
+ *  1. Usuário informa o e-mail cadastrado
+ *  2. Usuário digita a nova senha → POST /auth/reset-password { email, nova_senha }
+ *
+ * Obs.: fluxo simplificado para testes. Em produção o Supabase envia um
+ * link mágico e o access_token chega via hash na URL.
  */
-import { useState, useRef, type FormEvent, type KeyboardEvent } from 'react'
+import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Syringe, Eye, EyeOff, ArrowLeft, Mail, ShieldCheck } from 'lucide-react'
 import { apiFetch } from '@/services/api'
 
-type Etapa = 'email' | 'codigo'
+type Etapa = 'email' | 'senha'
 
 export function ForgotPasswordPage() {
   const navigate = useNavigate()
@@ -22,17 +25,16 @@ export function ForgotPasswordPage() {
   const [carregandoEmail, setCarregandoEmail] = useState(false)
 
   // Etapa 2
-  const [codigo, setCodigo] = useState(['', '', '', '', '', ''])
   const [novaSenha, setNovaSenha] = useState('')
+  const [confirmarSenha, setConfirmarSenha] = useState('')
   const [mostrarSenha, setMostrarSenha] = useState(false)
+  const [mostrarConfirmar, setMostrarConfirmar] = useState(false)
   const [erroReset, setErroReset] = useState('')
   const [carregandoReset, setCarregandoReset] = useState(false)
   const [sucesso, setSucesso] = useState(false)
 
-  const digitRefs = useRef<(HTMLInputElement | null)[]>([])
-
-  // ── Etapa 1: enviar e-mail ─────────────────────────────
-  async function handleEnviarEmail(e: FormEvent) {
+  // ── Etapa 1: confirmar e-mail ──────────────────────────
+  async function handleAvancar(e: FormEvent) {
     e.preventDefault()
     if (!email.trim()) { setErroEmail('Informe seu e-mail.'); return }
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -40,51 +42,22 @@ export function ForgotPasswordPage() {
     setErroEmail('')
     setCarregandoEmail(true)
     try {
+      // Sinaliza ao backend para iniciar o fluxo (fire-and-forget —
+      // não bloqueamos se falhar, pois a etapa 2 faz a operação real)
       await apiFetch('/auth/forgot-password', {
         method: 'POST',
         body: { email: email.trim().toLowerCase() },
       })
-    } catch {
-      // O backend sempre retorna 200 para não vazar se o e-mail existe.
-      // Qualquer erro de rede é ignorado silenciosamente — avançamos
-      // para a etapa 2 de qualquer forma.
-    } finally {
-      setCarregandoEmail(false)
-    }
-    setEtapa('codigo')
+    } catch { /* ignora — não vaza se email existe */ }
+    finally { setCarregandoEmail(false) }
+    setEtapa('senha')
   }
 
-  // ── Etapa 2: inputs de dígito ───────────────────────────
-  function handleDigit(index: number, value: string) {
-    const digit = value.replace(/\D/g, '').slice(-1)
-    const next = [...codigo]
-    next[index] = digit
-    setCodigo(next)
-    if (digit && index < 5) digitRefs.current[index + 1]?.focus()
-  }
-
-  function handleDigitKey(index: number, e: KeyboardEvent<HTMLInputElement>) {
-    if (e.key === 'Backspace' && !codigo[index] && index > 0) {
-      digitRefs.current[index - 1]?.focus()
-    }
-  }
-
-  function handleDigitPaste(e: React.ClipboardEvent) {
-    const text = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6)
-    if (!text) return
-    e.preventDefault()
-    const next = [...codigo]
-    text.split('').forEach((d, i) => { if (i < 6) next[i] = d })
-    setCodigo(next)
-    digitRefs.current[Math.min(text.length, 5)]?.focus()
-  }
-
-  // ── Etapa 2: confirmar reset ───────────────────────────
+  // ── Etapa 2: redefinir senha ───────────────────────────
   async function handleReset(e: FormEvent) {
     e.preventDefault()
-    const codigoCompleto = codigo.join('')
-    if (codigoCompleto.length < 6) { setErroReset('Digite o código completo de 6 dígitos.'); return }
-    if (novaSenha.length < 8) { setErroReset('A nova senha deve ter ao menos 8 caracteres.'); return }
+    if (novaSenha.length < 8) { setErroReset('A senha deve ter ao menos 8 caracteres.'); return }
+    if (novaSenha !== confirmarSenha) { setErroReset('As senhas não coincidem.'); return }
     setErroReset('')
     setCarregandoReset(true)
     try {
@@ -92,7 +65,6 @@ export function ForgotPasswordPage() {
         method: 'POST',
         body: {
           email: email.trim().toLowerCase(),
-          code: codigoCompleto,
           nova_senha: novaSenha,
         },
       })
@@ -100,10 +72,8 @@ export function ForgotPasswordPage() {
       setTimeout(() => navigate('/login'), 2500)
     } catch (err) {
       const msg = (err as Error).message ?? ''
-      if (msg.includes('expirado') || msg.includes('expired')) {
-        setErroReset('Código expirado. Solicite um novo código.')
-      } else if (msg.includes('inválido') || msg.includes('invalid') || msg.includes('400')) {
-        setErroReset('Código inválido. Verifique e tente novamente.')
+      if (msg.includes('não encontrado') || msg.includes('not found') || msg.includes('404')) {
+        setErroReset('E-mail não encontrado. Verifique e tente novamente.')
       } else {
         setErroReset('Erro ao redefinir a senha. Tente novamente.')
       }
@@ -112,13 +82,11 @@ export function ForgotPasswordPage() {
     }
   }
 
+  // ── Tela de sucesso ──────────────────────────────
   if (sucesso) {
     return (
       <AuthLayout titulo="Senha redefinida!" subtitulo="Você será redirecionado para o login.">
-        <div style={{
-          display: 'flex', flexDirection: 'column', alignItems: 'center',
-          gap: 'var(--space-4)', padding: 'var(--space-8)',
-        }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'var(--space-4)', padding: 'var(--space-8)' }}>
           <div style={{
             width: 64, height: 64, borderRadius: '50%',
             background: 'var(--color-success-highlight)',
@@ -137,6 +105,8 @@ export function ForgotPasswordPage() {
   return (
     <AuthLayout titulo="Recuperar acesso" subtitulo="Vamos redefinir sua senha">
       <div className="card">
+
+        {/* Cabeçalho com botão voltar */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-6)' }}>
           <Link
             to="/login"
@@ -145,15 +115,14 @@ export function ForgotPasswordPage() {
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               width: 36, height: 36, borderRadius: 'var(--radius-md)',
               border: '1px solid var(--color-border)',
-              color: 'var(--color-text-muted)',
-              flexShrink: 0,
+              color: 'var(--color-text-muted)', flexShrink: 0,
             }}
           >
             <ArrowLeft size={16} aria-hidden />
           </Link>
           <div>
             <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'var(--text-lg)', fontWeight: 700, color: 'var(--color-text)' }}>
-              {etapa === 'email' ? 'Esqueci minha senha' : 'Verificar código'}
+              {etapa === 'email' ? 'Esqueci minha senha' : 'Nova senha'}
             </h2>
             <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginTop: 2 }}>
               Etapa {etapa === 'email' ? '1' : '2'} de 2
@@ -161,9 +130,9 @@ export function ForgotPasswordPage() {
           </div>
         </div>
 
-        {/* ── Etapa 1: email ── */}
+        {/* ── Etapa 1: e-mail ── */}
         {etapa === 'email' && (
-          <form onSubmit={handleEnviarEmail} noValidate style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+          <form onSubmit={handleAvancar} noValidate style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
             <div style={{
               display: 'flex', gap: 'var(--space-3)', alignItems: 'flex-start',
               padding: 'var(--space-3) var(--space-4)',
@@ -172,7 +141,7 @@ export function ForgotPasswordPage() {
             }}>
               <Mail size={16} style={{ color: 'var(--color-primary)', marginTop: 2, flexShrink: 0 }} aria-hidden />
               <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text)', lineHeight: 1.5 }}>
-                Enviaremos um código de 6 dígitos para o e-mail cadastrado.
+                Informe o e-mail da sua conta para continuar.
               </p>
             </div>
 
@@ -194,14 +163,14 @@ export function ForgotPasswordPage() {
             </div>
 
             <button type="submit" disabled={carregandoEmail} className="btn btn-primary" style={{ width: '100%' }}>
-              {carregandoEmail ? 'Enviando…' : 'Enviar código'}
+              {carregandoEmail ? 'Verificando…' : 'Continuar'}
             </button>
           </form>
         )}
 
-        {/* ── Etapa 2: código + nova senha ── */}
-        {etapa === 'codigo' && (
-          <form onSubmit={handleReset} noValidate style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
+        {/* ── Etapa 2: nova senha ── */}
+        {etapa === 'senha' && (
+          <form onSubmit={handleReset} noValidate style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
             <div style={{
               padding: 'var(--space-3) var(--space-4)',
               background: 'var(--color-surface-offset)',
@@ -209,51 +178,16 @@ export function ForgotPasswordPage() {
               fontSize: 'var(--text-sm)',
               color: 'var(--color-text-muted)',
             }}>
-              Código enviado para <strong style={{ color: 'var(--color-text)' }}>{email}</strong>
+              Redefinindo senha para{' '}
+              <strong style={{ color: 'var(--color-text)' }}>{email}</strong>
               {' '}·{' '}
               <button
                 type="button"
-                onClick={() => { setEtapa('email'); setCodigo(['','','','','','']); setErroReset('') }}
+                onClick={() => { setEtapa('email'); setErroReset(''); setNovaSenha(''); setConfirmarSenha('') }}
                 style={{ color: 'var(--color-primary)', fontWeight: 600, fontSize: 'inherit', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
               >
-                Alterar e-mail
+                Alterar
               </button>
-            </div>
-
-            {/* Inputs de 6 dígitos */}
-            <div>
-              <label style={labelStyle}>Código de verificação</label>
-              <div
-                style={{ display: 'flex', gap: 'var(--space-2)', justifyContent: 'center' }}
-                onPaste={handleDigitPaste}
-              >
-                {codigo.map((d, i) => (
-                  <input
-                    key={i}
-                    ref={el => { digitRefs.current[i] = el }}
-                    type="text"
-                    inputMode="numeric"
-                    maxLength={1}
-                    value={d}
-                    onChange={e => handleDigit(i, e.target.value)}
-                    onKeyDown={e => handleDigitKey(i, e)}
-                    aria-label={`Dígito ${i + 1} do código`}
-                    style={{
-                      width: 44, height: 52,
-                      textAlign: 'center',
-                      fontSize: 'var(--text-lg)',
-                      fontWeight: 700,
-                      borderRadius: 'var(--radius-md)',
-                      border: `2px solid ${d ? 'var(--color-primary)' : 'var(--color-border)'}`,
-                      background: 'var(--color-bg)',
-                      color: 'var(--color-text)',
-                      outline: 'none',
-                      transition: 'border-color 150ms ease',
-                      fontFamily: 'inherit',
-                    }}
-                  />
-                ))}
-              </div>
             </div>
 
             {/* Nova senha */}
@@ -270,13 +204,28 @@ export function ForgotPasswordPage() {
                   className="input-field"
                   style={{ paddingRight: 'var(--space-12)' }}
                 />
-                <button
-                  type="button"
-                  onClick={() => setMostrarSenha(v => !v)}
-                  aria-label={mostrarSenha ? 'Ocultar senha' : 'Mostrar senha'}
-                  style={showBtnStyle}
-                >
+                <button type="button" onClick={() => setMostrarSenha(v => !v)} aria-label={mostrarSenha ? 'Ocultar senha' : 'Mostrar senha'} style={showBtnStyle}>
                   {mostrarSenha ? <EyeOff size={18} aria-hidden /> : <Eye size={18} aria-hidden />}
+                </button>
+              </div>
+            </div>
+
+            {/* Confirmar senha */}
+            <div>
+              <label htmlFor="confirmar-senha" style={labelStyle}>Confirmar senha</label>
+              <div style={{ position: 'relative' }}>
+                <input
+                  id="confirmar-senha"
+                  type={mostrarConfirmar ? 'text' : 'password'}
+                  autoComplete="new-password"
+                  value={confirmarSenha}
+                  onChange={e => setConfirmarSenha(e.target.value)}
+                  placeholder="Repita a nova senha"
+                  className="input-field"
+                  style={{ paddingRight: 'var(--space-12)' }}
+                />
+                <button type="button" onClick={() => setMostrarConfirmar(v => !v)} aria-label={mostrarConfirmar ? 'Ocultar confirmação' : 'Mostrar confirmação'} style={showBtnStyle}>
+                  {mostrarConfirmar ? <EyeOff size={18} aria-hidden /> : <Eye size={18} aria-hidden />}
                 </button>
               </div>
             </div>
@@ -287,23 +236,12 @@ export function ForgotPasswordPage() {
 
             <button
               type="submit"
-              disabled={carregandoReset || codigo.join('').length < 6 || novaSenha.length < 8}
+              disabled={carregandoReset || novaSenha.length < 8 || !confirmarSenha}
               className="btn btn-primary"
               style={{ width: '100%' }}
             >
-              {carregandoReset ? 'Redefinindo…' : 'Redefinir senha'}
+              {carregandoReset ? 'Salvando…' : 'Redefinir senha'}
             </button>
-
-            <p style={{ textAlign: 'center', fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
-              Não recebeu o código?{' '}
-              <button
-                type="button"
-                onClick={() => handleEnviarEmail({ preventDefault: () => {} } as FormEvent)}
-                style={{ color: 'var(--color-primary)', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 'inherit' }}
-              >
-                Reenviar
-              </button>
-            </p>
           </form>
         )}
       </div>
@@ -311,7 +249,7 @@ export function ForgotPasswordPage() {
   )
 }
 
-// ── Sub-componente de layout compartilhado ──────────────────
+// ── Layout compartilhado ───────────────────────────────
 function AuthLayout({ titulo, subtitulo, children }: { titulo: string; subtitulo: string; children: React.ReactNode }) {
   return (
     <div style={{ minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 'var(--space-4)', background: 'var(--color-bg)' }}>
