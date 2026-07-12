@@ -1,6 +1,7 @@
 /**
- * InfoCarousel — v3
+ * InfoCarousel — v4
  * Carrossel de cards informativos no Dashboard.
+ * Dados carregados de forma assíncrona da API pública /conteudo.
  *
  * Layout: seta esquerda | conteúdo | seta direita
  * - Ícone 32 px, título bold/lg, descrição sm
@@ -17,7 +18,7 @@ import {
   Heart, Baby, Star, Stethoscope, Activity,
   ClipboardList, CalendarCheck, AlertTriangle, BookOpen, Smile,
 } from 'lucide-react'
-import { getCards, type CardConteudo } from '@/services/adminStorage'
+import { getCardsPublicos, type CardConteudo } from '@/services/adminStorage'
 
 const ICONS: Record<string, React.ReactNode> = {
   ShieldCheck:    <ShieldCheck    size={32} aria-hidden />,
@@ -49,8 +50,9 @@ export function InfoCarousel() {
   const timerRef              = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
-    const ativos = getCards().filter(c => c.ativo).sort((a, b) => a.ordem - b.ordem)
-    setCards(ativos)
+    getCardsPublicos()
+      .then(setCards)
+      .catch(() => setCards([]))   // silencia erro; carrossel simplesmente não aparece
   }, [])
 
   const total = cards.length
@@ -230,7 +232,7 @@ export function InfoCarousel() {
               aria-label="Selecionar card"
               style={{ display: 'flex', gap: '6px', alignItems: 'center' }}
             >
-              {cards.map((c, i) => (
+              {cards.map((c: CardConteudo, i: number) => (
                 <button
                   key={c.id}
                   role="tab"

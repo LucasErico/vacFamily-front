@@ -1,15 +1,23 @@
 /**
  * AdminOverviewPage — /admin
  * Visão geral: totais de usuários e cards ativos.
+ * Cards carregados de forma assíncrona da API /conteudo/admin.
  */
-import { useMemo } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Users, Newspaper, Database } from 'lucide-react'
-import { getSnapshotUsuarios, getCards } from '@/services/adminStorage'
+import { getSnapshotUsuarios, getCardsAdmin, type CardConteudo } from '@/services/adminStorage'
 
 export function AdminOverviewPage() {
   const usuarios = useMemo(() => getSnapshotUsuarios(), [])
-  const cards = useMemo(() => getCards(), [])
-  const cardsAtivos = cards.filter(c => c.ativo).length
+  const [cards, setCards] = useState<CardConteudo[]>([])
+
+  useEffect(() => {
+    getCardsAdmin()
+      .then(setCards)
+      .catch(() => setCards([]))
+  }, [])
+
+  const cardsAtivos = cards.filter((c: CardConteudo) => c.ativo).length
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-8)' }}>
@@ -35,18 +43,18 @@ export function AdminOverviewPage() {
         <AdminKpi icon={Database}  label="Cards totais"         value={cards.length} />
       </div>
 
-      {/* Aviso */}
+      {/* Info */}
       <div style={{
         padding: 'var(--space-4) var(--space-5)',
         borderRadius: 'var(--radius-lg)',
-        background: 'var(--color-warning-highlight)',
-        border: '1px solid var(--color-warning)',
+        background: 'var(--color-primary-highlight)',
+        border: '1px solid var(--color-primary)',
         fontSize: 'var(--text-sm)',
-        color: 'var(--color-warning)',
+        color: 'var(--color-primary)',
         lineHeight: 1.6,
       }}>
-        <strong>Dados locais:</strong> Esta versão usa localStorage como persistência temporária.
-        Ao integrar o back-end, substitua as funções em <code>adminStorage.ts</code> por chamadas de API.
+        <strong>Dados em tempo real:</strong> Os cards são carregados diretamente do banco via API.
+        Alterações feitas na aba <em>Cards do carrossel</em> refletem imediatamente para todos os usuários.
       </div>
     </div>
   )
