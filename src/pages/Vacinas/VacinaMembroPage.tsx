@@ -409,6 +409,33 @@ export function VacinaMembroPage() {
     })).filter(g => g.vacinas.length > 0)
   }, [vacinasPorCiclo, filtroCiclo, busca, filtroStatus])
 
+  /**
+   * Set memoizado de chaves "vacinaId:numeroDose" para todos os lembretes
+   * pendentes do membro atual. Recalcula sempre que `lembretes` mudar,
+   * garantindo re-render imediato do botão após adicionarLembrete resolver.
+   */
+  const lembretesMembroSet = useMemo(() => {
+    const set = new Set<string>()
+    for (const l of lembretes) {
+      if (l.status !== 'pendente') continue
+      const membroOk = (l.membro_id ?? l.membro_familiar_id) === membroSelecionadoId
+      if (!membroOk || !l.vacina_id) continue
+
+      if (l.numero_dose != null) {
+        set.add(`${l.vacina_id}:${l.numero_dose}`)
+      } else {
+        // Fallback: extrai número do título "... dose N"
+        const match = l.titulo.toLowerCase().match(/dose (\d+)/)
+        if (match) set.add(`${l.vacina_id}:${match[1]}`)
+      }
+    }
+    return set
+  }, [lembretes, membroSelecionadoId])
+
+  function temLembretePendente(vacinaId: string, numeroDose: number): boolean {
+    return lembretesMembroSet.has(`${vacinaId}:${numeroDose}`)
+  }
+
   function handleMarcarTomada() {
     if (!dataConfirm) { setErroConfirm('Informe a data de aplicação.'); return }
     if (dataConfirm > hoje) { setErroConfirm('A data não pode ser futura para uma dose já tomada.'); return }
@@ -486,6 +513,8 @@ export function VacinaMembroPage() {
         automatico: false,
         numero_dose: dose.numeroDose,
       })
+      // Fecha o modal somente após o await resolver para que lembretesMembroSet
+      // já esteja atualizado no próximo render e o botão apareça travado
       setModal({ tipo: 'nenhum' })
       setDataLembrete('')
       setBannerMsg(`🔔 Lembrete criado para ${vacinaNome} — dose ${dose.numeroDose}. Confira na Agenda.`)
@@ -494,26 +523,6 @@ export function VacinaMembroPage() {
     } finally {
       setSalvandoLembrete(false)
     }
-  }
-
-  /**
-   * Detecta lembrete pendente para uma vacina+dose+membro.
-   * Estratégia dupla para máxima compatibilidade:
-   *  1. Compara por numero_dose (campo novo, enviado no payload)
-   *  2. Fallback: compara por título ("NomeVacina — dose N") para lembretes
-   *     criados antes da inclusão do campo numero_dose
-   */
-  function temLembretePendente(vacinaId: string, numeroDose: number): boolean {
-    return lembretes.some(l => {
-      if (l.status !== 'pendente') return false
-      const membroOk = (l.membro_id ?? l.membro_familiar_id) === membroSelecionadoId
-      if (!membroOk) return false
-      if (l.vacina_id !== vacinaId) return false
-      // Estratégia 1: campo numero_dose disponível no objeto
-      if (l.numero_dose != null) return l.numero_dose === numeroDose
-      // Estratégia 2: fallback por título "... dose N"
-      return l.titulo.toLowerCase().includes(`dose ${numeroDose}`)
-    })
   }
 
   function buscarRegistroDose(vacinaId: string, numeroDose: number): RegistroVacinal | undefined {
@@ -777,6 +786,7 @@ export function VacinaMembroPage() {
                                         </button>
                                         <button
                                           onClick={() => {
+                                            if (temLembrete) return
                                             setDataLembrete(dose.dataRecomendada ?? '')
                                             setErroLembrete('')
                                             setModal({ tipo: 'lembreteManual', dose, vacinaNome: vacina.nome })
@@ -786,10 +796,11 @@ export function VacinaMembroPage() {
                                           style={{
                                             minHeight: 32,
                                             padding: 'var(--space-1) var(--space-2)',
-                                            color: temLembrete ? 'var(--color-text-faint)' : 'var(--color-text-muted)',
-                                            background: 'transparent',
+                                            color: temLembrete ? 'var(--color-primary)' : 'var(--color-text-muted)',
+                                            background: temLembrete ? 'var(--color-primary-highlight)' : 'transparent',
+                                            border: temLembrete ? '1px solid var(--color-primary-highlight)' : '1px solid transparent',
                                             borderRadius: 'var(--radius-md)',
-                                            opacity: temLembrete ? 0.5 : 1,
+                                            opacity: temLembrete ? 0.75 : 1,
                                             cursor: temLembrete ? 'not-allowed' : 'pointer',
                                             transition: 'all 150ms',
                                           }}
